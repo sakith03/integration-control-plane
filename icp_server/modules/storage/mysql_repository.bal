@@ -16,12 +16,118 @@
 
 import icp_server.types as types;
 
+import ballerina/cache;
 import ballerina/log;
 import ballerina/sql;
 import ballerina/time;
 
 final DatabaseConnectionManager dbManager = check new (dbType);
 final sql:Client dbClient = dbManager.getClient();
+
+// Cache for storing runtime hash values
+final cache:Cache hashCache = new (capacity = 1000, evictionFactor = 0.2);
+
+// Process delta heartbeat with hash validation
+public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbeat) returns types:HeartbeatResponse|error {
+    // Validate delta heartbeat data
+    if deltaHeartbeat.runtimeId.trim().length() == 0 {
+        return error("Runtime ID cannot be empty");
+    }
+
+    time:Utc currentTime = time:utcNow();
+    types:ControlCommand[] pendingCommands = [];
+    boolean hashMatches = false;
+
+    if hashCache.hasKey(deltaHeartbeat.runtimeId) {
+        any|error cachedHash = hashCache.get(deltaHeartbeat.runtimeId);
+        hashMatches = cachedHash is string && cachedHash == deltaHeartbeat.runtimeHash;
+        log:printInfo(string `Hash for runtime ${deltaHeartbeat.runtimeId} matches: ${hashMatches}`);
+    }
+
+    if !hashMatches {
+        // Hash doesn't match or runtime not in cache, request full heartbeat
+        log:printInfo(string `Hash mismatch for runtime ${deltaHeartbeat.runtimeId}, requesting full heartbeat`);
+
+        // Still update the timestamp to show runtime is alive
+        transaction {
+            sql:ExecutionResult _ = check dbClient->execute(`
+                UPDATE runtimes 
+                SET last_heartbeat = ${currentTime}
+                WHERE runtime_id = ${deltaHeartbeat.runtimeId}
+            `);
+
+            check commit;
+        } on fail error e {
+            log:printError(string `Failed to update timestamp for runtime ${deltaHeartbeat.runtimeId}`, e);
+            return error(string `Failed to process delta heartbeat for runtime ${deltaHeartbeat.runtimeId}`, e);
+        }
+
+        return {
+            acknowledged: true,
+            fullHeartbeatRequired: true,
+            commands: []
+        };
+    }
+
+    // Hash matches, process delta heartbeat
+    transaction {
+        // Update only the heartbeat timestamp
+        sql:ExecutionResult _ = check dbClient->execute(`
+            UPDATE runtimes 
+            SET last_heartbeat = ${currentTime}
+            WHERE runtime_id = ${deltaHeartbeat.runtimeId}
+        `);
+
+        // Retrieve pending control commands for this runtime
+        stream<types:ControlCommand, sql:Error?> commandStream = dbClient->query(`
+            SELECT command_id, runtime_id, target_artifact, action, issued_at, status
+            FROM control_commands 
+            WHERE runtime_id = ${deltaHeartbeat.runtimeId} 
+            AND status = 'pending'
+            ORDER BY issued_at ASC
+        `);
+
+        check from types:ControlCommand command in commandStream
+            do {
+                pendingCommands.push(command);
+            };
+
+        // Mark retrieved commands as 'sent'
+        if pendingCommands.length() > 0 {
+            foreach types:ControlCommand command in pendingCommands {
+                _ = check dbClient->execute(`
+                    UPDATE control_commands 
+                    SET status = 'sent' 
+                    WHERE command_id = ${command.commandId}
+                `);
+            }
+        }
+
+        // Create audit log entry
+        _ = check dbClient->execute(`
+            INSERT INTO audit_logs (
+                runtime_id, action, details, timestamp
+            ) VALUES (
+                ${deltaHeartbeat.runtimeId}, 'DELTA_HEARTBEAT', 
+                ${string `Delta heartbeat processed with hash ${deltaHeartbeat.runtimeHash}`},
+                ${currentTime}
+            )
+        `);
+
+        check commit;
+        log:printInfo(string `Successfully processed delta heartbeat for runtime ${deltaHeartbeat.runtimeId}`);
+
+    } on fail error e {
+        log:printError(string `Failed to process delta heartbeat for runtime ${deltaHeartbeat.runtimeId}`, e);
+        return error(string `Failed to process delta heartbeat for runtime ${deltaHeartbeat.runtimeId}`, e);
+    }
+
+    return {
+        acknowledged: true,
+        fullHeartbeatRequired: false,
+        commands: pendingCommands
+    };
+}
 
 // Heartbeat processing that handles both registration and updates
 public isolated function processHeartbeat(types:Heartbeat heartbeat) returns types:HeartbeatResponse|error {
@@ -195,6 +301,14 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
         // In case of error, the transaction block is rolled back automatically.
         log:printError(string `Failed to process heartbeat for runtime ${heartbeat.runtimeId}`, e);
         return error(string `Failed to process heartbeat for runtime ${heartbeat.runtimeId}`, e);
+    }
+
+    // Cache the runtime hash value after successful processing (outside transaction)
+    error? cacheResult = hashCache.put(heartbeat.runtimeId, heartbeat.runtimeHash);
+    if cacheResult is error {
+        log:printWarn(string `Failed to cache runtime hash for ${heartbeat.runtimeId}`, cacheResult);
+    } else {
+        log:printDebug(string `Cached runtime hash for ${heartbeat.runtimeId}: ${heartbeat.runtimeHash}`);
     }
 
     // Return heartbeat response with pending commands (outside transaction)

@@ -26,12 +26,11 @@ listener http:Listener httpListener = new (serverPort, config = {host: serverHos
 // Runtime management service
 service /icp on httpListener {
 
-    // Process heartbeat from runtime - now handles both registration and updates
+    // Process heartbeat from runtime
     isolated resource function post heartbeat(types:Heartbeat heartbeat) returns types:HeartbeatResponse|error? {
         do {
             // Process heartbeat using the repository (handles both registration and updates)
             types:HeartbeatResponse heartbeatResponse = check storage:processHeartbeat(heartbeat);
-
             return heartbeatResponse;
 
         } on fail error e {
@@ -39,6 +38,26 @@ service /icp on httpListener {
             log:printError("Failed to process heartbeat", e);
             types:HeartbeatResponse errorResponse = {
                 acknowledged: false,
+                commands: []
+            };
+
+            return errorResponse;
+        }
+    }
+
+    // Process delta heartbeat from runtime
+    isolated resource function post deltaHeartbeat(types:DeltaHeartbeat deltaHeartbeat) returns types:HeartbeatResponse|error? {
+        do {
+            // Process delta heartbeat using the repository
+            types:HeartbeatResponse heartbeatResponse = check storage:processDeltaHeartbeat(deltaHeartbeat);
+            return heartbeatResponse;
+
+        } on fail error e {
+            // Return error response
+            log:printError("Failed to process delta heartbeat", e);
+            types:HeartbeatResponse errorResponse = {
+                acknowledged: false,
+                fullHeartbeatRequired: true,
                 commands: []
             };
 

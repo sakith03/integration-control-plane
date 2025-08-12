@@ -112,7 +112,7 @@ public type RuntimeRegistrationRequest record {
 };
 
 // Heartbeat that includes all runtime information for registration/updates
-public type Heartbeat record {
+public type Heartbeat record {|
     string runtimeId;
     RuntimeType runtimeType;
     RuntimeStatus status;
@@ -121,8 +121,16 @@ public type Heartbeat record {
     string version?;
     Node nodeInfo;
     Artifacts artifacts;
+    string runtimeHash;
     time:Utc timestamp;
-};
+|};
+
+// Delta heartbeat with hash value
+public type DeltaHeartbeat record {|
+    string runtimeId;
+    string runtimeHash;
+    time:Utc timestamp;
+|};
 
 // === ICP Control Types ===
 
@@ -137,6 +145,7 @@ public type ControlCommand record {
 
 public type HeartbeatResponse record {
     boolean acknowledged;
+    boolean fullHeartbeatRequired?;
     ControlCommand[] commands?;
 };
 
