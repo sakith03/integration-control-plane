@@ -30,6 +30,164 @@ final cache:Cache hashCache = new (capacity = 1000, evictionFactor = 0.2);
 // Heartbeat timeout in seconds from main module config
 configurable int heartbeatTimeoutSeconds = 300;
 
+// Get all runtimes with optional filtering
+public isolated function getRuntimes(string? status, string? runtimeType, string? environment) returns types:Runtime[]|error {
+    types:Runtime[] runtimeList = [];
+    sql:ParameterizedQuery whereClause = ` WHERE 1=1 `;
+    sql:ParameterizedQuery whereConditions = ` `;
+    if status is string {
+        whereConditions = sql:queryConcat(whereConditions, ` AND status = ${status} `);
+    } else if runtimeType is string {
+        whereConditions = sql:queryConcat(whereConditions, ` AND runtime_type = ${runtimeType} `);
+    } else if environment is string {
+        whereConditions = sql:queryConcat(whereConditions, ` AND environment = ${environment} `);
+    }
+    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment, deployment_type, version, 
+                 platform_name, platform_version, platform_home, os_name, os_version, 
+                 registration_time, last_heartbeat FROM runtimes `;
+    sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC `;
+    sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
+    stream<types:RuntimeRecord, sql:Error?> runtimeStream = dbClient->query(query);
+
+    check from types:RuntimeRecord runtimeRecord in runtimeStream
+        do {
+            types:Runtime runtime = check mapToRuntime(runtimeRecord);
+            runtimeList.push(runtime);
+        };
+
+    return runtimeList;
+}
+
+// Get a specific runtime by ID
+public isolated function getRuntimeById(string runtimeId) returns types:Runtime?|error {
+    stream<types:RuntimeRecord, sql:Error?> runtimeStream = dbClient->query(`
+        SELECT runtime_id, runtime_type, status, environment, deployment_type, version, 
+               platform_name, platform_version, platform_home, os_name, os_version, 
+               registration_time, last_heartbeat 
+        FROM runtimes 
+        WHERE runtime_id = ${runtimeId}
+    `);
+
+    types:RuntimeRecord[] runtimeRecords = check from types:RuntimeRecord runtimeRecord in runtimeStream
+        select runtimeRecord;
+
+    if runtimeRecords.length() == 0 {
+        return ();
+    }
+
+    return check mapToRuntime(runtimeRecords[0]);
+}
+
+// Get services for a specific runtime
+public isolated function getServicesForRuntime(string runtimeId) returns types:Service[]|error {
+    types:Service[] serviceList = [];
+    stream<types:ServiceRecordInDB, sql:Error?> serviceStream = dbClient->query(`
+        SELECT service_name, service_package, base_path, state 
+        FROM runtime_services 
+        WHERE runtime_id = ${runtimeId}
+    `);
+
+    check from types:ServiceRecordInDB serviceRecord in serviceStream
+        do {
+            types:Service serviceItem = check mapToService(serviceRecord, runtimeId);
+            serviceList.push(serviceItem);
+        };
+
+    return serviceList;
+}
+
+// Get listeners for a specific runtime
+public isolated function getListenersForRuntime(string runtimeId) returns types:Listener[]|error {
+    types:Listener[] listenerList = [];
+    stream<types:ListenerRecordInDB, sql:Error?> listenerStream = dbClient->query(`
+        SELECT listener_name, listener_package, protocol, state 
+        FROM runtime_listeners 
+        WHERE runtime_id = ${runtimeId}
+    `);
+
+    check from types:ListenerRecordInDB listenerRecord in listenerStream
+        do {
+            types:Listener listenerItem = {
+                name: listenerRecord.listener_name,
+                package: listenerRecord.listener_package,
+                protocol: listenerRecord.protocol,
+                state: listenerRecord.state
+            };
+            listenerList.push(listenerItem);
+        };
+
+    return listenerList;
+}
+
+// Helper function to map database record to Runtime type
+public isolated function mapToRuntime(types:RuntimeRecord runtimeRecord) returns types:Runtime|error {
+    // Get services for this runtime
+    types:Service[] serviceList = check getServicesForRuntime(runtimeRecord.runtime_id);
+
+    // Get listeners for this runtime
+    types:Listener[] listenerList = check getListenersForRuntime(runtimeRecord.runtime_id);
+
+    // Convert time values to string format
+    string? registrationTimeStr = ();
+    time:Utc? regTime = runtimeRecord.registration_time;
+    if regTime is time:Utc {
+        registrationTimeStr = time:utcToString(regTime);
+    }
+
+    string? lastHeartbeatStr = ();
+    time:Utc? heartbeatTime = runtimeRecord.last_heartbeat;
+    if heartbeatTime is time:Utc {
+        lastHeartbeatStr = time:utcToString(heartbeatTime);
+    }
+
+    return {
+        runtimeId: runtimeRecord.runtime_id,
+        runtimeType: runtimeRecord.runtime_type,
+        status: runtimeRecord.status,
+        environment: runtimeRecord.environment,
+        deploymentType: runtimeRecord.deployment_type,
+        version: runtimeRecord.version,
+        platformName: runtimeRecord.platform_name,
+        platformVersion: runtimeRecord.platform_version,
+        platformHome: runtimeRecord.platform_home,
+        osName: runtimeRecord.os_name,
+        osVersion: runtimeRecord.os_version,
+        registrationTime: registrationTimeStr,
+        lastHeartbeat: lastHeartbeatStr,
+        services: serviceList,
+        listeners: listenerList
+    };
+}
+
+// Helper function to map service record and get resources
+public isolated function mapToService(types:ServiceRecordInDB serviceRecord, string runtimeId) returns types:Service|error {
+    types:Resource[] resourceList = [];
+    stream<types:ResourceRecord, sql:Error?> resourceStream = dbClient->query(`
+        SELECT resource_url, methods 
+        FROM service_resources 
+        WHERE runtime_id = ${runtimeId} AND service_name = ${serviceRecord.service_name}
+    `);
+
+    check from types:ResourceRecord resourceRecord in resourceStream
+        do {
+            // Parse methods JSON string to array
+            json methodsJson = check resourceRecord.methods.fromJsonString();
+            string[] methods = check methodsJson.cloneWithType();
+
+            types:Resource resourceItem = {
+                url: resourceRecord.resource_url,
+                methods: methods
+            };
+            resourceList.push(resourceItem);
+        };
+    return {
+        name: serviceRecord.service_name,
+        package: serviceRecord.service_package,
+        basePath: serviceRecord.base_path,
+        resources: resourceList
+    };
+}
+
 // Helper function to convert time:Utc to MySQL datetime format
 isolated function utcToMySQLDateTime(time:Utc utcTime) returns string|error {
     time:Civil civilTime = time:utcToCivil(utcTime);
