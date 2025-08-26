@@ -92,7 +92,7 @@ public type Heartbeat record {|
     string runtimeId;
     RuntimeType runtimeType;
     RuntimeStatus status;
-    string environment?;
+    string environment;
     string deploymentType?;
     string version?;
     Node nodeInfo;

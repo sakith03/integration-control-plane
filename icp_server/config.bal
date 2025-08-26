@@ -25,9 +25,10 @@ configurable string keystorePath = check file:joinPath(os:getEnv("BALLERINA_HOME
 configurable string keystorePassword = "ballerina";
 configurable string truststorePath = check file:joinPath(os:getEnv("BALLERINA_HOME"), "bre", "security", "ballerinaTruststore.p12");
 configurable string truststorePassword = "ballerina";
+configurable string[] environments = ["dev", "test", "prod"];
 
 configurable int heartbeatTimeoutSeconds = 300;
-configurable int schedulerIntervalSeconds = 60;
+configurable int schedulerIntervalSeconds = 300;
 
 // Authentication configuration
 configurable string jwtIssuer = "icp-jwt-issuer";

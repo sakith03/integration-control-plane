@@ -35,38 +35,25 @@ listener graphql:Listener graphqlListener = new (graphqlPort,
 service /graphql on graphqlListener {
 
     // Get all runtimes with optional filtering
-    isolated resource function get runtimes(string? status, string? runtimeType) returns types:Runtime[]|error {
+    isolated resource function get runtimes(string? status, string? runtimeType, string? environment) returns types:Runtime[]|error {
         sql:Client dbClient = storage:dbClient;
         types:Runtime[] runtimeList = [];
 
         // Build dynamic query based on filters
-        sql:ParameterizedQuery query;
-
-        if status is string && runtimeType is string {
-            query = `SELECT runtime_id, runtime_type, status, environment, deployment_type, version, 
-                     platform_name, platform_version, platform_home, os_name, os_version, 
-                     registration_time, last_heartbeat FROM runtimes 
-                     WHERE status = ${status} AND runtime_type = ${runtimeType} 
-                     ORDER BY registration_time DESC`;
-        } else if status is string {
-            query = `SELECT runtime_id, runtime_type, status, environment, deployment_type, version, 
-                     platform_name, platform_version, platform_home, os_name, os_version, 
-                     registration_time, last_heartbeat FROM runtimes 
-                     WHERE status = ${status} 
-                     ORDER BY registration_time DESC`;
+        sql:ParameterizedQuery whereClause = ` WHERE 1=1 `;
+        sql:ParameterizedQuery whereConditions = ` `;
+        if status is string {
+            whereConditions = sql:queryConcat(whereConditions, ` AND status = ${status} `);
         } else if runtimeType is string {
-            query = `SELECT runtime_id, runtime_type, status, environment, deployment_type, version, 
-                     platform_name, platform_version, platform_home, os_name, os_version, 
-                     registration_time, last_heartbeat FROM runtimes 
-                     WHERE runtime_type = ${runtimeType} 
-                     ORDER BY registration_time DESC`;
-        } else {
-            query = `SELECT runtime_id, runtime_type, status, environment, deployment_type, version, 
-                     platform_name, platform_version, platform_home, os_name, os_version, 
-                     registration_time, last_heartbeat FROM runtimes 
-                     ORDER BY registration_time DESC`;
+            whereConditions = sql:queryConcat(whereConditions, ` AND runtime_type = ${runtimeType} `);
+        } else if environment is string {
+            whereConditions = sql:queryConcat(whereConditions, ` AND environment = ${environment} `);
         }
-
+        sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment, deployment_type, version, 
+                     platform_name, platform_version, platform_home, os_name, os_version, 
+                     registration_time, last_heartbeat FROM runtimes `;
+        sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC `;
+        sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
         stream<types:RuntimeRecord, sql:Error?> runtimeStream = dbClient->query(query);
 
         check from types:RuntimeRecord runtimeRecord in runtimeStream

@@ -44,10 +44,10 @@ public isolated function markOfflineRuntimes() returns error? {
     time:Utc now = time:utcNow();
     // Calculate the threshold timestamp
     time:Utc threshold = time:utcAddSeconds(now, -<decimal>heartbeatTimeoutSeconds);
-    
+
     // Convert threshold to MySQL datetime format
     string thresholdStr = check utcToMySQLDateTime(threshold);
-    
+
     // Update all runtimes whose last_heartbeat is too old and not already OFFLINE
     sql:ParameterizedQuery updateQuery = `
         UPDATE runtimes
@@ -164,11 +164,6 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
 
 // Heartbeat processing that handles both registration and updates
 public isolated function processHeartbeat(types:Heartbeat heartbeat) returns types:HeartbeatResponse|error {
-    // Validate heartbeat data before starting transaction
-    error? validationResult = validateHeartbeatData(heartbeat);
-    if validationResult is error {
-        return validationResult;
-    }
 
     time:Utc currentTime = time:utcNow();
     string currentTimeStr = check utcToMySQLDateTime(currentTime);
@@ -352,54 +347,20 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
     };
 }
 
-// Validation function for heartbeat data
-isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error? {
-    // Validate required fields
-    if heartbeat.runtimeId.trim().length() == 0 {
-        return error("Runtime ID cannot be empty");
-    }
-
-    if heartbeat.runtimeId.length() > 100 {
-        return error("Runtime ID cannot exceed 100 characters");
-    }
-
-    // Validate runtime type
-    if heartbeat.runtimeType != types:MI && heartbeat.runtimeType != types:BI {
-        return error("Invalid runtime type. Must be MI or BI");
-    }
-
-    // Validate runtime status
-    if heartbeat.status != types:RUNNING &&
-        heartbeat.status != types:FAILED &&
-        heartbeat.status != types:DISABLED &&
-        heartbeat.status != types:OFFLINE &&
-        heartbeat.status != types:STOPPED {
-        return error("Invalid runtime status");
-    }
-
-    // Validate node info
-    if heartbeat.nodeInfo.platformName.trim().length() == 0 {
-        return error("Platform name cannot be empty");
-    }
-
-    // Validate artifacts
-    foreach types:ServiceDetail serviceDetail in heartbeat.artifacts.services {
-        if serviceDetail.name.trim().length() == 0 {
-            return error("Service name cannot be empty");
-        }
-        if serviceDetail.package.trim().length() == 0 {
-            return error("Service package cannot be empty");
+// Insert a list of environments into the environments table
+public isolated function insertEnvironmentsToDB(string[] environments) returns error? {
+    log:printInfo(string `Register environments : ${environments.toString()}`);
+    foreach string env in environments {
+        sql:ParameterizedQuery insertQuery = `INSERT IGNORE INTO environments (name) VALUES (${env})`;
+        var result = dbClient->execute(insertQuery);
+        if result is sql:Error {
+            // If error is not duplicate entry, log and return
+            if !result.toString().toLowerAscii().includes("duplicate") {
+                log:printError(string `Failed to insert environment: ${env}`, result);
+                return result;
+            }
         }
     }
-
-    foreach types:ListenerDetail listenerDetail in heartbeat.artifacts.listeners {
-        if listenerDetail.name.trim().length() == 0 {
-            return error("Listener name cannot be empty");
-        }
-        if listenerDetail.package.trim().length() == 0 {
-            return error("Listener package cannot be empty");
-        }
-    }
-
     return ();
 }
+

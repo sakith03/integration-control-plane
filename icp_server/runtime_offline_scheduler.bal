@@ -20,7 +20,12 @@ import ballerina/lang.runtime as runtime;
 import ballerina/log;
 
 // Start the offline runtime scheduler
-function init() {
+function init() returns error? {
+
+    // Insert initial environments into the database
+    check storage:insertEnvironmentsToDB(environments);
+
+    // Start a worker to periodically mark runtimes as OFFLINE if they haven't sent a heartbeat within the timeout
     worker offlineRuntimeSchedulerWorker {
         while true {
             do {

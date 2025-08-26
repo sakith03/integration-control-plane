@@ -16,12 +16,17 @@ USE icp_database;
 -- CORE RUNTIME MANAGEMENT TABLES
 -- ============================================================================
 
+-- Environments table - stores core environment information
+CREATE TABLE IF NOT EXISTS environments (
+    name VARCHAR(200) NOT NULL PRIMARY KEY
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Main runtimes table - stores core runtime information
 CREATE TABLE IF NOT EXISTS runtimes (
     runtime_id VARCHAR(100) NOT NULL PRIMARY KEY,
     runtime_type ENUM('MI', 'BI') NOT NULL,
     status ENUM('RUNNING', 'FAILED', 'DISABLED', 'OFFLINE') NOT NULL DEFAULT 'OFFLINE',
-    environment VARCHAR(50) NULL,
+    environment VARCHAR(200) NOT NULL,
     deployment_type VARCHAR(50) NULL,
     version VARCHAR(20) NULL,
     
@@ -37,7 +42,10 @@ CREATE TABLE IF NOT EXISTS runtimes (
     last_heartbeat TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
+    -- Foreign key constraint
+    FOREIGN KEY (environment) REFERENCES environments(name) ON DELETE CASCADE,
+
     -- Indexes for performance
     INDEX idx_runtime_type (runtime_type),
     INDEX idx_status (status),
