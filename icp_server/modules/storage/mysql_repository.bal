@@ -48,7 +48,7 @@ public isolated function getEnvironments() returns types:Environment[]|error {
 }
 
 // Insert a list of environments into the environments table
-public isolated function insertEnvironmentToDB(types:EnvironmentInput environment) returns error? {
+public isolated function insertEnvironmentToDB(types:EnvironmentInput environment) returns types:Environment|error? {
     log:printInfo(string `Register environment : ${environment.toString()}`);
     string envId = uuid:createRandomUuid();
     sql:ParameterizedQuery insertQuery = `INSERT INTO environments (environment_id, name, description) VALUES (${envId}, ${environment.name}, ${environment.description})`;
@@ -60,6 +60,11 @@ public isolated function insertEnvironmentToDB(types:EnvironmentInput environmen
             return result;
         }
     }
+    return {
+        environmentId: envId,
+        name: environment.name,
+        description: environment.description
+    };
 }
 
 // Get environment ID by name
@@ -571,7 +576,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
 }
 
 // Create a new component in the components table
-public isolated function createComponent(types:ComponentInput component) returns error? {
+public isolated function createComponent(types:ComponentInput component) returns types:Component|error {
     string componentId = uuid:createType1AsString();
     sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, description) 
                                           VALUES (${componentId}, ${component.projectId}, ${component.name}, ${component.description})`;
@@ -579,19 +584,31 @@ public isolated function createComponent(types:ComponentInput component) returns
     if result is sql:Error {
         return result;
     }
-    return ();
+
+    types:Project project = check getProjectById(component.projectId);
+    return {
+        componentId: componentId,
+        project: project,
+        name: component.name,
+        description: component.description
+    };
 }
 
 // Create a new project in the projects table
-public isolated function createProject(types:ProjectInput project) returns error? {
+public isolated function createProject(types:ProjectInput project) returns types:Project|error? {
     string projectId = uuid:createType1AsString();
     sql:ParameterizedQuery insertQuery = `INSERT INTO projects (project_id, name, description) 
                                           VALUES (${projectId}, ${project.name}, ${project.description})`;
     var result = dbClient->execute(insertQuery);
     if result is sql:Error {
+        log:printError(string `Failed to create project ${project.name}`, result);
         return result;
     }
-    return ();
+    return {
+        projectId: projectId,
+        name: project.name,
+        description: project.description
+    };
 }
 
 // Get all projects
@@ -614,7 +631,7 @@ public isolated function getProjects() returns types:Project[]|error {
 }
 
 // Get a specific project by ID
-public isolated function getProjectById(string projectId) returns types:Project?|error {
+public isolated function getProjectById(string projectId) returns types:Project|error {
     stream<record {|string project_id; string name; string? description; string? created_by; string? created_at;|}, sql:Error?> projectStream =
         dbClient->query(`SELECT project_id, name, description, created_by, created_at FROM projects WHERE project_id = ${projectId}`);
 
@@ -623,7 +640,7 @@ public isolated function getProjectById(string projectId) returns types:Project?
         select project;
 
     if projectRecords.length() == 0 {
-        return ();
+        return error("Project not found");
     }
 
     record {|string project_id; string name; string? description; string? created_by; string? created_at;|} project = projectRecords[0];
@@ -774,4 +791,40 @@ public isolated function getComponentById(string componentId) returns types:Comp
         createdBy: component.component_created_by,
         createdAt: component.component_created_at
     };
+}
+
+// Delete an environment by ID
+public isolated function deleteEnvironment(string environmentId) returns error? {
+    sql:ParameterizedQuery deleteQuery = `DELETE FROM environments WHERE env_id = ${environmentId}`;
+    var result = dbClient->execute(deleteQuery);
+    if result is sql:Error {
+        log:printError(string `Failed to delete environment ${environmentId}`, result);
+        return result;
+    }
+    log:printInfo(string `Successfully deleted environment ${environmentId}`);
+    return ();
+}
+
+// Delete a project by ID (this will cascade delete all components and runtimes)
+public isolated function deleteProject(string projectId) returns error? {
+    sql:ParameterizedQuery deleteQuery = `DELETE FROM projects WHERE project_id = ${projectId}`;
+    var result = dbClient->execute(deleteQuery);
+    if result is sql:Error {
+        log:printError(string `Failed to delete project ${projectId}`, result);
+        return result;
+    }
+    log:printInfo(string `Successfully deleted project ${projectId}`);
+    return ();
+}
+
+// Delete a component by ID (this will cascade delete all runtimes)
+public isolated function deleteComponent(string componentId) returns error? {
+    sql:ParameterizedQuery deleteQuery = `DELETE FROM components WHERE component_id = ${componentId}`;
+    var result = dbClient->execute(deleteQuery);
+    if result is sql:Error {
+        log:printError(string `Failed to delete component ${componentId}`, result);
+        return result;
+    }
+    log:printInfo(string `Successfully deleted component ${componentId}`);
+    return ();
 }

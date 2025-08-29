@@ -54,22 +54,26 @@ service /graphql on graphqlListener {
 
     // ----------- Environment Resources
     // Create a new environment
-    isolated remote function createEnvironment(types:EnvironmentInput environment) returns boolean|error {
+    isolated remote function createEnvironment(types:EnvironmentInput environment) returns types:Environment|error? {
         // Call storage layer to insert environments
-        check storage:insertEnvironmentToDB(environment);
-        return true;
+        return storage:insertEnvironmentToDB(environment);
     }
 
     // Get all environments
-    isolated resource function get environments() returns types:Environment[]|error {
+    isolated resource function get environments() returns types:Environment[]|error? {
         return check storage:getEnvironments();
+    }
+
+    // Delete an environment
+    isolated remote function deleteEnvironment(string environmentId) returns boolean|error {
+        check storage:deleteEnvironment(environmentId);
+        return true;
     }
 
     //------------- Project Resources
     // Create a new project
-    isolated remote function createProject(types:ProjectInput project) returns boolean|error {
-        check storage:createProject(project);
-        return true;
+    isolated remote function createProject(types:ProjectInput project) returns types:Project|error? {
+        return check storage:createProject(project);
     }
 
     // Get all projects
@@ -82,11 +86,16 @@ service /graphql on graphqlListener {
         return check storage:getProjectById(projectId);
     }
 
+    // Delete a project
+    isolated remote function deleteProject(string projectId) returns boolean|error {
+        check storage:deleteProject(projectId);
+        return true;
+    }
+
     // ----------- Component Resources
     // Create a new component
-    isolated remote function createComponent(types:ComponentInput component) returns boolean|error {
-        check storage:createComponent(component);
-        return true;
+    isolated remote function createComponent(types:ComponentInput component) returns types:Component|error? {
+        return check storage:createComponent(component);
     }
 
     // Get all components with optional project filter
@@ -97,5 +106,11 @@ service /graphql on graphqlListener {
     // Get a specific component by ID
     isolated resource function get component(string componentId) returns types:Component?|error {
         return check storage:getComponentById(componentId);
+    }
+
+    // Delete a component
+    isolated remote function deleteComponent(string componentId) returns boolean|error {
+        check storage:deleteComponent(componentId);
+        return true;
     }
 }
