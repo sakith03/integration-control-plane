@@ -33,8 +33,8 @@ listener graphql:Listener graphqlListener = new (graphqlPort,
 service /graphql on graphqlListener {
     // ----------- Runtime Resources
     // Get all runtimes with optional filtering
-    isolated resource function get runtimes(string? status, string? runtimeType, string? environment) returns types:Runtime[]|error {
-        return check storage:getRuntimes(status, runtimeType, environment);
+    isolated resource function get runtimes(string? status, string? runtimeType, string? environment, string? projectId, string? componentId) returns types:Runtime[]|error {
+        return check storage:getRuntimes(status, runtimeType, environment, projectId, componentId);
     }
 
     // Get a specific runtime by ID
@@ -56,7 +56,7 @@ service /graphql on graphqlListener {
     // Create a new environment
     isolated remote function createEnvironment(types:EnvironmentInput environment) returns types:Environment|error? {
         // Call storage layer to insert environments
-        return storage:insertEnvironmentToDB(environment);
+        return storage:createEnvironment(environment);
     }
 
     // Get all environments
@@ -68,6 +68,12 @@ service /graphql on graphqlListener {
     isolated remote function deleteEnvironment(string environmentId) returns boolean|error {
         check storage:deleteEnvironment(environmentId);
         return true;
+    }
+
+    // Update environment name and/or description
+    isolated remote function updateEnvironment(string environmentId, string? name, string? description) returns types:Environment?|error {
+        check storage:updateEnvironment(environmentId, name, description);
+        return check storage:getEnvironmentById(environmentId);
     }
 
     //------------- Project Resources
@@ -92,10 +98,16 @@ service /graphql on graphqlListener {
         return true;
     }
 
+    // Update project name and/or description
+    isolated remote function updateProject(string projectId, string? name, string? description) returns types:Project?|error {
+        check storage:updateProject(projectId, name, description);
+        return check storage:getProjectById(projectId);
+    }
+
     // ----------- Component Resources
     // Create a new component
     isolated remote function createComponent(types:ComponentInput component) returns types:Component|error? {
-        return check storage:createComponent(component);
+        return storage:createComponent(component);
     }
 
     // Get all components with optional project filter
@@ -112,5 +124,11 @@ service /graphql on graphqlListener {
     isolated remote function deleteComponent(string componentId) returns boolean|error {
         check storage:deleteComponent(componentId);
         return true;
+    }
+
+    // Update component name and/or description
+    isolated remote function updateComponent(string componentId, string? name, string? description) returns types:Component|error {
+        check storage:updateComponent(componentId, name, description);
+        return check storage:getComponentById(componentId);
     }
 }

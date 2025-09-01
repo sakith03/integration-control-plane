@@ -63,7 +63,10 @@ CREATE TABLE projects (
   description TEXT,
   created_by  CHAR(36) NULL,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by   CHAR(36) NULL,
+  updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_projects_created_by FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL,
+  CONSTRAINT fk_projects_updated_by FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL,
   UNIQUE KEY uk_project_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -75,9 +78,11 @@ CREATE TABLE components (
   description  TEXT NULL,
   created_by   CHAR(36) NULL,
   created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by   CHAR(36) NULL,
   updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_components_project  FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
   CONSTRAINT fk_components_created_by FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL,
+  CONSTRAINT fk_components_updated_by FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL,
   -- Prevent duplicate component names within the same project
   UNIQUE KEY uk_component_project_name (project_id, name),
   INDEX idx_project_id (project_id)
@@ -87,8 +92,12 @@ CREATE TABLE environments (
   environment_id     CHAR(36) PRIMARY KEY,
   name       VARCHAR(200) NOT NULL UNIQUE,   -- e.g., dev, stage, prod
   description TEXT,
+  created_by   CHAR(36) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_by   CHAR(36) NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_environments_created_by FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL,
+  CONSTRAINT fk_environments_updated_by FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

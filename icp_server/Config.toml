@@ -37,7 +37,8 @@ dbPassword = "my-secret-pw"
 dbType = "mysql"  # Options: mysql, postgresql
 
 
-[ballerina.log]
+[[ballerina.log.modules]]
+name = "wso2/icp_server"
 level = "DEBUG"
 
 

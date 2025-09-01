@@ -34,7 +34,8 @@ configurable int heartbeatTimeoutSeconds = 300;
 // Get all environments from the environments table
 public isolated function getEnvironments() returns types:Environment[]|error {
     types:Environment[] environments = [];
-    stream<types:Environment, sql:Error?> envStream = dbClient->query(`SELECT environment_id, name , description, created_at FROM environments ORDER BY name ASC`);
+    stream<types:Environment, sql:Error?> envStream = dbClient->query(`SELECT environment_id, name , description, created_at, updated_at, created_by, updated_by
+                                                                       FROM environments ORDER BY name ASC`);
     check from types:Environment env in envStream
         do {
             environments.push({
@@ -47,8 +48,31 @@ public isolated function getEnvironments() returns types:Environment[]|error {
     return environments;
 }
 
+// Get environment by ID
+public isolated function getEnvironmentById(string environmentId) returns types:Environment|error {
+    stream<record {|string environment_id; string name; string? description; string? created_at; string? updated_at;|}, sql:Error?> envStream =
+        dbClient->query(`SELECT environment_id, name, description, created_at, updated_at FROM environments WHERE environment_id = ${environmentId}`);
+
+    record {|string environment_id; string name; string? description; string? created_at; string? updated_at;|}[] envRecords =
+        check from record {|string environment_id; string name; string? description; string? created_at; string? updated_at;|} env in envStream
+        select env;
+
+    if envRecords.length() == 0 {
+        return error(string `Environment ${environmentId} not found.`);
+    }
+
+    record {|string environment_id; string name; string? description; string? created_at; string? updated_at;|} env = envRecords[0];
+    return {
+        environmentId: env.environment_id,
+        name: env.name,
+        description: env.description,
+        createdAt: env.created_at,
+        updatedAt: env.updated_at
+    };
+}
+
 // Insert a list of environments into the environments table
-public isolated function insertEnvironmentToDB(types:EnvironmentInput environment) returns types:Environment|error? {
+public isolated function createEnvironment(types:EnvironmentInput environment) returns error? {
     log:printInfo(string `Register environment : ${environment.toString()}`);
     string envId = uuid:createRandomUuid();
     sql:ParameterizedQuery insertQuery = `INSERT INTO environments (environment_id, name, description) VALUES (${envId}, ${environment.name}, ${environment.description})`;
@@ -60,11 +84,28 @@ public isolated function insertEnvironmentToDB(types:EnvironmentInput environmen
             return result;
         }
     }
-    return {
-        environmentId: envId,
-        name: environment.name,
-        description: environment.description
-    };
+}
+
+// Update environment name and/or description
+public isolated function updateEnvironment(string environmentId, string? name, string? description) returns error? {
+    sql:ParameterizedQuery whereClause = ` WHERE env_id = ${environmentId} `;
+    sql:ParameterizedQuery updateFields = ` SET updated_at = CURRENT_TIMESTAMP `;
+
+    if name is string {
+        updateFields = sql:queryConcat(updateFields, `, name = ${name} `);
+    }
+    if description is string {
+        updateFields = sql:queryConcat(updateFields, `, description = ${description} `);
+    }
+
+    sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE environments `, updateFields, whereClause);
+    var result = dbClient->execute(updateQuery);
+    if result is sql:Error {
+        log:printError(string `Failed to update environment ${environmentId}`, result);
+        return result;
+    }
+    log:printInfo(string `Successfully updated environment ${environmentId}`);
+    return ();
 }
 
 // Get environment ID by name
@@ -82,31 +123,79 @@ public isolated function getEnvironmentIdByName(string environmentName) returns 
     return envRecords[0].environment_id;
 }
 
+// Get component ID by name
+public isolated function getComponentIdByName(string componentName) returns string|error {
+    stream<record {|string component_id;|}, sql:Error?> componentStream = dbClient->query(`
+        SELECT component_id FROM components WHERE name = ${componentName}
+    `);
+
+    record {|string component_id;|}[] componentRecords = check from record {|string component_id;|} component in componentStream
+        select component;
+
+    if componentRecords.length() == 0 {
+        return error(string `Component ${componentName} not found.`);
+    }
+    return componentRecords[0].component_id;
+}
+
+// Get project ID by name
+public isolated function getProjectIdByName(string projectName) returns string|error {
+    stream<record {|string project_id;|}, sql:Error?> projectStream = dbClient->query(`
+        SELECT project_id FROM projects WHERE name = ${projectName}
+    `);
+
+    record {|string project_id;|}[] projectRecords = check from record {|string project_id;|} project in projectStream
+        select project;
+
+    if projectRecords.length() == 0 {
+        return error(string `Project ${projectName} not found.`);
+    }
+    return projectRecords[0].project_id;
+}
+
+// Delete an environment by ID
+public isolated function deleteEnvironment(string environmentId) returns error? {
+    sql:ParameterizedQuery deleteQuery = `DELETE FROM environments WHERE env_id = ${environmentId}`;
+    var result = dbClient->execute(deleteQuery);
+    if result is sql:Error {
+        log:printError(string `Failed to delete environment ${environmentId}`, result);
+        return result;
+    }
+    log:printInfo(string `Successfully deleted environment ${environmentId}`);
+    return ();
+}
+
 // Get all runtimes with optional filtering
-public isolated function getRuntimes(string? status, string? runtimeType, string? environment) returns types:Runtime[]|error {
+public isolated function getRuntimes(string? status, string? runtimeType, string? environment, string? projectId, string? componentId) returns types:Runtime[]|error {
     types:Runtime[] runtimeList = [];
     sql:ParameterizedQuery whereClause = ` WHERE 1=1 `;
     sql:ParameterizedQuery whereConditions = ` `;
     if status is string {
         whereConditions = sql:queryConcat(whereConditions, ` AND status = ${status} `);
-    } else if runtimeType is string {
+    }
+    if runtimeType is string {
         whereConditions = sql:queryConcat(whereConditions, ` AND runtime_type = ${runtimeType} `);
-    } else if environment is string {
+    }
+    if environment is string {
         string environmentId = <string>check getEnvironmentIdByName(environment);
         whereConditions = sql:queryConcat(whereConditions, ` AND environment_id = ${environmentId} `);
     }
-    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, version, 
+    if projectId is string {
+        whereConditions = sql:queryConcat(whereConditions, ` AND project_id = ${projectId} `);
+    }
+    if componentId is string {
+        whereConditions = sql:queryConcat(whereConditions, ` AND component_id = ${componentId} `);
+    }
+    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
                  platform_name, platform_version, platform_home, os_name, os_version, 
                  registration_time, last_heartbeat FROM runtimes `;
     sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC `;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
-    stream<types:Runtime, sql:Error?> runtimeStream = dbClient->query(query);
+    stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(query);
 
-    check from types:Runtime runtime in runtimeStream
+    check from types:RuntimeDBRecord runtime in runtimeStream
         do {
-            runtime.listeners = check getListenersForRuntime(runtime.runtimeId);
-            runtime.services = check getServicesForRuntime(runtime.runtimeId);
-            runtimeList.push(runtime);
+            runtimeList.push(check mapToRuntime(runtime));
         };
 
     return runtimeList;
@@ -115,7 +204,7 @@ public isolated function getRuntimes(string? status, string? runtimeType, string
 // Get a specific runtime by ID
 public isolated function getRuntimeById(string runtimeId) returns types:Runtime?|error {
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(`
-        SELECT runtime_id, runtime_type, status, environment, version, 
+        SELECT runtime_id, runtime_type, status, environment, version,
                platform_name, platform_version, platform_home, os_name, os_version, 
                registration_time, last_heartbeat 
         FROM runtimes 
@@ -135,16 +224,16 @@ public isolated function getRuntimeById(string runtimeId) returns types:Runtime?
 // Get services for a specific runtime
 public isolated function getServicesForRuntime(string runtimeId) returns types:Service[]|error {
     types:Service[] serviceList = [];
-    stream<types:ServiceRecordInDB, sql:Error?> serviceStream = dbClient->query(`
+    stream<types:Service, sql:Error?> serviceStream = dbClient->query(`
         SELECT service_name, service_package, base_path, state 
         FROM runtime_services 
         WHERE runtime_id = ${runtimeId}
     `);
 
-    check from types:ServiceRecordInDB serviceRecord in serviceStream
+    check from types:Service serviceRecord in serviceStream
         do {
-            types:Service serviceItem = check mapToService(serviceRecord, runtimeId);
-            serviceList.push(serviceItem);
+
+            serviceList.push(check mapToService(serviceRecord, runtimeId));
         };
 
     return serviceList;
@@ -153,21 +242,15 @@ public isolated function getServicesForRuntime(string runtimeId) returns types:S
 // Get listeners for a specific runtime
 public isolated function getListenersForRuntime(string runtimeId) returns types:Listener[]|error {
     types:Listener[] listenerList = [];
-    stream<types:ListenerRecordInDB, sql:Error?> listenerStream = dbClient->query(`
+    stream<types:Listener, sql:Error?> listenerStream = dbClient->query(`
         SELECT listener_name, listener_package, protocol, state 
         FROM runtime_listeners 
         WHERE runtime_id = ${runtimeId}
     `);
 
-    check from types:ListenerRecordInDB listenerRecord in listenerStream
+    check from types:Listener listenerRecord in listenerStream
         do {
-            types:Listener listenerItem = {
-                name: listenerRecord.listener_name,
-                package: listenerRecord.listener_package,
-                protocol: listenerRecord.protocol,
-                state: listenerRecord.state
-            };
-            listenerList.push(listenerItem);
+            listenerList.push(listenerRecord);
         };
 
     return listenerList;
@@ -198,7 +281,8 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
         runtimeId: runtimeRecord.runtime_id,
         runtimeType: runtimeRecord.runtime_type,
         status: runtimeRecord.status,
-        environment: runtimeRecord.environment,
+        environment: check getEnvironmentById(runtimeRecord.environment_id),
+        component: check getComponentById(runtimeRecord.component_id),
         version: runtimeRecord.version,
         platformName: runtimeRecord.platform_name,
         platformVersion: runtimeRecord.platform_version,
@@ -207,18 +291,20 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
         osVersion: runtimeRecord.os_version,
         registrationTime: registrationTimeStr,
         lastHeartbeat: lastHeartbeatStr,
-        services: serviceList,
-        listeners: listenerList
+        artifacts: {
+            listeners: listenerList,
+            services: serviceList
+        }
     };
 }
 
 // Helper function to map service record and get resources
-public isolated function mapToService(types:ServiceRecordInDB serviceRecord, string runtimeId) returns types:Service|error {
+public isolated function mapToService(types:Service serviceRecord, string runtimeId) returns types:Service|error {
     types:Resource[] resourceList = [];
     stream<types:ResourceRecord, sql:Error?> resourceStream = dbClient->query(`
         SELECT resource_url, methods 
         FROM service_resources 
-        WHERE runtime_id = ${runtimeId} AND service_name = ${serviceRecord.service_name}
+        WHERE runtime_id = ${runtimeId} AND service_name = ${serviceRecord.name}
     `);
 
     check from types:ResourceRecord resourceRecord in resourceStream
@@ -233,10 +319,11 @@ public isolated function mapToService(types:ServiceRecordInDB serviceRecord, str
             };
             resourceList.push(resourceItem);
         };
+
     return {
-        name: serviceRecord.service_name,
-        package: serviceRecord.service_package,
-        basePath: serviceRecord.base_path,
+        name: serviceRecord.name,
+        package: serviceRecord.package,
+        basePath: serviceRecord.basePath,
         resources: resourceList
     };
 }
@@ -383,12 +470,32 @@ isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error
     if heartbeat.runtimeId.length() > 100 {
         return error("Runtime ID cannot exceed 100 characters");
     }
+    //validate component and project
+    if heartbeat.component.trim().length() == 0 {
+        return error("Component name cannot be empty");
+    }
+
+    if heartbeat.project.trim().length() == 0 {
+        return error("Project name cannot be empty");
+    }
 
     string|error envId = getEnvironmentIdByName(heartbeat.environment);
     if envId is error {
         return error(string `Invalid environment configuration detected: ${heartbeat.environment}`, envId);
     }
     heartbeat.environment = envId;
+
+    string|error projectId = getProjectIdByName(heartbeat.project);
+    if projectId is error {
+        return error(string `Invalid project configuration detected: ${heartbeat.project}`, projectId);
+    }
+    heartbeat.project = projectId;
+
+    string|error componentId = getComponentIdByName(heartbeat.component);
+    if componentId is error {
+        return error(string `Invalid component configuration detected: ${heartbeat.component}`, componentId);
+    }
+    heartbeat.component = componentId;
 
 }
 
@@ -416,17 +523,17 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
             // Register new runtime
             sql:ExecutionResult _ = check dbClient->execute(`
                 INSERT INTO runtimes (
-                    runtime_id, runtime_type, status, environment_id, version, platform_name, 
-                    platform_version, platform_home, os_name,
-                    os_version, registration_time, last_heartbeat
+                    runtime_id, runtime_type, status, version, 
+                    environment_id, project_id, component_id,
+                    platform_name, platform_version, platform_home, 
+                    os_name, os_version, 
+                    registration_time, last_heartbeat
                 ) VALUES (
-                    ${heartbeat.runtimeId}, ${heartbeat.runtimeType}, 
-                    ${heartbeat.status}, ${heartbeat.environment}, 
-                    ${heartbeat.version},
-                    ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion},
-                    ${heartbeat.nodeInfo.ballerinaHome}, ${heartbeat.nodeInfo.osName},
-                    ${heartbeat.nodeInfo.osVersion}, ${currentTimeStr},
-                    ${currentTimeStr}
+                    ${heartbeat.runtimeId}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
+                    ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
+                    ${heartbeat.nodeInfo.platformName},${heartbeat.nodeInfo.platformVersion},${heartbeat.nodeInfo.ballerinaHome},
+                    ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion}, 
+                    ${currentTimeStr}, ${currentTimeStr}
                 )
             `);
 
@@ -477,7 +584,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
         `);
 
         // Insert updated services
-        foreach types:ServiceDetail serviceDetail in heartbeat.artifacts.services {
+        foreach types:Service serviceDetail in heartbeat.artifacts.services {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_services (
                     runtime_id, service_name, service_package, base_path, state
@@ -503,7 +610,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
         }
 
         // Insert updated listeners
-        foreach types:ListenerDetail listenerDetail in heartbeat.artifacts.listeners {
+        foreach types:Listener listenerDetail in heartbeat.artifacts.listeners {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_listeners (
                     runtime_id, listener_name, listener_package, protocol, state
@@ -575,25 +682,6 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
     };
 }
 
-// Create a new component in the components table
-public isolated function createComponent(types:ComponentInput component) returns types:Component|error {
-    string componentId = uuid:createType1AsString();
-    sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, description) 
-                                          VALUES (${componentId}, ${component.projectId}, ${component.name}, ${component.description})`;
-    var result = dbClient->execute(insertQuery);
-    if result is sql:Error {
-        return result;
-    }
-
-    types:Project project = check getProjectById(component.projectId);
-    return {
-        componentId: componentId,
-        project: project,
-        name: component.name,
-        description: component.description
-    };
-}
-
 // Create a new project in the projects table
 public isolated function createProject(types:ProjectInput project) returns types:Project|error? {
     string projectId = uuid:createType1AsString();
@@ -604,27 +692,19 @@ public isolated function createProject(types:ProjectInput project) returns types
         log:printError(string `Failed to create project ${project.name}`, result);
         return result;
     }
-    return {
-        projectId: projectId,
-        name: project.name,
-        description: project.description
-    };
+    return getProjectById(projectId);
 }
 
 // Get all projects
 public isolated function getProjects() returns types:Project[]|error {
     types:Project[] projects = [];
-    stream<record {|string project_id; string name; string? description; string? created_by; string? created_at;|}, sql:Error?> projectStream =
-        dbClient->query(`SELECT project_id, name, description, created_by, created_at FROM projects ORDER BY name ASC`);
+    stream<types:Project, sql:Error?> projectStream =
+        dbClient->query(`SELECT project_id, name, description, created_by, created_at, updated_at, updated_by FROM projects ORDER BY name ASC`);
 
-    check from record {|string project_id; string name; string? description; string? created_by; string? created_at;|} project in projectStream
+    check from types:Project project in projectStream
         do {
             projects.push({
-                projectId: project.project_id,
-                name: project.name,
-                description: project.description,
-                createdBy: project.created_by,
-                createdAt: project.created_at
+                ...project
             });
         };
     return projects;
@@ -632,176 +712,50 @@ public isolated function getProjects() returns types:Project[]|error {
 
 // Get a specific project by ID
 public isolated function getProjectById(string projectId) returns types:Project|error {
-    stream<record {|string project_id; string name; string? description; string? created_by; string? created_at;|}, sql:Error?> projectStream =
-        dbClient->query(`SELECT project_id, name, description, created_by, created_at FROM projects WHERE project_id = ${projectId}`);
+    stream<types:Project, sql:Error?> projectStream =
+        dbClient->query(`SELECT project_id, name, description, created_by, created_at, updated_at, updated_by FROM projects WHERE project_id = ${projectId}`);
 
-    record {|string project_id; string name; string? description; string? created_by; string? created_at;|}[] projectRecords =
-        check from record {|string project_id; string name; string? description; string? created_by; string? created_at;|} project in projectStream
+    types:Project[] projectRecords =
+        check from types:Project project in projectStream
         select project;
 
     if projectRecords.length() == 0 {
-        return error("Project not found");
+        return error(string `Project with ID ${projectId} not found`);
     }
 
-    record {|string project_id; string name; string? description; string? created_by; string? created_at;|} project = projectRecords[0];
-    return {
-        projectId: project.project_id,
-        name: project.name,
-        description: project.description,
-        createdBy: project.created_by,
-        createdAt: project.created_at
-    };
+    return projectRecords[0];
 }
 
-// Get all components with optional project filter
-public isolated function getComponents(string? projectId) returns types:Component[]|error {
-    types:Component[] components = [];
-    sql:ParameterizedQuery whereClause = ` WHERE 1=1 `;
-    sql:ParameterizedQuery whereConditions = ` `;
+// Update project name and/or description
+public isolated function updateProject(string projectId, string? name, string? description) returns error? {
+    sql:ParameterizedQuery whereClause = ` WHERE project_id = ${projectId} `;
+    sql:ParameterizedQuery updateFields = ` SET `;
+    boolean hasUpdates = false;
 
-    if projectId is string {
-        whereConditions = sql:queryConcat(whereConditions, ` AND c.project_id = ${projectId} `);
+    if name is string {
+        updateFields = sql:queryConcat(updateFields, ` name = ${name} `);
+        hasUpdates = true;
+    }
+    if description is string {
+        if hasUpdates {
+            updateFields = sql:queryConcat(updateFields, `, description = ${description} `);
+        } else {
+            updateFields = sql:queryConcat(updateFields, ` description = ${description} `);
+            hasUpdates = true;
+        }
     }
 
-    sql:ParameterizedQuery selectClause = `SELECT c.component_id, c.project_id, c.name as component_name, c.description as component_description, c.created_by as component_created_by, c.created_at as component_created_at,
-                                                 p.name as project_name, p.description as project_description, p.created_by as project_created_by, p.created_at as project_created_at
-                                           FROM components c 
-                                           JOIN projects p ON c.project_id = p.project_id `;
-    sql:ParameterizedQuery orderByClause = ` ORDER BY c.name ASC `;
-    sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
-
-    stream<record {|
-        string component_id;
-        string project_id;
-        string component_name;
-        string? component_description;
-        string? component_created_by;
-        string? component_created_at;
-        string project_name;
-        string? project_description;
-        string? project_created_by;
-        string? project_created_at;
-    |}, sql:Error?> componentStream =
-        dbClient->query(query);
-
-    check from record {|
-            string component_id;
-            string project_id;
-            string component_name;
-            string? component_description;
-            string? component_created_by;
-            string? component_created_at;
-            string project_name;
-            string? project_description;
-            string? project_created_by;
-            string? project_created_at;
-        |} component in componentStream
-        do {
-            components.push({
-                componentId: component.component_id,
-                project: {
-                    projectId: component.project_id,
-                    name: component.project_name,
-                    description: component.project_description,
-                    createdBy: component.project_created_by,
-                    createdAt: component.project_created_at
-                },
-                name: component.component_name,
-                description: component.component_description,
-                createdBy: component.component_created_by,
-                createdAt: component.component_created_at
-            });
-        };
-    return components;
-}
-
-// Get a specific component by ID
-public isolated function getComponentById(string componentId) returns types:Component?|error {
-    stream<record {|
-        string component_id;
-        string project_id;
-        string component_name;
-        string? component_description;
-        string? component_created_by;
-        string? component_created_at;
-        string project_name;
-        string? project_description;
-        string? project_created_by;
-        string? project_created_at;
-    |}, sql:Error?> componentStream =
-        dbClient->query(`SELECT c.component_id, c.project_id, c.name as component_name, c.description as component_description, c.created_by as component_created_by, c.created_at as component_created_at,
-                                p.project_id, p.name as project_name, p.description as project_description, p.created_by as project_created_by, p.created_at as project_created_at
-                         FROM components c 
-                         JOIN projects p ON c.project_id = p.project_id 
-                         WHERE c.component_id = ${componentId}`);
-
-    record {|
-        string component_id;
-        string project_id;
-        string component_name;
-        string? component_description;
-        string? component_created_by;
-        string? component_created_at;
-        string project_name;
-        string? project_description;
-        string? project_created_by;
-        string? project_created_at;
-    |}[] componentRecords =
-        check from record {|
-            string component_id;
-            string project_id;
-            string component_name;
-            string? component_description;
-            string? component_created_by;
-            string? component_created_at;
-            string project_name;
-            string? project_description;
-            string? project_created_by;
-            string? project_created_at;
-        |} component in componentStream
-        select component;
-
-    if componentRecords.length() == 0 {
-        return ();
+    if !hasUpdates {
+        return error("No fields to update");
     }
 
-    record {|
-        string component_id;
-        string project_id;
-        string component_name;
-        string? component_description;
-        string? component_created_by;
-        string? component_created_at;
-        string project_name;
-        string? project_description;
-        string? project_created_by;
-        string? project_created_at;
-    |} component = componentRecords[0];
-    return {
-        componentId: component.component_id,
-        project: {
-            projectId: component.project_id,
-            name: component.project_name,
-            description: component.project_description,
-            createdBy: component.project_created_by,
-            createdAt: component.project_created_at
-        },
-        name: component.component_name,
-        description: component.component_description,
-        createdBy: component.component_created_by,
-        createdAt: component.component_created_at
-    };
-}
-
-// Delete an environment by ID
-public isolated function deleteEnvironment(string environmentId) returns error? {
-    sql:ParameterizedQuery deleteQuery = `DELETE FROM environments WHERE env_id = ${environmentId}`;
-    var result = dbClient->execute(deleteQuery);
+    sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE projects `, updateFields, whereClause);
+    var result = dbClient->execute(updateQuery);
     if result is sql:Error {
-        log:printError(string `Failed to delete environment ${environmentId}`, result);
+        log:printError(string `Failed to update project ${projectId}`, result);
         return result;
     }
-    log:printInfo(string `Successfully deleted environment ${environmentId}`);
+    log:printInfo(string `Successfully updated project ${projectId}`);
     return ();
 }
 
@@ -817,6 +771,109 @@ public isolated function deleteProject(string projectId) returns error? {
     return ();
 }
 
+// Create a new component in the components table
+public isolated function createComponent(types:ComponentInput component) returns types:Component|error? {
+    string componentId = uuid:createType1AsString();
+    sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, description) 
+                                          VALUES (${componentId}, ${component.projectId}, ${component.name}, ${component.description})`;
+    var result = dbClient->execute(insertQuery);
+    if result is sql:Error {
+        return result;
+    }
+    return getComponentById(componentId);
+
+}
+
+// Get all components with optional project filter
+public isolated function getComponents(string? projectId) returns types:Component[]|error {
+    types:Component[] components = [];
+    sql:ParameterizedQuery whereClause = ` WHERE 1=1 `;
+    sql:ParameterizedQuery whereConditions = ` `;
+
+    if projectId is string {
+        whereConditions = sql:queryConcat(whereConditions, ` AND c.project_id = ${projectId} `);
+    }
+
+    sql:ParameterizedQuery selectClause = `SELECT c.component_id, c.project_id, c.name as component_name, c.description as component_description, 
+                                                  c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
+                                                  c.updated_by as component_updated_by,
+                                                  p.name as project_name, p.description as project_description, p.created_by as project_created_by, 
+                                                  p.created_at as project_created_at, p.updated_at as project_updated_at, p.updated_by as project_updated_by
+                                           FROM components c 
+                                           JOIN projects p ON c.project_id = p.project_id `;
+    sql:ParameterizedQuery orderByClause = ` ORDER BY c.name ASC `;
+    sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
+
+    stream<types:ComponentInDB, sql:Error?> componentStream =
+        dbClient->query(query);
+
+    check from types:ComponentInDB component in componentStream
+        do {
+            components.push({
+                componentId: component.component_id,
+                project: {
+                    projectId: component.project_id,
+                    name: component.project_name,
+                    description: component.project_description,
+                    createdBy: component.project_created_by,
+                    createdAt: component.project_created_at,
+                    updatedAt: component.project_updated_at,
+                    updatedBy: component.project_updated_by
+                },
+                name: component.component_name,
+                description: component.component_description,
+                createdBy: component.component_created_by,
+                createdAt: component.component_created_at,
+                updatedAt: component.component_updated_at,
+                updatedBy: component.component_updated_by
+            });
+        };
+    return components;
+}
+
+// Get a specific component by ID
+public isolated function getComponentById(string componentId) returns types:Component|error {
+    stream<types:ComponentInDB, sql:Error?> componentStream =
+        dbClient->query(`SELECT c.component_id, c.project_id, c.name as component_name, c.description as component_description, 
+                                c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
+                                c.updated_by as component_updated_by,
+                                p.name as project_name, p.description as project_description, 
+                                p.created_by as project_created_by, p.created_at as project_created_at, p.updated_at as project_updated_at,
+                                p.updated_by as project_updated_by
+                         FROM components c 
+                         JOIN projects p ON c.project_id = p.project_id 
+                         WHERE c.component_id = ${componentId}`);
+
+    types:ComponentInDB[] componentRecords =
+        check from types:ComponentInDB component in componentStream
+        select component;
+
+    if componentRecords.length() == 0 {
+        log:printError(string `Component with id ${componentId} not found`);
+        return error(string `Component with id ${componentId} not found`);
+    }
+
+    types:ComponentInDB component = componentRecords[0];
+    return {
+        componentId: component.component_id,
+        project: {
+            projectId: component.project_id,
+            name: component.project_name,
+            description: component.project_description,
+            createdBy: component.project_created_by,
+            createdAt: component.project_created_at,
+            updatedAt: component.project_updated_at,
+            updatedBy: component.project_updated_by
+        },
+        name: component.component_name,
+        description: component.component_description,
+        createdBy: component.component_created_by,
+        createdAt: component.component_created_at,
+        updatedAt: component.component_updated_at,
+        updatedBy: component.component_updated_by
+    };
+}
+
 // Delete a component by ID (this will cascade delete all runtimes)
 public isolated function deleteComponent(string componentId) returns error? {
     sql:ParameterizedQuery deleteQuery = `DELETE FROM components WHERE component_id = ${componentId}`;
@@ -826,5 +883,27 @@ public isolated function deleteComponent(string componentId) returns error? {
         return result;
     }
     log:printInfo(string `Successfully deleted component ${componentId}`);
+    return ();
+}
+
+// Update component name and/or description
+public isolated function updateComponent(string componentId, string? name, string? description) returns error? {
+    sql:ParameterizedQuery whereClause = ` WHERE component_id = ${componentId} `;
+    sql:ParameterizedQuery updateFields = ` SET updated_at = CURRENT_TIMESTAMP `;
+
+    if name is string {
+        updateFields = sql:queryConcat(updateFields, `, name = ${name} `);
+    }
+    if description is string {
+        updateFields = sql:queryConcat(updateFields, `, description = ${description} `);
+    }
+
+    sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE components `, updateFields, whereClause);
+    var result = dbClient->execute(updateQuery);
+    if result is sql:Error {
+        log:printError(string `Failed to update component ${componentId}`, result);
+        return result;
+    }
+    log:printInfo(string `Successfully updated component ${componentId}`);
     return ();
 }

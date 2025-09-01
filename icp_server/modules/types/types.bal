@@ -57,31 +57,17 @@ public type Artifact record {
 };
 
 public type Resource record {
+
     string[] methods;
+    @sql:Column {
+        name: "resource_url"
+    }
     string url;
 };
 
-public type ListenerDetail record {
-    *Artifact;
-    string protocol?;
-    string package;
-    ArtifactState state = ENABLED;
-};
-
-public type ServiceDetail record {
-    *Artifact;
-    string? basePath;
-    string package;
-    Artifact[] listeners;
-    Resource[] resources;
-    ArtifactState state = ENABLED;
-};
-
-public type ArtifactDetail ServiceDetail|ListenerDetail;
-
 public type Artifacts record {
-    ListenerDetail[] listeners;
-    ServiceDetail[] services;
+    Listener[] listeners;
+    Service[] services;
 };
 
 public type Node record {
@@ -99,6 +85,8 @@ public type Heartbeat record {|
     RuntimeType runtimeType;
     RuntimeStatus status;
     string environment;
+    string project;
+    string component;
     string version?;
     Node nodeInfo;
     Artifacts artifacts;
@@ -161,19 +149,6 @@ public type RequestLimit record {
     int maxEntityBodySize;
 };
 
-// === Summary / View Types ===
-
-public type RuntimeSummary record {
-    string runtimeId;
-    RuntimeType runtimeType;
-    RuntimeStatus status;
-    string environment;
-    int totalServices;
-    int totalListeners;
-    time:Utc lastHeartbeat?;
-    boolean isOnline;
-};
-
 public type ChangeNotification record {
     anydata[] deployedArtifacts;
     anydata[] undeployedArtifacts;
@@ -204,7 +179,9 @@ public type RuntimeDBRecord record {
     string runtime_id;
     string runtime_type;
     string status;
-    string environment;
+    string environment_id;
+    string project_id;
+    string component_id;
     string version?;
     string platform_name?;
     string platform_version?;
@@ -228,8 +205,9 @@ public type Runtime record {
     string runtimeType;
 
     string status;
-    string environment;
     string version?;
+    Component component;
+    Environment environment;
 
     @sql:Column {
         name: "platform_name"
@@ -265,9 +243,7 @@ public type Runtime record {
         name: "last_heartbeat"
     }
     string lastHeartbeat?;
-
-    Service[] services = [];
-    Listener[] listeners = [];
+    Artifacts artifacts?;
 };
 
 public type ServiceRecordInDB record {
@@ -290,15 +266,30 @@ public type ResourceRecord record {
 };
 
 public type Service record {
+    @sql:Column {
+        name: "service_name"
+    }
     string name;
+    @sql:Column {
+        name: "service_package"
+    }
     string package;
+    @sql:Column {
+        name: "base_path"
+    }
     string basePath;
     ArtifactState state = ENABLED;
     Resource[] resources;
 };
 
 public type Listener record {
+    @sql:Column {
+        name: "listener_name"
+    }
     string name;
+    @sql:Column {
+        name: "listener_package"
+    }
     string package;
     string protocol;
     ArtifactState state = ENABLED;
@@ -307,11 +298,29 @@ public type Listener record {
 // === Project & Component Types ===
 
 public type Project record {
+    @sql:Column {
+        name: "project_id"
+    }
     string projectId;
     string name;
     string description?;
+    @sql:Column {
+        name: "created_by"
+    }
     string createdBy?;
+    @sql:Column {
+        name: "created_at"
+    }
     string createdAt?;
+
+    @sql:Column {
+        name: "updated_at"
+    }
+    string updatedAt?;
+    @sql:Column {
+        name: "updated_by"
+    }
+    string updatedBy?;
 };
 
 public type ProjectInput record {
@@ -335,6 +344,15 @@ public type Component record {
         name: "created_at"
     }
     string createdAt?;
+
+    @sql:Column {
+        name: "updated_at"
+    }
+    string updatedAt?;
+    @sql:Column {
+        name: "updated_by"
+    }
+    string updatedBy?;
 };
 
 public type ComponentInput record {
@@ -360,9 +378,36 @@ public type Environment record {
         name: "updated_at"
     }
     string updatedAt?;
+
+    @sql:Column {
+        name: "updated_by"
+    }
+    string updatedBy?;
+
+    @sql:Column {
+        name: "created_by"
+    }
+    string createdBy?;
 };
 
 public type EnvironmentInput record {
     string name;
     string description?;
+};
+
+public type ComponentInDB record {
+    string component_id;
+    string project_id;
+    string component_name;
+    string component_description?;
+    string component_created_by?;
+    string component_created_at?;
+    string component_updated_at?;
+    string component_updated_by?;
+    string project_name;
+    string project_description?;
+    string project_created_by?;
+    string project_created_at?;
+    string project_updated_at?;
+    string project_updated_by?;
 };
