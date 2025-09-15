@@ -17,9 +17,7 @@ export const IComponentComponent = ({ projectId }: { projectId?: string }) => (
       <HeaderLabel label="Lifecycle" value="Alpha" />
     </Header>
     <Content>
-      <ContentHeader title="Component List">
-        <SupportButton>Components for the project {projectId}</SupportButton>
-      </ContentHeader>
+      <SupportButton>Components for the project {projectId}</SupportButton>
       <Grid container spacing={3} direction="column">
         <Grid item>
           <IComponentFetchComponent projectId={projectId} />

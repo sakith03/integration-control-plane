@@ -329,7 +329,7 @@ export const ProjectsFetchComponent = () => {
             </Dialog>
             <Table
                 title="Projects"
-                options={{ search: true, paging: true, pageSize: 10 }}
+                options={{ search: true, paging: true, pageSize: 10, emptyRowsWhenPaging: false }}
                 columns={columns}
                 data={value || []}
                 onRowClick={(_, rowData) => handleProjectRowClick(rowData as Project)}

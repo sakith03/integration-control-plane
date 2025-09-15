@@ -1,32 +1,37 @@
 import {
     createPlugin,
     createRoutableExtension,
+    createApiFactory,
+    configApiRef,
+    fetchApiRef,
 } from '@backstage/core-plugin-api';
 
 import { rootRouteRef } from './routes';
+import { componentsApiRef, ComponentsApiService } from './api';
 
 export const icomponentsPlugin = createPlugin({
     id: 'icomponents',
     routes: {
         root: rootRouteRef,
     },
+    apis: [
+        createApiFactory({
+            api: componentsApiRef,
+            deps: {
+                configApi: configApiRef,
+                fetchApi: fetchApiRef,
+            },
+            factory: ({ configApi, fetchApi }) =>
+                new ComponentsApiService(configApi, fetchApi),
+        }),
+    ],
 });
-
-import React from 'react';
-import { useLocation } from 'react-router-dom';
-import { IComponentFetchComponent } from './IComponentFetchComponent';
 
 export const IcomponentsPage = icomponentsPlugin.provide(
     createRoutableExtension({
         name: 'IcomponentsPage',
-        component: async () => {
-            return function IcomponentsPageWrapper(props: any) {
-                const { search } = useLocation();
-                const params = new URLSearchParams(search);
-                const projectId = params.get('projectId') || undefined;
-                return <IComponentFetchComponent projectId={ projectId } />;
-            };
-        },
+        component: () =>
+            import('./components/IComponentComponent').then(m => m.IComponentComponent),
         mountPoint: rootRouteRef,
     }),
 );

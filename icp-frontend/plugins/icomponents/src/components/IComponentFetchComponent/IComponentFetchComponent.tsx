@@ -1,221 +1,287 @@
+import { useState, useCallback, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Table,
   TableColumn,
   Progress,
-  ResponseErrorPanel,
-  InfoCard,
+  ResponseErrorPanel
 } from '@backstage/core-components';
-import useAsync from 'react-use/lib/useAsync';
-import { useState } from 'react';
-import { Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton } from '@material-ui/core';
-import { Snackbar, Alert } from '@mui/material';
+import {
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  IconButton,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Box,
+} from '@material-ui/core';
 import { Edit as EditIcon, Delete as DeleteIcon } from '@material-ui/icons';
+import { Snackbar, Alert } from '@mui/material';
+import { useApi } from '@backstage/core-plugin-api';
+import useAsync from 'react-use/lib/useAsync';
 
-type Component = {
-  componentId: string;
-  name: string;
-  description: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  updatedBy: string;
-  project: {
-    projectId: string;
-    name: string;
-  };
-};
+import {
+  componentsApiRef,
+  Component,
+  Project,
+  CreateComponentRequest,
+  UpdateComponentRequest
+} from '../../api';
 
-type Props = {
+interface IComponentFetchComponentProps {
   projectId?: string;
-};
+}
 
-export const IComponentFetchComponent = ({ projectId }: Props) => {
+export const IComponentFetchComponent = ({ projectId }: IComponentFetchComponentProps) => {
+  const componentsApi = useApi(componentsApiRef);
+  const location = useLocation();
+
+  // Extract projectId from URL parameters only once for initial value
+  const urlParams = new URLSearchParams(location.search);
+  const urlProjectId = urlParams.get('projectId') || projectId || '';
+
+  console.log('IComponentFetchComponent rendered with projectId:', projectId);
+  console.log('URL projectId:', urlProjectId);
+
+  // State management - track if user has manually changed the selection
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(urlProjectId); // Use URL projectId or prop
+  const [hasUserSelectedProject, setHasUserSelectedProject] = useState<boolean>(false); // Track manual selection
   const [refreshIndex, setRefreshIndex] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
   const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
-  const [deleteInput, setDeleteInput] = useState('');
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMsg, setSnackbarMsg] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
-  const { value, loading, error } = useAsync(async (): Promise<Component[]> => {
-    if (!projectId) return [];
-    const response = await fetch('http://localhost:9446/graphql', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query: `query Components {\n  components(projectId: \"${projectId}\") {\n    componentId\n    name\n    description\n    createdBy\n    createdAt\n    updatedAt\n    updatedBy\n    project {\n      projectId\n      name\n    }\n  }\n}`,
-      }),
-    });
-    const json = await response.json();
-    if (json.errors) throw new Error(json.errors[0].message);
-    return json.data?.components || [];
-  }, [projectId, refreshIndex]);
+  // Loading states
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => {
-    setOpen(false);
+  // Notification state
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  // Fetch projects
+  const { value: projects, loading: projectsLoading, error: projectsError } = useAsync(async (): Promise<Project[]> => {
+    try {
+      return await componentsApi.getProjects();
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to fetch projects');
+    }
+  }, []);
+
+  // Fetch components based on selected project
+  const { value: components, loading: componentsLoading, error: componentsError } = useAsync(async (): Promise<Component[]> => {
+    if (!selectedProjectId) return []; // Don't load anything if no project is selected
+    try {
+      return await componentsApi.getComponents(selectedProjectId);
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to fetch components');
+    }
+  }, [selectedProjectId, refreshIndex]);
+
+  // Set first project as default when projects are loaded (only if no projectId is provided and user hasn't selected)
+  useEffect(() => {
+    if (projects && projects.length > 0 && !selectedProjectId && !urlProjectId && !hasUserSelectedProject) {
+      setSelectedProjectId(projects[0].projectId);
+    }
+  }, [projects, selectedProjectId, urlProjectId, hasUserSelectedProject]);
+
+  // Set the provided projectId when available and projects are loaded (only if user hasn't manually selected)
+  useEffect(() => {
+    if (urlProjectId && projects && projects.length > 0 && !hasUserSelectedProject) {
+      // Verify that the provided projectId exists in the projects list
+      const projectExists = projects.some(project => project.projectId === urlProjectId);
+      if (projectExists) {
+        setSelectedProjectId(urlProjectId);
+      } else {
+        // If provided projectId doesn't exist, fall back to first project
+        setSelectedProjectId(projects[0].projectId);
+      }
+    }
+  }, [urlProjectId, projects, hasUserSelectedProject]);
+
+  // Utility functions
+  const showNotification = useCallback((message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshIndex(prev => prev + 1);
+  }, []);
+
+  const resetForm = useCallback(() => {
     setName('');
     setDescription('');
-  };
+  }, []);
 
-  const handleCreateComponent = async () => {
-    try {
-      const response = await fetch('http://localhost:9446/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `mutation CreateComponent {\n  createComponent(component: { projectId: \"${projectId}\", name: \"${name}\", description: \"${description}\" }) {\n    componentId\n    name\n    description\n    createdBy\n    createdAt\n    updatedAt\n    updatedBy\n  }\n}`,
-        }),
-      });
-      const json = await response.json();
-      if (json.errors) {
-        setSnackbarMsg('Error creating component: ' + json.errors[0].message);
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-      } else {
-        setSnackbarMsg('Component created successfully');
-        setSnackbarSeverity('success');
-        setSnackbarOpen(true);
-        setRefreshIndex(i => i + 1);
-        handleClose();
-      }
-    } catch (err: any) {
-      setSnackbarMsg('Network error: ' + err.message);
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+  // Project selection handler
+  const handleProjectChange = useCallback((event: React.ChangeEvent<{ value: unknown }>) => {
+    setSelectedProjectId(event.target.value as string);
+    setHasUserSelectedProject(true); // Mark that user has manually selected a project
+  }, []);
+
+  // Create component handlers
+  const handleCreateOpen = useCallback(() => {
+    resetForm();
+    setCreateDialogOpen(true);
+  }, [resetForm]);
+
+  const handleCreateClose = useCallback(() => {
+    setCreateDialogOpen(false);
+    resetForm();
+  }, [resetForm]);
+
+  const handleCreateComponent = useCallback(async () => {
+    if (!selectedProjectId || !name.trim() || !description.trim()) {
+      showNotification('Please select a project and provide name and description', 'error');
+      return;
     }
-  };
 
-  const handleEditOpen = (component: Component) => {
+    setIsCreating(true);
+    try {
+      const request: CreateComponentRequest = {
+        projectId: selectedProjectId,
+        name: name.trim(),
+        description: description.trim(),
+      };
+
+      await componentsApi.createComponent(request);
+      showNotification('Component created successfully', 'success');
+      handleCreateClose();
+      handleRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create component';
+      showNotification(message, 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  }, [selectedProjectId, name, description, componentsApi, showNotification, handleCreateClose, handleRefresh]);
+
+  // Edit component handlers
+  const handleEditOpen = useCallback((component: Component) => {
     setEditingComponent(component);
     setName(component.name);
     setDescription(component.description);
-    setEditOpen(true);
-  };
+    setEditDialogOpen(true);
+  }, []);
 
-  const handleEditClose = () => {
-    setEditOpen(false);
+  const handleEditClose = useCallback(() => {
+    setEditDialogOpen(false);
     setEditingComponent(null);
-    setName('');
-    setDescription('');
-  };
+    resetForm();
+  }, [resetForm]);
 
-  const handleUpdateComponent = async () => {
-    if (!editingComponent) return;
-
-    try {
-      const response = await fetch('http://localhost:9446/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `mutation UpdateComponent {
-            updateComponent(componentId: "${editingComponent.componentId}", name: "${name}", description: "${description}") {
-              componentId
-              name
-              description
-              createdBy
-              createdAt
-              updatedAt
-              updatedBy
-            }
-          }`,
-        }),
-      });
-      const json = await response.json();
-      if (json.errors) {
-        setSnackbarMsg('Error updating component: ' + json.errors[0].message);
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-      } else {
-        setSnackbarMsg('Component updated successfully');
-        setSnackbarSeverity('success');
-        setSnackbarOpen(true);
-        setRefreshIndex(i => i + 1);
-        handleEditClose();
-      }
-    } catch (err: any) {
-      setSnackbarMsg('Network error: ' + err.message);
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+  const handleUpdateComponent = useCallback(async () => {
+    if (!editingComponent || !name.trim() || !description.trim()) {
+      showNotification('Name and description are required', 'error');
+      return;
     }
-  };
 
-  const handleDeleteOpen = (component: Component) => {
+    setIsUpdating(true);
+    try {
+      const request: UpdateComponentRequest = {
+        componentId: editingComponent.componentId,
+        name: name.trim(),
+        description: description.trim(),
+      };
+
+      await componentsApi.updateComponent(request);
+      showNotification('Component updated successfully', 'success');
+      handleEditClose();
+      handleRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update component';
+      showNotification(message, 'error');
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [editingComponent, name, description, componentsApi, showNotification, handleEditClose, handleRefresh]);
+
+  // Delete component handlers
+  const handleDeleteOpen = useCallback((component: Component) => {
     setComponentToDelete(component);
-    setDeleteInput('');
-    setDeleteOpen(true);
-  };
+    setDeleteConfirmation('');
+    setDeleteDialogOpen(true);
+  }, []);
 
-  const handleDeleteClose = () => {
-    setDeleteOpen(false);
+  const handleDeleteClose = useCallback(() => {
+    setDeleteDialogOpen(false);
     setComponentToDelete(null);
-    setDeleteInput('');
-  };
+    setDeleteConfirmation('');
+  }, []);
 
-  const handleDeleteComponent = async () => {
-    if (!componentToDelete) return;
-
-    try {
-      const response = await fetch('http://localhost:9446/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `mutation DeleteComponent {
-            deleteComponent(componentId: "${componentToDelete.componentId}")
-          }`,
-        }),
-      });
-      const json = await response.json();
-      if (json.errors) {
-        setSnackbarMsg('Error deleting component: ' + json.errors[0].message);
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-      } else {
-        setSnackbarMsg('Component deleted successfully');
-        setSnackbarSeverity('success');
-        setSnackbarOpen(true);
-        setRefreshIndex(i => i + 1);
-        handleDeleteClose();
-      }
-    } catch (err: any) {
-      setSnackbarMsg('Network error: ' + err.message);
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+  const handleDeleteComponent = useCallback(async () => {
+    if (!componentToDelete || deleteConfirmation !== componentToDelete.name) {
+      showNotification('Please type the component name to confirm deletion', 'error');
+      return;
     }
-  };
 
-  const handleSnackbarClose = (_event?: React.SyntheticEvent | Event, reason?: string) => {
-    if (reason === 'clickaway') return;
-    setSnackbarOpen(false);
-  };
+    setIsDeleting(true);
+    try {
+      await componentsApi.deleteComponent(componentToDelete.componentId);
+      showNotification('Component deleted successfully', 'success');
+      handleDeleteClose();
+      handleRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete component';
+      showNotification(message, 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [componentToDelete, deleteConfirmation, componentsApi, showNotification, handleDeleteClose, handleRefresh]);
 
-  if (!projectId) {
-    return <InfoCard title="No project selected">Select a project to view components.</InfoCard>;
-  }
-  if (loading) {
+  const handleSnackbarClose = useCallback(() => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  }, []);
+
+  // Loading and error states
+  if (projectsLoading) {
     return <Progress />;
-  } else if (error) {
-    return <ResponseErrorPanel error={error} />;
   }
 
+  if (projectsError) {
+    return (
+      <ResponseErrorPanel
+        error={projectsError}
+        title="Failed to load projects"
+      />
+    );
+  }
+
+  if (componentsError) {
+    return (
+      <ResponseErrorPanel
+        error={componentsError}
+        title="Failed to load components"
+      />
+    );
+  }
+
+  // Table configuration
   const columns: TableColumn[] = [
     { title: 'Component ID', field: 'componentId' },
     { title: 'Name', field: 'name' },
     { title: 'Description', field: 'description' },
+    { title: 'Project', field: 'project.name' },
     { title: 'Created By', field: 'createdBy' },
     {
       title: 'Created At',
@@ -236,6 +302,7 @@ export const IComponentFetchComponent = ({ projectId }: Props) => {
     },
     {
       title: 'Actions',
+      field: 'actions',
       render: (data) => {
         const row = data as Component;
         return (
@@ -244,6 +311,7 @@ export const IComponentFetchComponent = ({ projectId }: Props) => {
               onClick={() => handleEditOpen(row)}
               size="small"
               title="Edit component"
+              disabled={isUpdating}
             >
               <EditIcon />
             </IconButton>
@@ -251,6 +319,7 @@ export const IComponentFetchComponent = ({ projectId }: Props) => {
               onClick={() => handleDeleteOpen(row)}
               size="small"
               title="Delete component"
+              disabled={isDeleting}
             >
               <DeleteIcon />
             </IconButton>
@@ -260,12 +329,41 @@ export const IComponentFetchComponent = ({ projectId }: Props) => {
     },
   ];
 
+  const selectedProject = projects?.find(p => p.projectId === selectedProjectId);
+
   return (
     <>
-      <Button variant="contained" color="primary" onClick={handleOpen} style={{ marginBottom: 16 }}>
-        Create Component
-      </Button>
-      <Dialog open={open} onClose={handleClose}>
+      <Box mb={2} display="flex" alignItems="right">
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleCreateOpen}
+          disabled={isCreating || !selectedProjectId}
+        >
+          {isCreating ? 'Creating...' : 'Create Component'}
+        </Button>
+      </Box>
+      <Box mb={2}>
+        {/* Project Selection Dropdown */}
+        <FormControl variant="outlined" style={{ minWidth: 250, marginRight: 16 }}>
+          <InputLabel id="project-select-label">Select Project</InputLabel>
+          <Select
+            labelId="project-select-label"
+            value={selectedProjectId}
+            onChange={handleProjectChange}
+            label="Select Project"
+          >
+            {projects?.map((project) => (
+              <MenuItem key={project.projectId} value={project.projectId}>
+                {project.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* Create Component Dialog */}
+      <Dialog open={createDialogOpen} onClose={handleCreateClose} maxWidth="sm" fullWidth>
         <DialogTitle>Create Component</DialogTitle>
         <DialogContent>
           <TextField
@@ -276,23 +374,43 @@ export const IComponentFetchComponent = ({ projectId }: Props) => {
             fullWidth
             value={name}
             onChange={e => setName(e.target.value)}
+            disabled={isCreating}
           />
           <TextField
             margin="dense"
             label="Description"
             type="text"
             fullWidth
+            multiline
             value={description}
             onChange={e => setDescription(e.target.value)}
+            disabled={isCreating}
+          />
+          <TextField
+            margin="dense"
+            label="Project"
+            type="text"
+            fullWidth
+            disabled
+            value={selectedProjectId}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="secondary">Cancel</Button>
-          <Button onClick={handleCreateComponent} color="primary" disabled={!name || !description}>Create</Button>
+          <Button onClick={handleCreateClose} disabled={isCreating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateComponent}
+            color="primary"
+            disabled={!name.trim() || !description.trim() || isCreating}
+          >
+            {isCreating ? 'Creating...' : 'Create'}
+          </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={editOpen} onClose={handleEditClose}>
+      {/* Edit Component Dialog */}
+      <Dialog open={editDialogOpen} onClose={handleEditClose} maxWidth="sm" fullWidth>
         <DialogTitle>Edit Component</DialogTitle>
         <DialogContent>
           <TextField
@@ -303,53 +421,96 @@ export const IComponentFetchComponent = ({ projectId }: Props) => {
             fullWidth
             value={name}
             onChange={e => setName(e.target.value)}
+            disabled={isUpdating}
           />
           <TextField
             margin="dense"
             label="Description"
             type="text"
             fullWidth
+            multiline
             value={description}
             onChange={e => setDescription(e.target.value)}
+            disabled={isUpdating}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleEditClose} color="secondary">Cancel</Button>
-          <Button onClick={handleUpdateComponent} color="primary" disabled={!name || !description}>Update</Button>
+          <Button onClick={handleEditClose} disabled={isUpdating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpdateComponent}
+            color="primary"
+            disabled={!name.trim() || !description.trim() || isUpdating}
+          >
+            {isUpdating ? 'Updating...' : 'Update'}
+          </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={deleteOpen} onClose={handleDeleteClose}>
+      {/* Delete Component Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={handleDeleteClose} maxWidth="sm" fullWidth>
         <DialogTitle>Delete Component</DialogTitle>
         <DialogContent>
-          <p>Type the component name (<b>{componentToDelete?.name}</b>) to confirm deletion:</p>
+          <p>
+            This action cannot be undone. Type the component name{' '}
+            <strong>{componentToDelete?.name}</strong> to confirm deletion:
+          </p>
           <TextField
             autoFocus
             margin="dense"
             label="Component Name"
             type="text"
             fullWidth
-            value={deleteInput}
-            onChange={e => setDeleteInput(e.target.value)}
+            value={deleteConfirmation}
+            onChange={e => setDeleteConfirmation(e.target.value)}
+            disabled={isDeleting}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDeleteClose} color="secondary">Cancel</Button>
-          <Button onClick={handleDeleteComponent} color="primary" disabled={deleteInput !== componentToDelete?.name}>Delete</Button>
+          <Button onClick={handleDeleteClose} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteComponent}
+            color="primary"
+            disabled={deleteConfirmation !== componentToDelete?.name || isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
         </DialogActions>
       </Dialog>
-      <Table
-        title="Components"
-        options={{ search: true, paging: true, pageSize: 10 }}
-        columns={columns}
-        data={value || []}
-      />
-      <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={handleSnackbarClose}>
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-          {snackbarMsg}
+
+      {/* Components Table */}
+      {componentsLoading ? (
+        <Progress />
+      ) : (
+        <Table
+          title={selectedProject ? `Components for Project: ${selectedProject.name}` : 'Components'}
+          options={{
+            search: true,
+            paging: true,
+            pageSize: 10,
+            emptyRowsWhenPaging: false,
+          }}
+          columns={columns}
+          data={(components || []).map(component => ({
+            ...component,
+            id: component.componentId, // Add unique ID for table rows
+          }))}
+        />
+      )}
+
+      {/* Success/Error Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={snackbar.severity === 'success' ? 4000 : 6000}
+        onClose={handleSnackbarClose}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
         </Alert>
       </Snackbar>
     </>
   );
 };
-

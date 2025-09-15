@@ -3,7 +3,6 @@ import {
   Header,
   Page,
   Content,
-  ContentHeader,
   HeaderLabel,
 } from '@backstage/core-components';
 import { EnvironmentFetchComponent } from '../EnvironmentFetchComponent';
@@ -15,8 +14,6 @@ export const EnvironmentsComponent = () => (
       <HeaderLabel label="Lifecycle" value="Alpha" />
     </Header>
     <Content>
-      <ContentHeader title="All Environments">
-      </ContentHeader>
       <Grid container spacing={3} direction="column">
         <Grid item>
           <EnvironmentFetchComponent />

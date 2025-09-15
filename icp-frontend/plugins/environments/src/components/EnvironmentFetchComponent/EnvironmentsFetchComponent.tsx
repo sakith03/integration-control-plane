@@ -1,444 +1,216 @@
-// The following imports and mock data are unused and will be removed.
-// import { makeStyles } from '@material-ui/core/styles';
-// import { Table, TableColumn, Progress, ResponseErrorPanel } from '@backstage/core-components';
-// import useAsync from 'react-use/lib/useAsync';
-// export const exampleUsers = { ... };
-// export const exampleUsers = {
-//   results: [
-//     { ... }
-//   ],
-// };
-// import { Table, TableColumn, Progress, ResponseErrorPanel } from '@backstage/core-components';
-// import { Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton } from '@material-ui/core';
-// import EditIcon from '@material-ui/icons/Edit';
-// import DeleteIcon from '@material-ui/icons/Delete';
-// import { Snackbar, Alert } from '@mui/material';
-// import { useState } from 'react';
-// import useAsync from 'react-use/lib/useAsync';
-// ...existing code...
-
-export const exampleUsers = {
-  results: [
-    {
-      gender: 'female',
-      name: {
-        title: 'Miss',
-        first: 'Carolyn',
-        last: 'Moore',
-      },
-      email: 'carolyn.moore@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Carolyn',
-      nat: 'GB',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Ms',
-        first: 'Esma',
-        last: 'Berberoğlu',
-      },
-      email: 'esma.berberoglu@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Esma',
-      nat: 'TR',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Ms',
-        first: 'Isabella',
-        last: 'Rhodes',
-      },
-      email: 'isabella.rhodes@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Isabella',
-      nat: 'GB',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Derrick',
-        last: 'Carter',
-      },
-      email: 'derrick.carter@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Derrick',
-      nat: 'IE',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Miss',
-        first: 'Mattie',
-        last: 'Lambert',
-      },
-      email: 'mattie.lambert@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Mattie',
-      nat: 'AU',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Mijat',
-        last: 'Rakić',
-      },
-      email: 'mijat.rakic@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Mijat',
-      nat: 'RS',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Javier',
-        last: 'Reid',
-      },
-      email: 'javier.reid@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Javier',
-      nat: 'US',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Ms',
-        first: 'Isabella',
-        last: 'Li',
-      },
-      email: 'isabella.li@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Isabella',
-      nat: 'CA',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Mrs',
-        first: 'Stephanie',
-        last: 'Garrett',
-      },
-      email: 'stephanie.garrett@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Stephanie',
-      nat: 'AU',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Ms',
-        first: 'Antonia',
-        last: 'Núñez',
-      },
-      email: 'antonia.nunez@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Antonia',
-      nat: 'ES',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Donald',
-        last: 'Young',
-      },
-      email: 'donald.young@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Donald',
-      nat: 'US',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Iegor',
-        last: 'Holodovskiy',
-      },
-      email: 'iegor.holodovskiy@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Iegor',
-      nat: 'UA',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Madame',
-        first: 'Jessica',
-        last: 'David',
-      },
-      email: 'jessica.david@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Jessica',
-      nat: 'CH',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Ms',
-        first: 'Eve',
-        last: 'Martinez',
-      },
-      email: 'eve.martinez@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Eve',
-      nat: 'FR',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Caleb',
-        last: 'Silva',
-      },
-      email: 'caleb.silva@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Caleb',
-      nat: 'US',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Miss',
-        first: 'Marcia',
-        last: 'Jenkins',
-      },
-      email: 'marcia.jenkins@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Marcia',
-      nat: 'US',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Mrs',
-        first: 'Mackenzie',
-        last: 'Jones',
-      },
-      email: 'mackenzie.jones@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Mackenzie',
-      nat: 'NZ',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Jeremiah',
-        last: 'Gutierrez',
-      },
-      email: 'jeremiah.gutierrez@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Jeremiah',
-      nat: 'AU',
-    },
-    {
-      gender: 'female',
-      name: {
-        title: 'Ms',
-        first: 'Luciara',
-        last: 'Souza',
-      },
-      email: 'luciara.souza@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Luciara',
-      nat: 'BR',
-    },
-    {
-      gender: 'male',
-      name: {
-        title: 'Mr',
-        first: 'Valgi',
-        last: 'da Cunha',
-      },
-      email: 'valgi.dacunha@example.com',
-      picture: 'https://api.dicebear.com/6.x/open-peeps/svg?seed=Valgi',
-      nat: 'BR',
-    },
-  ],
-};
-
-import { Table, TableColumn, Progress, ResponseErrorPanel } from '@backstage/core-components';
-import { Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton } from '@material-ui/core';
+import { useState, useCallback } from 'react';
+import {
+  Table,
+  TableColumn,
+  Progress,
+  ResponseErrorPanel,
+  InfoCard,
+} from '@backstage/core-components';
+import {
+  Button,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
+} from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import DeleteIcon from '@material-ui/icons/Delete';
 import { Snackbar, Alert } from '@mui/material';
-import { useState } from 'react';
+import { useApi } from '@backstage/core-plugin-api';
 import useAsync from 'react-use/lib/useAsync';
 
-type Environment = {
-  environmentId: string;
-  name: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-  updatedBy: string;
-  createdBy: string;
-};
+import {
+  environmentsApiRef,
+  Environment,
+  CreateEnvironmentRequest,
+  UpdateEnvironmentRequest
+} from '../../api';
 
 export const EnvironmentFetchComponent = () => {
+  const environmentsApi = useApi(environmentsApiRef);
+
+  // State management
   const [refreshIndex, setRefreshIndex] = useState(0);
-  const [open, setOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [editOpen, setEditOpen] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleteName, setDeleteName] = useState('');
-  const [deleteInput, setDeleteInput] = useState('');
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMsg, setSnackbarMsg] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [editingEnvironment, setEditingEnvironment] = useState<Environment | null>(null);
+  const [environmentToDelete, setEnvironmentToDelete] = useState<Environment | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
-  const { value, loading, error } = useAsync(async (): Promise<Environment[]> => {
+  // Loading states
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Notification state
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  // Data fetching
+  const { value: environments, loading, error } = useAsync(async (): Promise<Environment[]> => {
     try {
-      const response = await fetch('http://localhost:9446/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `query Environments {\n  environments {\n    environmentId\n    name\n    description\n    createdAt\n    updatedAt\n    updatedBy\n    createdBy\n  }\n}`,
-        }),
-      });
-      const json = await response.json();
-      if (json.errors) {
-        setSnackbarMsg('Error fetching environments: ' + json.errors[0].message);
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-        return [];
-      }
-      setSnackbarMsg('Environments loaded successfully');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-      return json.data?.environments || [];
-    } catch (err: any) {
-      setSnackbarMsg('Network error: ' + err.message);
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-      return [];
+      return await environmentsApi.getEnvironments();
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to fetch environments');
     }
   }, [refreshIndex]);
 
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => {
-    setOpen(false);
+  // Utility functions
+  const showNotification = useCallback((message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshIndex(prev => prev + 1);
+  }, []);
+
+  const resetForm = useCallback(() => {
     setName('');
     setDescription('');
-  };
+  }, []);
 
-  const handleCreateEnvironment = async () => {
-    try {
-      const response = await fetch('http://localhost:9446/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `mutation CreateEnvironment {\n  createEnvironment(environment: { name: \"${name}\", description: \"${description}\" }) {\n    environmentId\n    name\n    description\n    createdAt\n    updatedAt\n    updatedBy\n    createdBy\n  }\n}`,
-        }),
-      });
-      const json = await response.json();
-      if (json.errors) {
-        setSnackbarMsg('Error creating environment: ' + json.errors[0].message);
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-      } else {
-        setSnackbarMsg('Environment created successfully');
-        setSnackbarSeverity('success');
-        setSnackbarOpen(true);
-        setRefreshIndex(i => i + 1);
-        handleClose();
-      }
-    } catch (err: any) {
-      setSnackbarMsg('Network error: ' + err.message);
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+  // Create environment handlers
+  const handleCreateOpen = useCallback(() => {
+    resetForm();
+    setCreateDialogOpen(true);
+  }, [resetForm]);
+
+  const handleCreateClose = useCallback(() => {
+    setCreateDialogOpen(false);
+    resetForm();
+  }, [resetForm]);
+
+  const handleCreateEnvironment = useCallback(async () => {
+    if (!name.trim() || !description.trim()) {
+      showNotification('Name and description are required', 'error');
+      return;
     }
-  };
 
-  const handleEditOpen = (env: Environment) => {
-    setEditId(env.environmentId);
-    setEditName(env.name);
-    setEditDescription(env.description);
-    setEditOpen(true);
-  };
-  const handleEditClose = () => {
-    setEditOpen(false);
-    setEditId(null);
-    setEditName('');
-    setEditDescription('');
-  };
-  const handleEditEnvironment = async () => {
+    setIsCreating(true);
     try {
-      const response = await fetch('http://localhost:9446/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `mutation UpdateEnvironment {\n  updateEnvironment(environmentId: \"${editId}\", name: \"${editName}\", description: \"${editDescription}\") {\n    environmentId\n    name\n    description\n    createdAt\n    updatedAt\n    updatedBy\n    createdBy\n  }\n}`,
-        }),
-      });
-      const json = await response.json();
-      if (json.errors) {
-        setSnackbarMsg('Error updating environment: ' + json.errors[0].message);
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-      } else {
-        setSnackbarMsg('Environment updated successfully');
-        setSnackbarSeverity('success');
-        setSnackbarOpen(true);
-        setRefreshIndex(i => i + 1);
-        handleEditClose();
-      }
-    } catch (err: any) {
-      setSnackbarMsg('Network error: ' + err.message);
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-    }
-  };
+      const request: CreateEnvironmentRequest = {
+        name: name.trim(),
+        description: description.trim(),
+      };
 
-  const handleDeleteOpen = (env: Environment) => {
-    setDeleteId(env.environmentId);
-    setDeleteName(env.name);
-    setDeleteInput('');
-    setDeleteOpen(true);
-  };
-  const handleDeleteClose = () => {
-    setDeleteOpen(false);
-    setDeleteId(null);
-    setDeleteName('');
-    setDeleteInput('');
-  };
-  const handleDeleteEnvironment = async () => {
+      await environmentsApi.createEnvironment(request);
+      showNotification('Environment created successfully', 'success');
+      handleCreateClose();
+      handleRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create environment';
+      showNotification(message, 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  }, [name, description, environmentsApi, showNotification, handleCreateClose, handleRefresh]);
+
+  // Edit environment handlers
+  const handleEditOpen = useCallback((environment: Environment) => {
+    setEditingEnvironment(environment);
+    setName(environment.name);
+    setDescription(environment.description);
+    setEditDialogOpen(true);
+  }, []);
+
+  const handleEditClose = useCallback(() => {
+    setEditDialogOpen(false);
+    setEditingEnvironment(null);
+    resetForm();
+  }, [resetForm]);
+
+  const handleUpdateEnvironment = useCallback(async () => {
+    if (!editingEnvironment || !name.trim() || !description.trim()) {
+      showNotification('Name and description are required', 'error');
+      return;
+    }
+
+    setIsUpdating(true);
     try {
-      const response = await fetch('http://localhost:9446/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `mutation DeleteEnvironment {\n  deleteEnvironment(environmentId: \"${deleteId}\")\n}`,
-        }),
-      });
-      const json = await response.json();
-      if (json.errors) {
-        setSnackbarMsg('Error deleting environment: ' + json.errors[0].message);
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-      } else {
-        setSnackbarMsg('Environment deleted successfully');
-        setSnackbarSeverity('success');
-        setSnackbarOpen(true);
-        setRefreshIndex(i => i + 1);
-        handleDeleteClose();
-      }
-    } catch (err: any) {
-      setSnackbarMsg('Network error: ' + err.message);
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+      const request: UpdateEnvironmentRequest = {
+        environmentId: editingEnvironment.environmentId,
+        name: name.trim(),
+        description: description.trim(),
+      };
+
+      await environmentsApi.updateEnvironment(request);
+      showNotification('Environment updated successfully', 'success');
+      handleEditClose();
+      handleRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update environment';
+      showNotification(message, 'error');
+    } finally {
+      setIsUpdating(false);
     }
-  };
+  }, [editingEnvironment, name, description, environmentsApi, showNotification, handleEditClose, handleRefresh]);
 
-  const handleSnackbarClose = (_event?: React.SyntheticEvent | Event, reason?: string) => {
-    if (reason === 'clickaway') return;
-    setSnackbarOpen(false);
-  };
+  // Delete environment handlers
+  const handleDeleteOpen = useCallback((environment: Environment) => {
+    setEnvironmentToDelete(environment);
+    setDeleteConfirmation('');
+    setDeleteDialogOpen(true);
+  }, []);
 
+  const handleDeleteClose = useCallback(() => {
+    setDeleteDialogOpen(false);
+    setEnvironmentToDelete(null);
+    setDeleteConfirmation('');
+  }, []);
+
+  const handleDeleteEnvironment = useCallback(async () => {
+    if (!environmentToDelete || deleteConfirmation !== environmentToDelete.name) {
+      showNotification('Please type the environment name to confirm deletion', 'error');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await environmentsApi.deleteEnvironment(environmentToDelete.environmentId);
+      showNotification('Environment deleted successfully', 'success');
+      handleDeleteClose();
+      handleRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete environment';
+      showNotification(message, 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [environmentToDelete, deleteConfirmation, environmentsApi, showNotification, handleDeleteClose, handleRefresh]);
+
+  const handleSnackbarClose = useCallback(() => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  }, []);
+
+  // Loading and error states
   if (loading) {
     return <Progress />;
-  } else if (error) {
-    return <ResponseErrorPanel error={error} />;
   }
 
+  if (error) {
+    return (
+      <ResponseErrorPanel
+        error={error}
+        title="Failed to load environments"
+      />
+    );
+  }
+
+  // Table configuration
   const columns: TableColumn[] = [
     { title: 'Environment ID', field: 'environmentId' },
     { title: 'Name', field: 'name' },
@@ -467,14 +239,24 @@ export const EnvironmentFetchComponent = () => {
       render: (data) => {
         const row = data as Environment;
         return (
-          <>
-            <IconButton onClick={() => handleEditOpen(row)}>
+          <div>
+            <IconButton
+              onClick={() => handleEditOpen(row)}
+              size="small"
+              title="Edit environment"
+              disabled={isUpdating}
+            >
               <EditIcon />
             </IconButton>
-            <IconButton onClick={() => handleDeleteOpen(row)}>
+            <IconButton
+              onClick={() => handleDeleteOpen(row)}
+              size="small"
+              title="Delete environment"
+              disabled={isDeleting}
+            >
               <DeleteIcon />
             </IconButton>
-          </>
+          </div>
         );
       },
     },
@@ -482,36 +264,18 @@ export const EnvironmentFetchComponent = () => {
 
   return (
     <>
-      <Dialog open={editOpen} onClose={handleEditClose}>
-        <DialogTitle>Edit Environment</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Name"
-            type="text"
-            fullWidth
-            value={editName}
-            onChange={e => setEditName(e.target.value)}
-          />
-          <TextField
-            margin="dense"
-            label="Description"
-            type="text"
-            fullWidth
-            value={editDescription}
-            onChange={e => setEditDescription(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleEditClose} color="secondary">Cancel</Button>
-          <Button onClick={handleEditEnvironment} color="primary" disabled={!editName || !editDescription}>Update</Button>
-        </DialogActions>
-      </Dialog>
-      <Button variant="contained" color="primary" onClick={handleOpen} style={{ marginBottom: 16 }}>
-        Create Environment
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={handleCreateOpen}
+        style={{ marginBottom: 16 }}
+        disabled={isCreating}
+      >
+        {isCreating ? 'Creating...' : 'Create Environment'}
       </Button>
-      <Dialog open={open} onClose={handleClose}>
+
+      {/* Create Environment Dialog */}
+      <Dialog open={createDialogOpen} onClose={handleCreateClose} maxWidth="sm" fullWidth>
         <DialogTitle>Create Environment</DialogTitle>
         <DialogContent>
           <TextField
@@ -522,53 +286,131 @@ export const EnvironmentFetchComponent = () => {
             fullWidth
             value={name}
             onChange={e => setName(e.target.value)}
+            disabled={isCreating}
           />
           <TextField
             margin="dense"
             label="Description"
             type="text"
             fullWidth
+            multiline
+            rows={3}
             value={description}
             onChange={e => setDescription(e.target.value)}
+            disabled={isCreating}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="secondary">Cancel</Button>
-          <Button onClick={handleCreateEnvironment} color="primary" disabled={!name || !description}>Create</Button>
+          <Button onClick={handleCreateClose} disabled={isCreating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateEnvironment}
+            color="primary"
+            disabled={!name.trim() || !description.trim() || isCreating}
+          >
+            {isCreating ? 'Creating...' : 'Create'}
+          </Button>
         </DialogActions>
       </Dialog>
-      <Dialog open={deleteOpen} onClose={handleDeleteClose}>
+
+      {/* Edit Environment Dialog */}
+      <Dialog open={editDialogOpen} onClose={handleEditClose} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Environment</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Name"
+            type="text"
+            fullWidth
+            value={name}
+            onChange={e => setName(e.target.value)}
+            disabled={isUpdating}
+          />
+          <TextField
+            margin="dense"
+            label="Description"
+            type="text"
+            fullWidth
+            multiline
+            rows={3}
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            disabled={isUpdating}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleEditClose} disabled={isUpdating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpdateEnvironment}
+            color="primary"
+            disabled={!name.trim() || !description.trim() || isUpdating}
+          >
+            {isUpdating ? 'Updating...' : 'Update'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Environment Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={handleDeleteClose} maxWidth="sm" fullWidth>
         <DialogTitle>Delete Environment</DialogTitle>
         <DialogContent>
-          <p>Type the environment name (<b>{deleteName}</b>) to confirm deletion:</p>
+          <p>
+            This action cannot be undone. Type the environment name{' '}
+            <strong>{environmentToDelete?.name}</strong> to confirm deletion:
+          </p>
           <TextField
             autoFocus
             margin="dense"
             label="Environment Name"
             type="text"
             fullWidth
-            value={deleteInput}
-            onChange={e => setDeleteInput(e.target.value)}
+            value={deleteConfirmation}
+            onChange={e => setDeleteConfirmation(e.target.value)}
+            disabled={isDeleting}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDeleteClose} color="secondary">Cancel</Button>
-          <Button onClick={handleDeleteEnvironment} color="primary" disabled={deleteInput !== deleteName}>Delete</Button>
+          <Button onClick={handleDeleteClose} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteEnvironment}
+            color="primary"
+            disabled={deleteConfirmation !== environmentToDelete?.name || isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Environments Table */}
       <Table
-        title="Environments"
-        options={{ search: true, paging: true, pageSize: 10 }}
+        title=""
+        options={{
+          search: true,
+          paging: true,
+          pageSize: 10,
+          emptyRowsWhenPaging: false,
+        }}
         columns={columns}
-        data={value || []}
+        data={(environments || []).map(env => ({
+          ...env,
+          id: env.environmentId, // Add unique ID for table rows
+        }))}
       />
+
+      {/* Success/Error Snackbar */}
       <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={snackbarSeverity === 'success' ? 10000 : 4000}
+        open={snackbar.open}
+        autoHideDuration={snackbar.severity === 'success' ? 4000 : 6000}
         onClose={handleSnackbarClose}
       >
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-          {snackbarMsg}
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
         </Alert>
       </Snackbar>
     </>
