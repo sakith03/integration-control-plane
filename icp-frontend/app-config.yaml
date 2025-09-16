@@ -10,7 +10,7 @@ icp:
   backend:
     baseUrl: http://localhost:9446
     graphqlEndpoint: /graphql
-    $visibility: frontend
+    visibility: frontend
 
 backend:
   # Used for enabling authentication, secret is shared by all backend plugins

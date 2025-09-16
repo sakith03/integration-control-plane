@@ -45,6 +45,7 @@
     "@internal/plugin-environments": "workspace:^",
     "@internal/plugin-icomponents": "workspace:^",
     "@internal/plugin-projects": "workspace:^",
+    "@internal/plugin-runtimes": "workspace:^",
     "@material-ui/core": "^4.12.2",
     "@material-ui/icons": "^4.9.1",
     "react": "^18.0.2",

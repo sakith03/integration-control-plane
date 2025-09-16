@@ -96,10 +96,7 @@ export class ComponentsApiService implements ComponentsApi {
         } catch (proxyError) {
             lastError = proxyError as Error;
             console.warn('Proxy endpoint failed, trying direct connection:', proxyError);
-
-
             throw new Error(`Proxy connection failed: ${lastError.message} (URL: ${proxyUrl || 'unknown'})`);
-
         }
     }
 

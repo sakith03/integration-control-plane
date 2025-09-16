@@ -4,6 +4,7 @@ import HomeIcon from '@material-ui/icons/Home';
 import CategoryIcon from '@material-ui/icons/Category';
 import AppsIcon from '@material-ui/icons/Apps';
 import LayersIcon from '@material-ui/icons/Layers';
+import HubIcon from '@material-ui/icons/DeviceHub';
 import LogoFull from './LogoFull';
 import LogoIcon from './LogoIcon';
 import {
@@ -25,8 +26,6 @@ import {
 } from '@backstage/core-components';
 import MenuIcon from '@material-ui/icons/Menu';
 import SearchIcon from '@material-ui/icons/Search';
-import { MyGroupsSidebarItem } from '@backstage/plugin-org';
-import GroupIcon from '@material-ui/icons/People';
 import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
 
 const useSidebarLogoStyles = makeStyles({
@@ -70,6 +69,7 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
         <SidebarItem icon={HomeIcon} to="/" text="Home" />
         <SidebarItem icon={CategoryIcon} to="/projects" text="Projects" />
         <SidebarItem icon={AppsIcon} to="/icomponents" text="Components" />
+        <SidebarItem icon={HubIcon} to="/runtimes" text="Runtimes" />
         <SidebarDivider />
         <SidebarScrollWrapper>
           <SidebarItem icon={LayersIcon} to="/environments" text="Environments" />

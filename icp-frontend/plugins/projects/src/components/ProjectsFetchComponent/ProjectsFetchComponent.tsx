@@ -328,7 +328,6 @@ export const ProjectsFetchComponent = () => {
                 </DialogActions>
             </Dialog>
             <Table
-                title="Projects"
                 options={{ search: true, paging: true, pageSize: 10, emptyRowsWhenPaging: false }}
                 columns={columns}
                 data={value || []}

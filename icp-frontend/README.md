@@ -1,6 +1,6 @@
-# [Backstage](https://backstage.io)
+# [WSO2 Integrator:ICP](https://wso2.com/integrator/)
 
-This is your newly scaffolded Backstage App, Good Luck!
+This is WSO2 Integrator:ICP frontend up app powered by [Backstage](https://backstage.io). 
 
 To start the app, run:
 

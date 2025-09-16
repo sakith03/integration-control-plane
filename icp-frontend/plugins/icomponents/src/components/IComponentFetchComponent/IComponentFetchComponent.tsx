@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Table,
   TableColumn,
@@ -40,6 +40,7 @@ interface IComponentFetchComponentProps {
 export const IComponentFetchComponent = ({ projectId }: IComponentFetchComponentProps) => {
   const componentsApi = useApi(componentsApiRef);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Extract projectId from URL parameters only once for initial value
   const urlParams = new URLSearchParams(location.search);
@@ -253,6 +254,16 @@ export const IComponentFetchComponent = ({ projectId }: IComponentFetchComponent
     setSnackbar(prev => ({ ...prev, open: false }));
   }, []);
 
+  // Navigation handler for row clicks
+  const handleRowClick = useCallback((_event?: React.MouseEvent, rowData?: Component) => {
+    if (!rowData) return;
+    // Navigate to runtimes page with projectId and componentId as query parameters
+    const params = new URLSearchParams();
+    params.set('projectId', rowData.project.projectId);
+    params.set('componentId', rowData.componentId);
+    navigate(`/runtimes?${params.toString()}`);
+  }, [navigate]);
+
   // Loading and error states
   if (projectsLoading) {
     return <Progress />;
@@ -277,7 +288,7 @@ export const IComponentFetchComponent = ({ projectId }: IComponentFetchComponent
   }
 
   // Table configuration
-  const columns: TableColumn[] = [
+  const columns: TableColumn<Component>[] = [
     { title: 'Component ID', field: 'componentId' },
     { title: 'Name', field: 'name' },
     { title: 'Description', field: 'description' },
@@ -498,6 +509,7 @@ export const IComponentFetchComponent = ({ projectId }: IComponentFetchComponent
             ...component,
             id: component.componentId, // Add unique ID for table rows
           }))}
+          onRowClick={handleRowClick}
         />
       )}
 

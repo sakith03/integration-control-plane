@@ -42,6 +42,7 @@ import { SignalsDisplay } from '@backstage/plugin-signals';
 import { ProjectsPage } from '@internal/plugin-projects';
 import { EnvironmentsPage } from '@internal/plugin-environments';
 import { IcomponentsPage } from '@internal/plugin-icomponents';
+import { RuntimesPage } from '@internal/plugin-runtimes';
 
 const app = createApp({
   apis,
@@ -107,6 +108,7 @@ const routes = (
     <Route path="/projects" element={<ProjectsPage />} />
     <Route path="/environments" element={<EnvironmentsPage />} />
     <Route path="/icomponents" element={<IcomponentsPage />} />
+    <Route path="/runtimes" element={<RuntimesPage />} />
   </FlatRoutes>
 );
 
