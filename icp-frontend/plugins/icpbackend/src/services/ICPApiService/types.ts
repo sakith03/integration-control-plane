@@ -117,7 +117,7 @@ export interface Runtime {
 export interface RuntimeFilters {
   status?: string;
   runtimeType?: string;
-  environment?: string;
+  environmentId?: string;
   projectId?: string;
   componentId?: string;
 }

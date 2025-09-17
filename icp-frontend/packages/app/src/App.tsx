@@ -43,6 +43,7 @@ import { ProjectsPage } from '@internal/plugin-projects';
 import { EnvironmentsPage } from '@internal/plugin-environments';
 import { IcomponentsPage } from '@internal/plugin-icomponents';
 import { RuntimesPage } from '@internal/plugin-runtimes';
+import { RuntimeOverviewPage } from '@internal/plugin-runtime-overview';
 
 const app = createApp({
   apis,
@@ -109,6 +110,7 @@ const routes = (
     <Route path="/environments" element={<EnvironmentsPage />} />
     <Route path="/icomponents" element={<IcomponentsPage />} />
     <Route path="/runtimes" element={<RuntimesPage />} />
+    <Route path="/runtime-overview" element={<RuntimeOverviewPage />} />
   </FlatRoutes>
 );
 

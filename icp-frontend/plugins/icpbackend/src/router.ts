@@ -176,7 +176,7 @@ export async function createRouter({
     const filters = {
       status: req.query.status as string | undefined,
       runtimeType: req.query.runtimeType as string | undefined,
-      environment: req.query.environment as string | undefined,
+      environmentId: req.query.environmentId as string | undefined,
       projectId: req.query.projectId as string | undefined,
       componentId: req.query.componentId as string | undefined,
     };

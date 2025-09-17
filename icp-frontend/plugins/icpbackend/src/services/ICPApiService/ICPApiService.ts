@@ -419,8 +419,14 @@ export async function createICPApiService({
     // Runtime operations
     async getRuntimes(filters?: RuntimeFilters): Promise<Runtime[]> {
       const query = `
-        query GetRuntimes($filters: RuntimeFiltersInput) {
-          runtimes(filters: $filters) {
+        query GetRuntimes($status: String, $runtimeType: String, $environmentId: String, $projectId: String, $componentId: String) {
+          runtimes(
+            status: $status
+            runtimeType: $runtimeType
+            environmentId: $environmentId
+            projectId: $projectId
+            componentId: $componentId
+          ) {
             runtimeId
             runtimeType
             status
@@ -481,7 +487,7 @@ export async function createICPApiService({
         }
       `;
 
-      const data = await request<{ runtimes: Runtime[] }>(query, filters ? { filters } : undefined);
+      const data = await request<{ runtimes: Runtime[] }>(query, filters || {});
       return data.runtimes || [];
     },
 

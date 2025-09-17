@@ -100,69 +100,29 @@ export class RuntimesApiService implements RuntimesApi {
         private readonly fetchApi: FetchApi,
     ) { }
 
-    private async request<T>(query: string, variables?: Record<string, any>): Promise<T> {
-        let proxyUrl = '';
-        let response: Response;
-        let lastError: Error;
+    private async restRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+        const backendUrl = this.configApi.getOptionalString('backend.baseUrl') || '';
+        const url = `${backendUrl}/api/icpbackend${endpoint}`;
 
-        try {
-            const baseUrl = 'http://localhost:9446'
-            proxyUrl = `${baseUrl}/graphql`;
+        const response = await this.fetchApi.fetch(url, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+            ...options,
+        });
 
-            response = await this.fetchApi.fetch(proxyUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    query,
-                    variables,
-                }),
-            });
-
-            if (response.ok) {
-                const json = await response.json();
-                if (json.errors) {
-                    throw new Error(`GraphQL Error: ${json.errors[0].message}`);
-                }
-                return json.data;
-            } else {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-        } catch (proxyError) {
-            lastError = proxyError as Error;
-            console.warn('Proxy endpoint failed, trying direct connection:', proxyError);
-
-            // Fallback to proxy-based approach
-            try {
-                const backendUrl = this.configApi.getString('backend.baseUrl');
-                proxyUrl = `${backendUrl}/api/proxy/icp/graphql`;
-
-                response = await this.fetchApi.fetch(proxyUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query,
-                        variables,
-                    }),
-                });
-
-                if (response.ok) {
-                    const json = await response.json();
-                    if (json.errors) {
-                        throw new Error(`GraphQL Error: ${json.errors[0].message}`);
-                    }
-                    return json.data;
-                } else {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-            } catch (fallbackError) {
-                console.error('Both direct and proxy requests failed:', { lastError, fallbackError });
-                throw lastError;
-            }
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
         }
+
+        // Handle empty responses (e.g., from DELETE operations)
+        if (response.status === 204) {
+            return undefined as T;
+        }
+
+        return response.json();
     }
 
     async getRuntimes(filters?: {
@@ -172,148 +132,34 @@ export class RuntimesApiService implements RuntimesApi {
         projectId?: string;
         componentId?: string;
     }): Promise<Runtime[]> {
-        const query = `
-            query Runtimes($status: String, $runtimeType: String, $environment: String, $projectId: String, $componentId: String) {
-                runtimes(
-                    status: $status
-                    runtimeType: $runtimeType
-                    environment: $environment
-                    projectId: $projectId
-                    componentId: $componentId
-                ) {
-                    runtimeId
-                    runtimeType
-                    status
-                    version
-                    platformName
-                    platformVersion
-                    platformHome
-                    osName
-                    osVersion
-                    registrationTime
-                    lastHeartbeat
-                    environment {
-                        environmentId
-                        name
-                        description
-                        createdAt
-                        updatedAt
-                        updatedBy
-                        createdBy
-                    }
-                    component {
-                        componentId
-                        name
-                        description
-                        createdBy
-                        createdAt
-                        updatedAt
-                        updatedBy
-                        project {
-                            projectId
-                            name
-                            description
-                            createdBy
-                            createdAt
-                            updatedAt
-                            updatedBy
-                        }
-                    }
-                    artifacts {
-                        listeners {
-                            name
-                            package
-                            protocol
-                            state
-                        }
-                        services {
-                            name
-                            package
-                            basePath
-                            state
-                            resources {
-                                methods
-                                url
-                            }
-                        }
-                    }
-                }
-            }
-        `;
+        let endpoint = '/runtimes';
 
-        const data = await this.request<{ runtimes: Runtime[] }>(
-            query,
-            filters || {}
-        );
-        return data.runtimes || [];
+        if (filters) {
+            const params = new URLSearchParams();
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value !== undefined) {
+                    params.append(key, value);
+                }
+            });
+
+            if (params.toString()) {
+                endpoint += `?${params.toString()}`;
+            }
+        }
+
+        return this.restRequest<Runtime[]>(endpoint);
     }
 
     async getProjects(): Promise<Project[]> {
-        const query = `
-            query GetProjects {
-                projects {
-                    projectId
-                    name
-                    description
-                    createdBy
-                    createdAt
-                    updatedAt
-                    updatedBy
-                }
-            }
-        `;
-
-        const data = await this.request<{ projects: Project[] }>(query);
-        return data.projects || [];
+        return this.restRequest<Project[]>('/projects');
     }
 
     async getEnvironments(): Promise<Environment[]> {
-        const query = `
-            query GetEnvironments {
-                environments {
-                    environmentId
-                    name
-                    description
-                    createdAt
-                    updatedAt
-                    updatedBy
-                    createdBy
-                }
-            }
-        `;
-
-        const data = await this.request<{ environments: Environment[] }>(query);
-        return data.environments || [];
+        return this.restRequest<Environment[]>('/environments');
     }
 
     async getComponents(projectId: string): Promise<Component[]> {
-        const query = `
-            query GetComponents($projectId: String!) {
-                components(projectId: $projectId) {
-                    componentId
-                    name
-                    description
-                    createdBy
-                    createdAt
-                    updatedAt
-                    updatedBy
-                    project {
-                        projectId
-                        name
-                        description
-                        createdBy
-                        createdAt
-                        updatedAt
-                        updatedBy
-                    }
-                }
-            }
-        `;
-
-        const data = await this.request<{ components: Component[] }>(
-            query,
-            { projectId }
-        );
-        return data.components || [];
+        const endpoint = projectId ? `/components?projectId=${encodeURIComponent(projectId)}` : '/components';
+        return this.restRequest<Component[]>(endpoint);
     }
 }
