@@ -45,7 +45,7 @@ final readonly & jwt:IssuerSignatureConfig jwtSignatureConfig = {
 service /auth on httpListener {
 
     isolated resource function post login(types:Credentials credentials) returns http:Ok|http:Unauthorized|http:InternalServerError|error {
-
+        log:printInfo("Login attempt for user", email = credentials.email);
         // Call the authentication backend to verify credentials
         http:Response|error authResponse = authBackendClient->post("/authenticate", credentials, {
             "X-API-Key": authBackendApiKey
@@ -120,6 +120,7 @@ service /auth on httpListener {
             return createInternalServerError("Error generating JWT token");
         }
 
+        log:printInfo("Login successful for user", email = credentials.email);
         return <http:Ok>{
             body: {
                 token: jwtToken,

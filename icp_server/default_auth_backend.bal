@@ -49,6 +49,7 @@ service / on defaultAuthServiceListener {
 
         // TODO Validate API key
         if apiKeyHeader is () || apiKeyHeader != apiKey {
+            log:printWarn("Authentication attempt with invalid API key");
             return createBadRequestError("Invalid API key");
         }
 
@@ -61,7 +62,7 @@ service / on defaultAuthServiceListener {
 
         // Create response timestamp
         string responseTimestamp = time:utcToString(time:utcNow());
-
+        log:printInfo("User authenticated successfully: " + userEmail);
         return <http:Ok>{
             body: {
                 authenticated: true,

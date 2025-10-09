@@ -1096,6 +1096,7 @@ public isolated function updateComponent(string componentId, string? name, strin
 
 // Get user details by email
 public isolated function getUserDetailsByEmail(string email) returns types:User|error {
+    log:printDebug(string `Fetching user details for email: ${email}`);
     types:User|sql:Error user = dbClient->queryRow(
         `SELECT user_id as userId, email, display_name as displayName, created_at as createdAt, updated_at as updatedAt 
          FROM users 
@@ -1112,6 +1113,7 @@ public isolated function getUserDetailsByEmail(string email) returns types:User|
 
 // Get user roles by user ID
 public isolated function getUserRoles(string userId) returns types:Role[]|error {
+    log:printDebug(string `Fetching roles for user: ${userId}`);
     types:Role[] roles = [];
     stream<types:Role, sql:Error?> roleStream = dbClient->query(
         `SELECT r.role_id, r.project_id, r.environment_id, r.privilege_level, r.role_name, r.created_at, r.updated_at
