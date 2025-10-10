@@ -85,7 +85,7 @@ service /auth on httpListener {
 
         // Validate that auth backend returned required user claims
         if authResult.userId is () || authResult.displayName is () {
-            log:printError("Authentication backend did not return required user claims");
+            log:printError("Authentication backend did not return required user claims", username = credentials.username);
             return createInternalServerError("Invalid response from authentication service");
         }
 
@@ -101,7 +101,7 @@ service /auth on httpListener {
                 log:printInfo(string `User ${username} authenticated but not found in users table, creating user record`);
                 error? createResult = storage:createUser(userId, username, displayName);
                 if createResult is error {
-                    log:printError("Error creating user in database", createResult);
+                    log:printError("Error creating user in database", createResult, username = username);
                     return createInternalServerError("Error creating user record");
                 }
 
@@ -111,6 +111,8 @@ service /auth on httpListener {
                     log:printError("Error getting newly created user details", userDetails);
                     return createInternalServerError("Error getting user details");
                 }
+
+                //TODO Handle roles for new users
             } else {
                 log:printError("Error getting user details", userDetails);
                 return createInternalServerError("Error getting user details");

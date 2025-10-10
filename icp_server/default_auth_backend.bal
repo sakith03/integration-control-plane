@@ -76,7 +76,7 @@ service / on defaultAuthServiceListener {
 
 isolated function authenticateUser(string username, string password) returns types:User|error {
     sql:Client dbClient = storage:dbClient;
-
+    log:printDebug("Attempting to authenticate user: " + username);
     // Query user credentials table only (auth backend is independent)
     types:UserCredentials|sql:Error credentials = dbClient->queryRow(
         `SELECT user_id as userId, username, display_name as displayName, 
