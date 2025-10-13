@@ -51,7 +51,8 @@ public isolated function buildAuthorizationUrl(types:SSOConfig config) returns s
         "response_type": "code",
         "client_id": config.clientId,
         "redirect_uri": config.redirectUri,
-        "scope": string:'join(" ", ...config.scopes)
+        "scope": string:'join(" ", ...config.scopes),
+        "state": "default" // TODO Add CSRF protection
     };
 
     // URL encode each parameter

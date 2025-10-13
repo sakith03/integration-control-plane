@@ -471,11 +471,11 @@ public type OIDCCallbackRequest record {|
 // OIDC token response from provider
 public type OIDCTokenResponse record {|
     string access_token;
-    string? refresh_token;
+    string refresh_token?;
     string id_token;
     string token_type;
     int expires_in;
-    string? scope;
+    string scope?;
 |};
 
 // OIDC ID Token claims (standard claims)
