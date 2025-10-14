@@ -1117,7 +1117,7 @@ public isolated function updateComponent(string componentId, string? name, strin
 public isolated function getUserDetailsById(string userId) returns types:User|error {
     log:printDebug(string `Fetching user details for userId: ${userId}`);
     types:User|sql:Error user = dbClient->queryRow(
-        `SELECT user_id as userId, username, display_name as displayName, created_at as createdAt, updated_at as updatedAt 
+        `SELECT user_id, username, display_name, created_at, updated_at 
          FROM users 
          WHERE user_id = ${userId}`
     );
@@ -1164,4 +1164,96 @@ public isolated function getUserRoles(string userId) returns types:Role[]|error 
         };
 
     return roles;
+}
+
+// Get all users with their roles
+public isolated function getAllUsers() returns types:UserWithRoles[]|error {
+    log:printDebug("Fetching all users with roles");
+    types:UserWithRoles[] users = [];
+    
+    // Get all users
+    stream<types:User, sql:Error?> userStream = dbClient->query(
+        `SELECT user_id, username, display_name, created_at, updated_at
+         FROM users
+         ORDER BY username ASC`
+    );
+
+    check from types:User user in userStream
+        do {
+            // Get roles for each user
+            types:Role[] userRoles = [];
+            types:Role[]|error rolesResult = getUserRoles(user.userId);
+            if rolesResult is error {
+                log:printError(string `Failed to get roles for user ${user.userId}`, rolesResult);
+            } else {
+                userRoles = rolesResult;
+            }
+            
+            types:UserWithRoles userWithRoles = {
+                userId: user.userId,
+                username: user.username,
+                displayName: user.displayName,
+                createdAt: user?.createdAt,
+                updatedAt: user?.updatedAt,
+                roles: userRoles
+            };
+            users.push(userWithRoles);
+        };
+
+    log:printInfo(string `Successfully fetched ${users.length()} users`);
+    return users;
+}
+
+// Create a new user with credentials (password will be hashed)
+public isolated function createUserWithCredentials(string username, string displayName, string passwordHash) returns types:User|error {
+    log:printDebug(string `Creating user with credentials: ${username}`);
+    string userId = uuid:createRandomUuid();
+    
+    transaction {
+        // Insert into users table
+        sql:ExecutionResult _ = check dbClient->execute(
+            `INSERT INTO users (user_id, username, display_name) 
+             VALUES (${userId}, ${username}, ${displayName})`
+        );
+        
+        // Insert into user_credentials table
+        sql:ExecutionResult _ = check dbClient->execute(
+            `INSERT INTO user_credentials (user_id, username, display_name, password_hash) 
+             VALUES (${userId}, ${username}, ${displayName}, ${passwordHash})`
+        );
+        
+        check commit;
+        log:printInfo(string `Successfully created user ${username} with userId ${userId}`);
+    } on fail error e {
+        log:printError(string `Transaction failed while creating user ${username}`, e);
+        return error(string `Failed to create user ${username}`, e);
+    }
+    
+    // Return the created user
+    return check getUserDetailsById(userId);
+}
+
+// Delete a user by ID
+public isolated function deleteUserById(string userId) returns error? {
+    log:printDebug(string `Deleting user: ${userId}`);
+    
+    transaction {
+        // Delete from user_credentials table (explicit delete, though FK might handle it)
+        sql:ExecutionResult _ = check dbClient->execute(
+            `DELETE FROM user_credentials WHERE user_id = ${userId}`
+        );
+        
+        // Delete from users table (will cascade to user_roles)
+        sql:ExecutionResult _ = check dbClient->execute(
+            `DELETE FROM users WHERE user_id = ${userId}`
+        );
+        
+        check commit;
+        log:printInfo(string `Successfully deleted user ${userId}`);
+    } on fail error e {
+        log:printError(string `Transaction failed while deleting user ${userId}`, e);
+        return error(string `Failed to delete user ${userId}`, e);
+    }
+    
+    return ();
 }
