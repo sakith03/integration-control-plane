@@ -71,22 +71,117 @@ service /graphql on graphqlListener {
 
     // ----------- Runtime Resources
     // Get all runtimes with optional filtering
-    isolated resource function get runtimes(string? status, string? runtimeType, string? environmentId, string? projectId, string? componentId) returns types:Runtime[]|error {
-        return check storage:getRuntimes(status, runtimeType, environmentId, projectId, componentId);
+    isolated resource function get runtimes(graphql:Context context, string? status, string? runtimeType, string? environmentId, string? projectId, string? componentId) returns types:Runtime[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // If specific projectId and environmentId are provided, verify access
+        if projectId is string && environmentId is string {
+            if !utils:hasAccessToEnvironment(userContext, projectId, environmentId) {
+                return error("Access denied to environment");
+            }
+            return check storage:getRuntimes(status, runtimeType, environmentId, projectId, componentId);
+        }
+        
+        // If only projectId is provided, filter by accessible environments in that project
+        if projectId is string {
+            if !utils:hasAccessToProject(userContext, projectId) {
+                return error("Access denied to project");
+            }
+            // Get accessible environment IDs for this project
+            string[] accessibleEnvIds = utils:getAccessibleEnvironmentIds(userContext, projectId);
+            
+            // Get runtimes for each accessible environment and aggregate
+            types:Runtime[] allRuntimes = [];
+            foreach string envId in accessibleEnvIds {
+                types:Runtime[] envRuntimes = check storage:getRuntimes(status, runtimeType, envId, projectId, componentId);
+                allRuntimes.push(...envRuntimes);
+            }
+            return allRuntimes;
+        }
+        
+        // No specific filters - return runtimes for all accessible environments
+        // Use optimized batch query
+        return check storage:getRuntimesByAccessibleEnvironments(userContext.roles);
     }
 
     // Get a specific runtime by ID
-    isolated resource function get runtime(string runtimeId) returns types:Runtime?|error {
-        return check storage:getRuntimeById(runtimeId);
+    isolated resource function get runtime(graphql:Context context, string runtimeId) returns types:Runtime?|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // First, fetch the runtime to get its project and environment
+        types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
+        
+        if runtime is () {
+            return (); // Runtime not found
+        }
+        
+        // Verify user has access to the runtime's project and environment
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
+            return error("Access denied to runtime");
+        }
+        
+        return runtime;
     }
 
     // Get services for a specific runtime
-    isolated resource function get services(string runtimeId) returns types:Service[]|error {
+    isolated resource function get services(graphql:Context context, string runtimeId) returns types:Service[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // First, fetch the runtime to verify access to its environment
+        types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
+        
+        if runtime is () {
+            return error("Runtime not found");
+        }
+        
+        // Verify user has access to the runtime's project and environment
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
+            return error("Access denied to runtime");
+        }
+        
         return check storage:getServicesForRuntime(runtimeId);
     }
 
     // Get listeners for a specific runtime
-    isolated resource function get listeners(string runtimeId) returns types:Listener[]|error {
+    isolated resource function get listeners(graphql:Context context, string runtimeId) returns types:Listener[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // First, fetch the runtime to verify access to its environment
+        types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
+        
+        if runtime is () {
+            return error("Runtime not found");
+        }
+        
+        // Verify user has access to the runtime's project and environment
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
+            return error("Access denied to runtime");
+        }
+        
         return check storage:getListenersForRuntime(runtimeId);
     }
 
@@ -156,7 +251,20 @@ service /graphql on graphqlListener {
     }
 
     // Get a specific project by ID
-    isolated resource function get project(string projectId) returns types:Project?|error {
+    isolated resource function get project(graphql:Context context, string projectId) returns types:Project?|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // Verify user has access to this project
+        if !utils:hasAccessToProject(userContext, projectId) {
+            return error("Access denied to project");
+        }
+        
         return check storage:getProjectById(projectId);
     }
 
@@ -179,13 +287,54 @@ service /graphql on graphqlListener {
     }
 
     // Get all components with optional project filter
-    isolated resource function get components(string? projectId) returns types:Component[]|error {
-        return check storage:getComponents(projectId);
+    isolated resource function get components(graphql:Context context, string? projectId) returns types:Component[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // If projectId is provided, verify access to that specific project
+        if projectId is string {
+            if !utils:hasAccessToProject(userContext, projectId) {
+                return error("Access denied to project");
+            }
+            return check storage:getComponents(projectId);
+        }
+        
+        // If no projectId filter, return components for all accessible projects
+        // Get all accessible project IDs
+        string[] accessibleProjectIds = utils:getAccessibleProjectIds(userContext);
+        
+        // Use optimized batch query with WHERE IN clause
+        return check storage:getComponentsByProjectIds(accessibleProjectIds);
     }
 
     // Get a specific component by ID
-    isolated resource function get component(string componentId) returns types:Component?|error {
-        return check storage:getComponentById(componentId);
+    isolated resource function get component(graphql:Context context, string componentId) returns types:Component?|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // First, fetch the component to get its parent project ID
+        types:Component? component = check storage:getComponentById(componentId);
+        
+        if component is () {
+            return (); // Component not found
+        }
+        
+        // Verify user has access to the component's parent project
+        if !utils:hasAccessToProject(userContext, component.project.projectId) {
+            return error("Access denied to component");
+        }
+        
+        return component;
     }
 
     // Delete a component
