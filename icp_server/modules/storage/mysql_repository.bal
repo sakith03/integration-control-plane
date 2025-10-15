@@ -15,6 +15,7 @@
 // under the License.
 
 import icp_server.types as types;
+import icp_server.utils;
 
 import ballerina/cache;
 import ballerina/log;
@@ -901,10 +902,35 @@ public isolated function createProject(types:ProjectInput project) returns types
 }
 
 // Get all projects
-public isolated function getProjects() returns types:Project[]|error {
+// Get all projects (filtered by user's accessible projects via RBAC)
+public isolated function getProjects(types:UserContext userContext) returns types:Project[]|error {
     types:Project[] projects = [];
-    stream<types:Project, sql:Error?> projectStream =
-        dbClient->query(`SELECT project_id, name, description, created_by, created_at, updated_at, updated_by FROM projects ORDER BY name ASC`);
+    
+    // Get list of project IDs the user has access to
+    string[] accessibleProjectIds = utils:getAccessibleProjectIds(userContext);
+    
+    // If user has no roles/access, return empty list
+    if accessibleProjectIds.length() == 0 {
+        log:printWarn("User has no accessible projects", userId = userContext.userId);
+        return projects;
+    }
+    
+    // Build WHERE clause to filter by accessible project IDs
+    sql:ParameterizedQuery query = `SELECT project_id, name, description, created_by, created_at, updated_at, updated_by 
+                                     FROM projects 
+                                     WHERE project_id IN (`;
+    
+    // Add project IDs to the IN clause
+    foreach int i in 0 ..< accessibleProjectIds.length() {
+        if i > 0 {
+            query = sql:queryConcat(query, `, `);
+        }
+        query = sql:queryConcat(query, `${accessibleProjectIds[i]}`);
+    }
+    
+    query = sql:queryConcat(query, `) ORDER BY name ASC`);
+    
+    stream<types:Project, sql:Error?> projectStream = dbClient->query(query);
 
     check from types:Project project in projectStream
         do {
@@ -912,6 +938,12 @@ public isolated function getProjects() returns types:Project[]|error {
                 ...project
             });
         };
+    
+    log:printInfo("Retrieved projects for user", 
+        userId = userContext.userId, 
+        projectCount = projects.length(), 
+        accessibleProjectCount = accessibleProjectIds.length());
+    
     return projects;
 }
 

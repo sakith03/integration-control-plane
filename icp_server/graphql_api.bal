@@ -16,8 +16,11 @@
 
 import icp_server.storage;
 import icp_server.types;
+import icp_server.utils;
 
 import ballerina/graphql;
+import ballerina/http;
+import ballerina/lang.value;
 import ballerina/log;
 
 // GraphQL listener configuration
@@ -31,12 +34,34 @@ listener graphql:Listener graphqlListener = new (graphqlPort
 //     }
 );
 
+isolated function contextInit(http:RequestContext reqCtx, http:Request request) returns graphql:Context {
+    string|error authorization = request.getHeader("Authorization");
+    graphql:Context context = new;
+    if authorization is string {
+        context.set("Authorization", authorization);
+    }
+
+    return context;
+}
+
 // GraphQL service for runtime details
 
 @graphql:ServiceConfig {
+    contextInit,
     cors: {
         allowOrigins: ["*"]
-    }
+    },
+    auth: [
+        {
+            jwtValidatorConfig: {
+                issuer: frontendJwtIssuer,
+                audience: frontendJwtAudience,
+                signatureConfig: {
+                    secret: defaultJwtHMACSecret
+                }
+            }
+        }
+    ]
 }
 service /graphql on graphqlListener {
 
@@ -107,9 +132,18 @@ service /graphql on graphqlListener {
         return check storage:createProject(project);
     }
 
-    // Get all projects
-    isolated resource function get projects() returns types:Project[]|error {
-        return check storage:getProjects();
+    // Get all projects (filtered by user's accessible projects via RBAC)
+    isolated resource function get projects(graphql:Context context) returns types:Project[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // Get projects filtered by user's access
+        return check storage:getProjects(userContext);
     }
 
     // Get a specific project by ID

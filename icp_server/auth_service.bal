@@ -127,6 +127,14 @@ service /auth on httpListener {
             return utils:createInternalServerError("Error getting user roles");
         }
 
+        // Transform full Role objects to minimal RoleInfo for JWT (exclude roleId, roleName, timestamps)
+        types:RoleInfo[] roleInfos = from types:Role role in userRoles
+            select {
+                projectId: role.projectId,
+                environmentId: role.environmentId,
+                privilegeLevel: role.privilegeLevel
+            };
+
         jwt:IssuerConfig issuerConfig = {
             username: userDetails.userId,
             issuer: frontendJwtIssuer,
@@ -135,7 +143,7 @@ service /auth on httpListener {
             signatureConfig: jwtSignatureConfig
         };
 
-        issuerConfig.customClaims["roles"] = userRoles.toJson();
+        issuerConfig.customClaims["roles"] = roleInfos.toJson();
         issuerConfig.customClaims["username"] = username;
         issuerConfig.customClaims["displayName"] = displayName;
 
@@ -413,6 +421,14 @@ service /auth on httpListener {
             return utils:createInternalServerError("Error getting user roles");
         }
         
+        // Transform full Role objects to minimal RoleInfo for JWT (exclude roleId, roleName, timestamps)
+        types:RoleInfo[] roleInfos = from types:Role role in userRoles
+            select {
+                projectId: role.projectId,
+                environmentId: role.environmentId,
+                privilegeLevel: role.privilegeLevel
+            };
+        
         // Issue ICP JWT token
         jwt:IssuerConfig issuerConfig = {
             username: userDetails.userId,
@@ -422,7 +438,7 @@ service /auth on httpListener {
             signatureConfig: jwtSignatureConfig
         };
         
-        issuerConfig.customClaims["roles"] = userRoles.toJson();
+        issuerConfig.customClaims["roles"] = roleInfos.toJson();
         issuerConfig.customClaims["username"] = userInfo.username;
         issuerConfig.customClaims["displayName"] = userInfo.displayName;
         

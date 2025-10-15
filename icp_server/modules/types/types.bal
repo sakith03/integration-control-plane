@@ -534,6 +534,24 @@ public enum PrivilegeLevel {
     DEVELOPER = "developer"
 };
 
+// === User Context for RBAC ===
+
+// Simplified role info extracted from JWT for authorization checks
+// Contains only the minimal information needed for authorization decisions
+public type RoleInfo record {
+    string projectId;
+    string environmentId;
+    PrivilegeLevel privilegeLevel;
+};
+
+// User context extracted from JWT token for RBAC
+public type UserContext record {
+    string userId;
+    string username;
+    string displayName;
+    RoleInfo[] roles;
+};
+
 // Database role record type
 public type Role record {
     @sql:Column {

@@ -342,3 +342,175 @@ isolated function stripEmailDomain(string email) returns string {
     return email;
 }
 
+// === RBAC User Context Extraction ===
+
+// Extract UserContext from Authorization header (JWT token)
+// This function decodes the JWT and extracts user identity and roles for RBAC
+public isolated function extractUserContext(string authorizationHeader) returns types:UserContext|error {
+    // Remove "Bearer " prefix if present
+    string token = authorizationHeader;
+    if authorizationHeader.toLowerAscii().startsWith("bearer ") {
+        token = authorizationHeader.substring(7);
+    }
+    
+    // Decode JWT token (validation already done by GraphQL auth interceptor)
+    [jwt:Header, jwt:Payload]|jwt:Error decodeResult = jwt:decode(token);
+    if decodeResult is jwt:Error {
+        log:printError("Failed to decode JWT token for user context", decodeResult);
+        return error("Invalid JWT token");
+    }
+    
+    jwt:Payload payload = decodeResult[1];
+    
+    // Extract user ID (sub claim)
+    string|error userId = payload.sub.ensureType();
+    if userId is error {
+        log:printError("JWT token missing 'sub' claim");
+        return error("Invalid token: missing user ID");
+    }
+    
+    // Extract username from custom claims
+    anydata usernameData = payload["username"];
+    json|error usernameJson = usernameData.ensureType();
+    string username = usernameJson is string ? usernameJson : userId;
+    
+    // Extract display name from custom claims
+    anydata displayNameData = payload["displayName"];
+    json|error displayNameJson = displayNameData.ensureType();
+    string displayName = displayNameJson is string ? displayNameJson : username;
+    
+    // Extract roles from custom claims
+    anydata rolesData = payload["roles"];
+    json|error rolesJson = rolesData.ensureType();
+    if rolesJson is error || rolesJson is () {
+        log:printWarn("JWT token missing 'roles' claim", userId = userId);
+        // Return user context with empty roles (no access)
+        return {
+            userId: userId,
+            username: username,
+            displayName: displayName,
+            roles: []
+        };
+    }
+    
+    // Parse roles array from JWT
+    types:RoleInfo[]|error roles = parseRolesFromJWT(rolesJson);
+    if roles is error {
+        log:printError("Failed to parse roles from JWT", roles, userId = userId);
+        return error("Invalid token: malformed roles claim");
+    }
+    
+    log:printInfo("Successfully extracted user context", userId = userId, username = username, roleCount = roles.length());
+    
+    return {
+        userId: userId,
+        username: username,
+        displayName: displayName,
+        roles: roles
+    };
+}
+
+// Parse roles from JWT payload (roles claim is an array of role objects)
+isolated function parseRolesFromJWT(json rolesJson) returns types:RoleInfo[]|error {
+    json[] rolesArray = check rolesJson.ensureType();
+    types:RoleInfo[] roles = [];
+    
+    foreach json roleJson in rolesArray {
+        // Extract role fields (only what's needed for authorization)
+        map<json> roleMap = check roleJson.ensureType();
+        
+        string projectId = check roleMap["projectId"].ensureType();
+        string environmentId = check roleMap["environmentId"].ensureType();
+        string privilegeLevelStr = check roleMap["privilegeLevel"].ensureType();
+        
+        // Parse privilege level enum
+        types:PrivilegeLevel privilegeLevel = check privilegeLevelStr.ensureType();
+        
+        roles.push({
+            projectId: projectId,
+            environmentId: environmentId,
+            privilegeLevel: privilegeLevel
+        });
+    }
+    
+    return roles;
+}
+
+// Helper function to extract Authorization header from GraphQL context
+public isolated function extractAuthHeader(anydata context) returns string|error {
+    // The context parameter in GraphQL resolvers has the Authorization header
+    // stored using context.set("Authorization", ...) in contextInit
+    return check context.ensureType();
+}
+
+// === RBAC Authorization Helper Methods ===
+
+// Check if user has access to a specific project
+public isolated function hasAccessToProject(types:UserContext userContext, string projectId) returns boolean {
+    return userContext.roles.some(role => role.projectId == projectId);
+}
+
+// Check if user has access to a specific environment in a project
+public isolated function hasAccessToEnvironment(types:UserContext userContext, string projectId, string environmentId) returns boolean {
+    return userContext.roles.some(role => 
+        role.projectId == projectId && role.environmentId == environmentId
+    );
+}
+
+// Check if user has admin access to a specific project and environment
+public isolated function hasAdminAccess(types:UserContext userContext, string projectId, string environmentId) returns boolean {
+    return userContext.roles.some(role => 
+        role.projectId == projectId && 
+        role.environmentId == environmentId && 
+        role.privilegeLevel == types:ADMIN
+    );
+}
+
+// Check if user is an admin in any environment of a specific project
+public isolated function isAdminInProject(types:UserContext userContext, string projectId) returns boolean {
+    return userContext.roles.some(role => 
+        role.projectId == projectId && 
+        role.privilegeLevel == types:ADMIN
+    );
+}
+
+// Get list of all project IDs the user has access to
+public isolated function getAccessibleProjectIds(types:UserContext userContext) returns string[] {
+    string[] projectIds = [];
+    foreach types:RoleInfo role in userContext.roles {
+        // Add project ID if not already in list (avoid duplicates)
+        boolean exists = false;
+        foreach string id in projectIds {
+            if id == role.projectId {
+                exists = true;
+                break;
+            }
+        }
+        if !exists {
+            projectIds.push(role.projectId);
+        }
+    }
+    return projectIds;
+}
+
+// Get list of all environment IDs the user has access to within a specific project
+public isolated function getAccessibleEnvironmentIds(types:UserContext userContext, string projectId) returns string[] {
+    string[] environmentIds = [];
+    foreach types:RoleInfo role in userContext.roles {
+        if role.projectId == projectId {
+            // Add environment ID if not already in list
+            boolean exists = false;
+            foreach string id in environmentIds {
+                if id == role.environmentId {
+                    exists = true;
+                    break;
+                }
+            }
+            if !exists {
+                environmentIds.push(role.environmentId);
+            }
+        }
+    }
+    return environmentIds;
+}
+
