@@ -284,6 +284,53 @@ service /auth on httpListener {
             }
         };
     }
+    
+    // Update user roles
+    isolated resource function put users/[string userId]/roles(types:RoleAssignment[] roles) returns http:Ok|http:NotFound|http:BadRequest|http:InternalServerError {
+        log:printInfo("Updating roles for user", userId = userId);
+        
+        // Check if user exists
+        types:User|error existingUser = storage:getUserDetailsById(userId);
+        if existingUser is error {
+            if existingUser is sql:NoRowsError {
+                log:printWarn("User not found for role update", userId = userId);
+                return <http:NotFound>{
+                    body: {
+                        message: "User not found"
+                    }
+                };
+            }
+            log:printError("Error checking user existence", existingUser);
+            return utils:createInternalServerError("Error checking user");
+        }
+        
+        // Validate role assignments
+        if roles.length() == 0 {
+            log:printDebug("Removing all roles for user", userId = userId);
+        }
+        
+        // Update roles
+        error? updateResult = storage:updateUserRoles(userId, roles);
+        if updateResult is error {
+            log:printError("Error updating user roles", updateResult, userId = userId);
+            return utils:createInternalServerError("Failed to update user roles");
+        }
+        
+        // Fetch updated user with roles
+        types:Role[]|error updatedRoles = storage:getUserRoles(userId);
+        if updatedRoles is error {
+            log:printError("Error fetching updated roles", updatedRoles);
+            return utils:createInternalServerError("Failed to fetch updated roles");
+        }
+        
+        log:printInfo("User roles updated successfully", userId = userId);
+        return <http:Ok>{
+            body: {
+                message: "User roles updated successfully",
+                roles: updatedRoles
+            }
+        };
+    }
 
     // OIDC Login endpoint - exchanges authorization code for ICP token
     isolated resource function post login/oidc(types:OIDCCallbackRequest request) returns http:Ok|http:Unauthorized|http:BadRequest|http:InternalServerError {

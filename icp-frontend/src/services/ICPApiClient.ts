@@ -237,6 +237,39 @@ class ICPApiClient {
             throw error;
         }
     }
+
+    async updateUserRoles(userId: string, roles: Array<{
+        projectId: string;
+        environmentId: string;
+        privilegeLevel: string;
+    }>): Promise<any> {
+        try {
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+
+            const response = await fetch(`${this.authEndpoint}/users/${userId}/roles`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify(roles),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Failed to update user roles with status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Update User Roles Error:', error);
+            throw error;
+        }
+    }
 }
 
 // Create a singleton instance

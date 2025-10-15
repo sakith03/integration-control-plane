@@ -25,6 +25,7 @@ import {
     FormControlLabel,
     Radio,
     Divider,
+    Snackbar,
 } from '@mui/material';
 import {
     ExpandMore as ExpandMoreIcon,
@@ -35,7 +36,7 @@ import {
     VisibilityOff as VisibilityOffIcon,
     Person as PersonIcon,
 } from '@mui/icons-material';
-import { useUsers, useCreateUser, useDeleteUser, useProjects, useEnvironments } from '../services/hooks';
+import { useUsers, useCreateUser, useDeleteUser, useUpdateUserRoles, useProjects, useEnvironments } from '../services/hooks';
 import { UserWithRoles, CreateUserRequest, Project, Environment, Role } from '../types';
 
 interface RoleAssignment {
@@ -48,6 +49,7 @@ const UsersPage: React.FC = () => {
     const { value: users, loading, error, retry } = useUsers();
     const { createUser, loading: creating } = useCreateUser();
     const { deleteUser, loading: deleting } = useDeleteUser();
+    const { updateUserRoles, loading: updatingRoles } = useUpdateUserRoles();
     const { value: projects, loading: loadingProjects } = useProjects();
     const { value: environments, loading: loadingEnvironments } = useEnvironments();
 
@@ -57,6 +59,11 @@ const UsersPage: React.FC = () => {
     const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [roleAssignments, setRoleAssignments] = useState<RoleAssignment[]>([]);
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+        open: false,
+        message: '',
+        severity: 'success',
+    });
 
     const [formData, setFormData] = useState<CreateUserRequest>({
         username: '',
@@ -189,23 +196,40 @@ const UsersPage: React.FC = () => {
     const handleSavePermissions = async () => {
         if (!selectedUser) return;
         
-        // TODO: Implement API call to update user roles
-        console.log('Saving permissions for user:', selectedUser.userId);
-        console.log('Role assignments:', roleAssignments.filter(r => r.privilegeLevel !== 'none'));
-        
-        // For now, just show an alert
-        alert('Save Permissions - API integration coming soon!\n\nAssignments:\n' + 
-            roleAssignments
+        try {
+            // Filter out "none" assignments and format for API
+            const rolesToSave = roleAssignments
                 .filter(r => r.privilegeLevel !== 'none')
-                .map(r => {
-                    const proj = projects.find(p => p.projectId === r.projectId);
-                    const env = environments.find(e => e.environmentId === r.environmentId);
-                    return `${proj?.name} / ${env?.name}: ${r.privilegeLevel}`;
-                })
-                .join('\n')
-        );
-        
-        handleCloseEditPermissions();
+                .map(r => ({
+                    projectId: r.projectId,
+                    environmentId: r.environmentId,
+                    privilegeLevel: r.privilegeLevel,
+                }));
+            
+            console.log('Saving permissions for user:', selectedUser.userId);
+            console.log('Role assignments:', rolesToSave);
+            
+            await updateUserRoles(selectedUser.userId, rolesToSave);
+            
+            // Show success message
+            setSnackbar({
+                open: true,
+                message: `Permissions updated successfully for ${selectedUser.displayName}`,
+                severity: 'success',
+            });
+            
+            // Refresh the users list to show updated roles
+            retry();
+            
+            handleCloseEditPermissions();
+        } catch (error) {
+            console.error('Error saving permissions:', error);
+            setSnackbar({
+                open: true,
+                message: `Failed to update permissions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                severity: 'error',
+            });
+        }
     };
 
     if (loading) {
@@ -480,14 +504,12 @@ const UsersPage: React.FC = () => {
                                                                         <Typography variant="subtitle1">
                                                                             {environment.name}
                                                                         </Typography>
-                                                                        {environment.isProduction && (
-                                                                            <Chip 
-                                                                                label="PROD" 
-                                                                                size="small" 
-                                                                                color="error" 
-                                                                                sx={{ height: 20 }}
-                                                                            />
-                                                                        )}
+                                                                        <Chip 
+                                                                            label={environment.isProduction ? 'Production' : 'Non-Production'}
+                                                                            size="small" 
+                                                                            color={environment.isProduction ? 'error' : 'primary'}
+                                                                            variant="outlined"
+                                                                        />
                                                                     </Box>
                                                                     {environment.description && (
                                                                         <Typography variant="caption" color="textSecondary">
@@ -535,19 +557,35 @@ const UsersPage: React.FC = () => {
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseEditPermissions}>
+                    <Button onClick={handleCloseEditPermissions} disabled={updatingRoles}>
                         Cancel
                     </Button>
                     <Button
                         onClick={handleSavePermissions}
                         variant="contained"
                         color="primary"
-                        disabled={loadingProjects || loadingEnvironments || projects.length === 0 || environments.length === 0}
+                        disabled={loadingProjects || loadingEnvironments || projects.length === 0 || environments.length === 0 || updatingRoles}
                     >
-                        Save Permissions
+                        {updatingRoles ? <CircularProgress size={24} /> : 'Save Permissions'}
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Success/Error Snackbar */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

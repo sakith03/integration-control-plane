@@ -454,3 +454,31 @@ export function useDeleteUser() {
 
     return { deleteUser, loading, error };
 }
+
+export function useUpdateUserRoles() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
+
+    const updateUserRoles = useCallback(async (
+        userId: string,
+        roles: Array<{
+            projectId: string;
+            environmentId: string;
+            privilegeLevel: string;
+        }>
+    ) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await icpApiClient.updateUserRoles(userId, roles);
+            return result;
+        } catch (err) {
+            setError(err as Error);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { updateUserRoles, loading, error };
+}

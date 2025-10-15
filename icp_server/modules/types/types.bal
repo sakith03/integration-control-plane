@@ -578,3 +578,16 @@ public type CreateUserInput record {
     string displayName;
     string password;
 };
+
+// Input type for updating user roles
+public type UpdateUserRolesInput record {
+    string userId;
+    RoleAssignment[] roles;
+};
+
+// Role assignment for a specific project-environment combination
+public type RoleAssignment record {
+    string projectId;
+    string environmentId;
+    PrivilegeLevel privilegeLevel;
+};
