@@ -12,7 +12,6 @@ import {
     Alert,
     CircularProgress,
     CardActions,
-    Chip,
 } from '@mui/material';
 import {
     Folder as ProjectsIcon,
@@ -22,15 +21,6 @@ import {
 } from '@mui/icons-material';
 import { useProjects } from '../services/hooks';
 
-const ICPLogo: React.FC<{ size?: number }> = ({ size = 100 }) => (
-    <img
-        src="/favicon.svg"
-        alt="WSO2 ICP Logo"
-        width={size}
-        height={size}
-        style={{ display: 'block' }}
-    />
-);
 
 const HomePage: React.FC = () => {
     const navigate = useNavigate();
