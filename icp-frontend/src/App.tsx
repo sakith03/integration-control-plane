@@ -13,7 +13,10 @@ import EnvironmentsPage from './components/EnvironmentsPage';
 import EnvironmentOverview from './components/EnvironmentOverview';
 import ComponentsPage from './components/ComponentsPage';
 import ProjectsPage from './components/ProjectsPage';
+import MetricPage from './components/MetricsPage';
+import LogsPage from './components/LogsPage';
 import Navigation, { DRAWER_WIDTH, DRAWER_WIDTH_COLLAPSED } from './components/Navigation';
+import MetricsPage from './components/MetricsPage';
 
 const createAppTheme = (mode: 'light' | 'dark') => createTheme({
     palette: {
@@ -105,6 +108,8 @@ function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeTog
                     <Route path="/runtimes" element={<RuntimesPage />} />
                     <Route path="/environments" element={<EnvironmentsPage />} />
                     <Route path="/environment-overview" element={<EnvironmentOverview />} />
+                    <Route path="/observability/metrics" element={<MetricsPage />} />
+                    <Route path="/observability/logs" element={<LogsPage />} />
                     <Route path="/components" element={<ComponentsPage />} />
                     <Route path="/projects" element={<ProjectsPage />} />
                 </Routes>

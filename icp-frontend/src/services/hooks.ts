@@ -374,3 +374,52 @@ export function useDeleteProject() {
 
     return { deleteProject, loading, error };
 }
+
+// Add these imports at the top
+import { observabilityApiClient } from './ObservabilityApiClient';
+import { LogEntry, LogRequest, LogStats } from '../types';
+
+// Add this hook to the file
+export function useLogs(request: LogRequest) {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
+    const [data, setData] = useState<LogEntry[]>([]);
+    const [stats, setStats] = useState<LogStats>({
+        total: 0,
+        errors: 0,
+        warnings: 0,
+        info: 0,
+        debug: 0,
+    });
+
+    const fetchLogs = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await observabilityApiClient.getLogs(request);
+            setData(result);
+
+            // Calculate stats
+            const calculatedStats: LogStats = {
+                total: result.length,
+                errors: result.filter(log => log.level.toUpperCase() === 'ERROR').length,
+                warnings: result.filter(log => log.level.toUpperCase() === 'WARN' || log.level.toUpperCase() === 'WARNING').length,
+                info: result.filter(log => log.level.toUpperCase() === 'INFO').length,
+                debug: result.filter(log => log.level.toUpperCase() === 'DEBUG').length,
+            };
+            setStats(calculatedStats);
+        } catch (err) {
+            setError(err as Error);
+            setData([]);
+            setStats({ total: 0, errors: 0, warnings: 0, info: 0, debug: 0 });
+        } finally {
+            setLoading(false);
+        }
+    }, [JSON.stringify(request)]);
+
+    useEffect(() => {
+        fetchLogs();
+    }, [fetchLogs]);
+
+    return { data, loading, error, stats, refetch: fetchLogs };
+}
