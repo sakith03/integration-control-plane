@@ -889,15 +889,51 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
 }
 
 // Create a new project in the projects table
-public isolated function createProject(types:ProjectInput project) returns types:Project|error? {
+public isolated function createProject(types:ProjectInput project, types:UserContext userContext) returns types:Project|error? {
     string projectId = uuid:createType1AsString();
-    sql:ParameterizedQuery insertQuery = `INSERT INTO projects (project_id, name, description) 
-                                          VALUES (${projectId}, ${project.name}, ${project.description})`;
-    var result = dbClient->execute(insertQuery);
-    if result is sql:Error {
-        log:printError(string `Failed to create project ${project.name}`, result);
-        return result;
+    string userId = userContext.userId;
+    string displayName = userContext.displayName;
+    
+    transaction {
+        // Insert project with owner_id and created_by (display name)
+        sql:ParameterizedQuery insertQuery = `INSERT INTO projects (project_id, name, description, owner_id, created_by) 
+                                              VALUES (${projectId}, ${project.name}, ${project.description}, ${userId}, ${displayName})`;
+        sql:ExecutionResult _ = check dbClient->execute(insertQuery);
+        
+        log:printInfo(string `Created project: ${project.name}`, 
+            projectId = projectId, 
+            ownerId = userId, 
+            createdBy = displayName);
+        
+        // Auto-assign admin roles to the creating user for all environments
+        types:Environment[] environments = check getEnvironments();
+        
+        if environments.length() == 0 {
+            log:printWarn("No environments found. User will not get any roles for this project.", projectId = projectId);
+        } else {
+            foreach types:Environment env in environments {
+                // Get or create role for this project-environment-admin combination
+                string roleId = check getOrCreateRole(projectId, env.environmentId, types:ADMIN);
+                
+                // Assign role to creating user
+                sql:ExecutionResult _ = check dbClient->execute(
+                    `INSERT INTO user_roles (user_id, role_id, assigned_by)
+                     VALUES (${userId}, ${roleId}, ${userId})`
+                );
+                
+                log:printInfo(string `Assigned admin role to project creator`, 
+                    userId = userId, 
+                    projectId = projectId, 
+                    environmentId = env.environmentId);
+            }
+        }
+        
+        check commit;
+        log:printInfo(string `Successfully created project and assigned admin roles`, 
+            projectId = projectId, 
+            owner = displayName);
     }
+    
     return getProjectById(projectId);
 }
 
@@ -916,7 +952,7 @@ public isolated function getProjects(types:UserContext userContext) returns type
     }
     
     // Build WHERE clause to filter by accessible project IDs
-    sql:ParameterizedQuery query = `SELECT project_id, name, description, created_by, created_at, updated_at, updated_by 
+    sql:ParameterizedQuery query = `SELECT project_id, name, description, owner_id, created_by, created_at, updated_at, updated_by 
                                      FROM projects 
                                      WHERE project_id IN (`;
     
@@ -950,7 +986,7 @@ public isolated function getProjects(types:UserContext userContext) returns type
 // Get a specific project by ID
 public isolated function getProjectById(string projectId) returns types:Project|error {
     stream<types:Project, sql:Error?> projectStream =
-        dbClient->query(`SELECT project_id, name, description, created_by, created_at, updated_at, updated_by FROM projects WHERE project_id = ${projectId}`);
+        dbClient->query(`SELECT project_id, name, description, owner_id, created_by, created_at, updated_at, updated_by FROM projects WHERE project_id = ${projectId}`);
 
     types:Project[] projectRecords =
         check from types:Project project in projectStream

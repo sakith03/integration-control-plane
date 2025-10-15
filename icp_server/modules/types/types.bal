@@ -306,6 +306,10 @@ public type Project record {
     string name;
     string description?;
     @sql:Column {
+        name: "owner_id"
+    }
+    string ownerId?;
+    @sql:Column {
         name: "created_by"
     }
     string createdBy?;

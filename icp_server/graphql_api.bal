@@ -128,8 +128,17 @@ service /graphql on graphqlListener {
 
     //------------- Project Resources
     // Create a new project
-    isolated remote function createProject(types:ProjectInput project) returns types:Project|error? {
-        return check storage:createProject(project);
+    isolated remote function createProject(graphql:Context context, types:ProjectInput project) returns types:Project|error? {
+        // Extract user context to get the creating user's information
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // Create project and auto-assign admin roles to creating user
+        return check storage:createProject(project, userContext);
     }
 
     // Get all projects (filtered by user's accessible projects via RBAC)
