@@ -101,6 +101,7 @@ const HomePage: React.FC = () => {
                         <Grid item xs={12} sm={6} md={4} lg={3} key={project.projectId}>
                             <Card
                                 elevation={3}
+                                onClick={() => navigate(`/components?projectId=${project.projectId}`)}
                                 sx={{
                                     height: '100%',
                                     display: 'flex',
