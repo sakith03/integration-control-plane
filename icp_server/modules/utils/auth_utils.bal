@@ -514,3 +514,45 @@ public isolated function getAccessibleEnvironmentIds(types:UserContext userConte
     return environmentIds;
 }
 
+// Get list of all project IDs where the user has admin access
+public isolated function getAdminProjectIds(types:UserContext userContext) returns string[] {
+    string[] adminProjectIds = [];
+    foreach types:RoleInfo role in userContext.roles {
+        if role.privilegeLevel == types:ADMIN {
+            // Add project ID if not already in list (avoid duplicates)
+            boolean exists = false;
+            foreach string id in adminProjectIds {
+                if id == role.projectId {
+                    exists = true;
+                    break;
+                }
+            }
+            if !exists {
+                adminProjectIds.push(role.projectId);
+            }
+        }
+    }
+    return adminProjectIds;
+}
+
+// Get list of ALL environment IDs where the user has admin access (across all projects)
+public isolated function getAllAdminEnvironmentIds(types:UserContext userContext) returns string[] {
+    string[] adminEnvironmentIds = [];
+    foreach types:RoleInfo role in userContext.roles {
+        if role.privilegeLevel == types:ADMIN {
+            // Add environment ID if not already in list (avoid duplicates)
+            boolean exists = false;
+            foreach string id in adminEnvironmentIds {
+                if id == role.environmentId {
+                    exists = true;
+                    break;
+                }
+            }
+            if !exists {
+                adminEnvironmentIds.push(role.environmentId);
+            }
+        }
+    }
+    return adminEnvironmentIds;
+}
+

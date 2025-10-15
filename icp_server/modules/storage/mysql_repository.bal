@@ -50,6 +50,51 @@ public isolated function getEnvironments() returns types:Environment[]|error {
     return environments;
 }
 
+// Get environments by specific environment IDs (for admin environment filtering)
+public isolated function getEnvironmentsByIds(string[] environmentIds) returns types:Environment[]|error {
+    // Return empty array if no environment IDs provided
+    if environmentIds.length() == 0 {
+        return [];
+    }
+    
+    types:Environment[] environments = [];
+    
+    // Build WHERE clause to filter by environment IDs
+    sql:ParameterizedQuery query = `SELECT environment_id, name, description, is_production, created_at, updated_at, created_by, updated_by
+                                     FROM environments 
+                                     WHERE environment_id IN (`;
+    
+    // Add environment IDs to the IN clause
+    foreach int i in 0 ..< environmentIds.length() {
+        if i > 0 {
+            query = sql:queryConcat(query, `, `);
+        }
+        query = sql:queryConcat(query, `${environmentIds[i]}`);
+    }
+    
+    query = sql:queryConcat(query, `) ORDER BY name ASC`);
+    
+    stream<types:Environment, sql:Error?> envStream = dbClient->query(query);
+    
+    check from types:Environment env in envStream
+        do {
+            environments.push({
+                environmentId: env.environmentId,
+                description: env.description,
+                name: env.name,
+                isProduction: env.isProduction,
+                createdAt: env.createdAt,
+                updatedAt: env.updatedAt,
+                createdBy: env.createdBy,
+                updatedBy: env.updatedBy
+            });
+        };
+    
+    log:printInfo("Retrieved environments by IDs", environmentCount = environments.length());
+    
+    return environments;
+}
+
 // Get environment by ID
 public isolated function getEnvironmentById(string environmentId) returns types:Environment|error {
     stream<record {|string environment_id; string name; string? description; boolean is_production; string? created_at; string? updated_at;|}, sql:Error?> envStream =
@@ -1021,6 +1066,44 @@ public isolated function getProjects(types:UserContext userContext) returns type
     return projects;
 }
 
+// Get projects by specific project IDs (for admin project filtering)
+public isolated function getProjectsByIds(string[] projectIds) returns types:Project[]|error {
+    // Return empty array if no project IDs provided
+    if projectIds.length() == 0 {
+        return [];
+    }
+    
+    types:Project[] projects = [];
+    
+    // Build WHERE clause to filter by project IDs
+    sql:ParameterizedQuery query = `SELECT project_id, name, description, owner_id, created_by, created_at, updated_at, updated_by 
+                                     FROM projects 
+                                     WHERE project_id IN (`;
+    
+    // Add project IDs to the IN clause
+    foreach int i in 0 ..< projectIds.length() {
+        if i > 0 {
+            query = sql:queryConcat(query, `, `);
+        }
+        query = sql:queryConcat(query, `${projectIds[i]}`);
+    }
+    
+    query = sql:queryConcat(query, `) ORDER BY name ASC`);
+    
+    stream<types:Project, sql:Error?> projectStream = dbClient->query(query);
+
+    check from types:Project project in projectStream
+        do {
+            projects.push({
+                ...project
+            });
+        };
+    
+    log:printInfo("Retrieved projects by IDs", projectCount = projects.length());
+    
+    return projects;
+}
+
 // Get a specific project by ID
 public isolated function getProjectById(string projectId) returns types:Project|error {
     stream<types:Project, sql:Error?> projectStream =
@@ -1457,10 +1540,12 @@ public isolated function getUsersByProjectIds(string[] projectIds) returns types
     types:UserWithRoles[] users = [];
     
     // Build query to get distinct user IDs who have roles in the specified projects
+    // Need to join through user_roles -> roles to get project_id
     sql:ParameterizedQuery selectClause = `SELECT DISTINCT u.user_id, u.username, u.display_name, u.created_at, u.updated_at
          FROM users u
          INNER JOIN user_roles ur ON u.user_id = ur.user_id
-         WHERE ur.project_id IN (`;
+         INNER JOIN roles r ON ur.role_id = r.role_id
+         WHERE r.project_id IN (`;
     
     // Build the IN clause with parameterized values
     sql:ParameterizedQuery inClause = ``;

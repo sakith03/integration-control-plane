@@ -203,6 +203,28 @@ service /graphql on graphqlListener {
         return check storage:getEnvironments();
     }
 
+    // Get all environments where user has admin access (for permission management)
+    isolated resource function get adminEnvironments(graphql:Context context) returns types:Environment[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // Get all environment IDs where user is admin (across all projects)
+        string[] adminEnvironmentIds = utils:getAllAdminEnvironmentIds(userContext);
+        
+        // Return empty array if user is not admin in any environment
+        if adminEnvironmentIds.length() == 0 {
+            return [];
+        }
+        
+        // Fetch environments by admin environment IDs
+        return check storage:getEnvironmentsByIds(adminEnvironmentIds);
+    }
+
     // Delete an environment
     isolated remote function deleteEnvironment(string environmentId) returns boolean|error {
         check storage:deleteEnvironment(environmentId);
@@ -248,6 +270,28 @@ service /graphql on graphqlListener {
         
         // Get projects filtered by user's access
         return check storage:getProjects(userContext);
+    }
+
+    // Get projects where user has admin access (for permission management)
+    isolated resource function get adminProjects(graphql:Context context) returns types:Project[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+        
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        
+        // Get project IDs where user is admin
+        string[] adminProjectIds = utils:getAdminProjectIds(userContext);
+        
+        // Return empty array if user is not admin in any project
+        if adminProjectIds.length() == 0 {
+            return [];
+        }
+        
+        // Fetch projects by admin project IDs
+        return check storage:getProjectsByIds(adminProjectIds);
     }
 
     // Get a specific project by ID

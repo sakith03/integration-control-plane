@@ -5,6 +5,8 @@ import {
     GET_ENVIRONMENTS,
     GET_COMPONENTS,
     GET_PROJECTS,
+    GET_ADMIN_PROJECTS,
+    GET_ADMIN_ENVIRONMENTS,
     DELETE_RUNTIME,
     CREATE_ENVIRONMENT,
     UPDATE_ENVIRONMENT,
@@ -296,6 +298,33 @@ export function useProjects() {
 
     return {
         value: data?.projects || [],
+        loading,
+        error,
+        retry,
+    };
+}
+
+// Admin project hooks (for permission management)
+export function useAdminProjects() {
+    const { data, loading, error, retry } = useGraphQLQuery<{ adminProjects: Project[] }>(
+        GET_ADMIN_PROJECTS
+    );
+
+    return {
+        value: data?.adminProjects || [],
+        loading,
+        error,
+        retry,
+    };
+}
+
+export function useAdminEnvironments() {
+    const { data, loading, error, retry } = useGraphQLQuery<{ adminEnvironments: Environment[] }>(
+        GET_ADMIN_ENVIRONMENTS
+    );
+
+    return {
+        value: data?.adminEnvironments || [],
         loading,
         error,
         retry,
