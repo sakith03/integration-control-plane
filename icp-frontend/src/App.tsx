@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { CssBaseline, AppBar, Toolbar, Typography, Box, IconButton } from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
+import { CssBaseline, AppBar, Toolbar, Typography, Box, IconButton, Button } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 // Import ICP components
 import HomePage from './components/HomePage';
@@ -13,10 +13,23 @@ import EnvironmentsPage from './components/EnvironmentsPage';
 import EnvironmentOverview from './components/EnvironmentOverview';
 import ComponentsPage from './components/ComponentsPage';
 import ProjectsPage from './components/ProjectsPage';
-import MetricPage from './components/MetricsPage';
 import LogsPage from './components/LogsPage';
-import Navigation, { DRAWER_WIDTH, DRAWER_WIDTH_COLLAPSED } from './components/Navigation';
 import MetricsPage from './components/MetricsPage';
+import LoginPage from './components/LoginPage';
+import OIDCCallbackPage from './components/OIDCCallbackPage';
+import Navigation, { DRAWER_WIDTH, DRAWER_WIDTH_COLLAPSED } from './components/Navigation';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { icpApiClient } from './services/ICPApiClient';
+
+const ICPLogo: React.FC<{ size?: number }> = ({ size = 100 }) => (
+    <img
+        src="/favicon.svg"
+        alt="WSO2 ICP Logo"
+        width={size}
+        height={size}
+        style={{ display: 'block' }}
+    />
+);
 
 const createAppTheme = (mode: 'light' | 'dark') => createTheme({
     palette: {
@@ -33,6 +46,16 @@ const createAppTheme = (mode: 'light' | 'dark') => createTheme({
 function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeToggle: () => void }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const navigate = useNavigate();
+    const { isAuthenticated, logout, user } = useAuth();
+
+    // Set token in API client when user changes
+    useEffect(() => {
+        if (user?.token) {
+            icpApiClient.setToken(user.token);
+        } else {
+            icpApiClient.setToken(null);
+        }
+    }, [user]);
 
     const handleSidebarToggle = () => {
         setSidebarOpen(!sidebarOpen);
@@ -41,6 +64,22 @@ function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeTog
     const handleTitleClick = () => {
         navigate('/');
     };
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
+
+    // If not authenticated, show only login page and callback
+    if (!isAuthenticated) {
+        return (
+            <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/auth/callback" element={<OIDCCallbackPage />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+        );
+    }
 
     return (
         <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -59,7 +98,7 @@ function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeTog
                         onClick={handleSidebarToggle}
                         sx={{ mr: 2 }}
                     >
-                        <MenuIcon />
+                        <ICPLogo size={50} />
                     </IconButton>
                     <Typography
                         variant="h6"
@@ -74,13 +113,28 @@ function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeTog
                     >
                         Integration Control Plane
                     </Typography>
-                    <IconButton
-                        color="inherit"
-                        onClick={onThemeToggle}
-                        aria-label="toggle theme"
-                    >
-                        {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-                    </IconButton>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {user && (
+                            <Typography variant="body2" sx={{ mr: 1 }}>
+                                {user.username}
+                            </Typography>
+                        )}
+                        <IconButton
+                            color="inherit"
+                            onClick={onThemeToggle}
+                            aria-label="toggle theme"
+                        >
+                            {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+                        </IconButton>
+                        <Button
+                            color="inherit"
+                            onClick={handleLogout}
+                            startIcon={<LogoutIcon />}
+                            sx={{ ml: 1 }}
+                        >
+                            Logout
+                        </Button>
+                    </Box>
                 </Toolbar>
             </AppBar>
 
@@ -97,9 +151,9 @@ function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeTog
                         }),
                     mt: '64px', // Height of AppBar
                     minHeight: 'calc(100vh - 64px)',
-                    backgroundColor: (theme) => 
-                        theme.palette.mode === 'dark' 
-                            ? theme.palette.grey[900] 
+                    backgroundColor: (theme) =>
+                        theme.palette.mode === 'dark'
+                            ? theme.palette.grey[900]
                             : theme.palette.grey[50],
                 }}
             >
@@ -112,6 +166,7 @@ function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeTog
                     <Route path="/observability/logs" element={<LogsPage />} />
                     <Route path="/components" element={<ComponentsPage />} />
                     <Route path="/projects" element={<ProjectsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </Box>
         </Box>
@@ -119,18 +174,28 @@ function AppContent({ darkMode, onThemeToggle }: { darkMode: boolean; onThemeTog
 }
 
 function App() {
-    const [darkMode, setDarkMode] = useState(false);
+    // Initialize theme from localStorage or default to false (light mode)
+    const [darkMode, setDarkMode] = useState(() => {
+        const savedTheme = localStorage.getItem('icp-theme-mode');
+        return savedTheme === 'dark';
+    });
+
     const theme = createAppTheme(darkMode ? 'dark' : 'light');
 
     const handleThemeToggle = () => {
-        setDarkMode(!darkMode);
+        const newDarkMode = !darkMode;
+        setDarkMode(newDarkMode);
+        // Persist theme preference to localStorage
+        localStorage.setItem('icp-theme-mode', newDarkMode ? 'dark' : 'light');
     };
 
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
             <Router>
-                <AppContent darkMode={darkMode} onThemeToggle={handleThemeToggle} />
+                <AuthProvider>
+                    <AppContent darkMode={darkMode} onThemeToggle={handleThemeToggle} />
+                </AuthProvider>
             </Router>
         </ThemeProvider>
     );

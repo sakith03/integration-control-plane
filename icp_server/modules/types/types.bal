@@ -81,7 +81,7 @@ public type Node record {
 
 // Heartbeat that includes all runtime information for registration/updates
 public type Heartbeat record {|
-    string runtimeId;
+    string runtime;
     RuntimeType runtimeType;
     RuntimeStatus status;
     string environment;
@@ -96,7 +96,7 @@ public type Heartbeat record {|
 
 // Delta heartbeat with hash value
 public type DeltaHeartbeat record {|
-    string runtimeId;
+    string runtime;
     string runtimeHash;
     time:Utc timestamp;
 |};
@@ -371,6 +371,11 @@ public type Environment record {
     string description?;
 
     @sql:Column {
+        name: "is_production"
+    }
+    boolean isProduction;
+
+    @sql:Column {
         name: "created_at"
     }
     string createdAt?;
@@ -394,6 +399,7 @@ public type Environment record {
 public type EnvironmentInput record {
     string name;
     string description?;
+    boolean isProduction?;
 };
 
 public type ComponentInDB record {
@@ -413,6 +419,7 @@ public type ComponentInDB record {
     string project_updated_by?;
 };
 
+// === Observability Related Types ===
 public type LogRequest record {
     decimal duration;
     int logLimit;
@@ -464,3 +471,137 @@ public type OpenSearchResponse record {
     OpenSearchHits hits;
 };
 
+// === Auth Related Types ===
+
+public type Credentials record {
+    string username;
+    string password;
+};
+
+public type LoginResponse record {|
+    boolean isNewUser = false;
+    string token?;
+    int expiresIn?;
+    string username?;
+    Role[] roles?;
+|};
+
+// Types for the /authenticate endpoint
+public type AuthenticateResponse record {
+    boolean authenticated;
+    string? userId;
+    string? displayName;
+    string? timestamp;
+};
+
+// === OIDC/SSO Related Types ===
+
+// SSO Configuration
+public type SSOConfig record {|
+    boolean enabled;
+    string issuer;
+    string authorizationEndpoint;
+    string tokenEndpoint;
+    string logoutEndpoint;
+    string clientId;
+    string clientSecret;
+    string redirectUri;
+    string usernameClaim; // "email" or "preferred_username"
+    string[] scopes;
+|};
+
+// OIDC Authorization URL response
+public type OIDCAuthorizationUrlResponse record {|
+    string authorizationUrl;
+|};
+
+// OIDC callback request
+public type OIDCCallbackRequest record {|
+    string code;
+|};
+
+// OIDC token response from provider
+public type OIDCTokenResponse record {|
+    string access_token;
+    string refresh_token?;
+    string id_token;
+    string token_type;
+    int expires_in;
+    string scope?;
+|};
+
+// OIDC ID Token claims (standard claims)
+public type OIDCIdTokenClaims record {|
+    string sub; // Subject (user ID)
+    string iss; // Issuer
+    string|string[] aud; // Audience
+    int exp; // Expiration time
+    int iat; // Issued at
+    string? email?; // Email address
+    string? name?; // Full name
+    string? preferred_username?; // Preferred username
+|};
+
+// Type to hold extracted user information
+public type ExtractedUserInfo record {|
+    string userId;
+    string username;
+    string displayName;
+|};
+
+// Database user record type
+public type User record {
+    string userId;
+    string username;
+    string displayName;
+    string? createdAt?;
+    string? updatedAt?;
+};
+
+// Database user_credentials record type
+public type UserCredentials record {
+    string userId;
+    string username;
+    string displayName;
+    string passwordHash;
+    string? createdAt?;
+    string? updatedAt?;
+};
+
+// Privilege level enum
+public enum PrivilegeLevel {
+    ADMIN = "admin",
+    DEVELOPER = "developer"
+};
+
+// Database role record type
+public type Role record {
+    @sql:Column {
+        name: "role_id"
+    }
+    string roleId;
+    @sql:Column {
+        name: "project_id"
+    }
+    string projectId;
+    @sql:Column {
+        name: "environment_id"
+    }
+    string environmentId;
+    @sql:Column {
+        name: "privilege_level"
+    }
+    PrivilegeLevel privilegeLevel;
+    @sql:Column {
+        name: "role_name"
+    }
+    string roleName; // Format: <project_name>:<env_name>:<privilege_level>
+    @sql:Column {
+        name: "created_at"
+    }
+    string? createdAt?;
+    @sql:Column {
+        name: "updated_at"
+    }
+    string? updatedAt?;
+};

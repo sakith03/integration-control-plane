@@ -14,11 +14,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM mysql:latest
-
-ENV MYSQL_ROOT_PASSWORD=my-secret-pw
-ENV MYSQL_DATABASE=icp_database
-
-# Copy initialization script to docker-entrypoint-initdb.d
-# MySQL will automatically execute .sql files in this directory
-COPY ./init-scripts/mysql_init.sql /docker-entrypoint-initdb.d/
+services:
+    mysql-db:
+        build:
+            context: ./resources/db
+            dockerfile: Dockerfile
+        ports:
+            - "3307:3306"
+        container_name: icp-mysql-local
+        environment:
+            MYSQL_ROOT_PASSWORD: my-secret-pw
+            MYSQL_DATABASE: icp_database
+    icp-server-local:
+        image: wso2/icp_server
+        container_name: icp-server-local
+        build:
+            context: .
+            dockerfile: build.Dockerfile
+        ports:
+            - "9445:9445"
+            - "9446:9446"
+        depends_on:
+            - mysql-db
+        command: bal run

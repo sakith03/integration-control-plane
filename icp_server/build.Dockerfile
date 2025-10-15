@@ -14,11 +14,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM mysql:latest
+FROM ballerina/ballerina:2201.12.8
 
-ENV MYSQL_ROOT_PASSWORD=my-secret-pw
-ENV MYSQL_DATABASE=icp_database
+USER root
 
-# Copy initialization script to docker-entrypoint-initdb.d
-# MySQL will automatically execute .sql files in this directory
-COPY ./init-scripts/mysql_init.sql /docker-entrypoint-initdb.d/
+COPY . /home/work-dir/icp_server
+WORKDIR /home/work-dir/icp_server
+
+RUN bal build
