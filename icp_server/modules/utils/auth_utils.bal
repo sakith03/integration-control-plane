@@ -440,15 +440,16 @@ isolated function parseRolesFromJWT(json rolesJson) returns types:RoleInfo[]|err
         map<json> roleMap = check roleJson.ensureType();
         
         string projectId = check roleMap["projectId"].ensureType();
-        string environmentId = check roleMap["environmentId"].ensureType();
+        string environmentTypeStr = check roleMap["environmentType"].ensureType();
         string privilegeLevelStr = check roleMap["privilegeLevel"].ensureType();
         
-        // Parse privilege level enum
+        // Parse environment type and privilege level enums
+        types:EnvironmentType environmentType = check environmentTypeStr.ensureType();
         types:PrivilegeLevel privilegeLevel = check privilegeLevelStr.ensureType();
         
         roles.push({
             projectId: projectId,
-            environmentId: environmentId,
+            environmentType: environmentType,
             privilegeLevel: privilegeLevel
         });
     }
@@ -480,9 +481,18 @@ public isolated function hasAccessToEnvironment(types:UserContext userContext, s
     if userContext.isSuperAdmin {
         return true;
     }
-    return userContext.roles.some(role => 
-        role.projectId == projectId && role.environmentId == environmentId
-    );
+    
+    // Get environment details to determine type
+    types:Environment|error environment = storage:getEnvironmentById(environmentId);
+    if environment is error {
+        return false;
+    }
+    
+    final types:EnvironmentType environmentType = environment.isProduction ? types:PROD : types:NON_PROD;
+    
+    return userContext.roles.some(isolated function (types:RoleInfo role) returns boolean {
+        return role.projectId == projectId && role.environmentType == environmentType;
+    });
 }
 
 // Check if user has admin access to a specific project and environment
@@ -491,11 +501,20 @@ public isolated function hasAdminAccess(types:UserContext userContext, string pr
     if userContext.isSuperAdmin {
         return true;
     }
-    return userContext.roles.some(role => 
-        role.projectId == projectId && 
-        role.environmentId == environmentId && 
-        role.privilegeLevel == types:ADMIN
-    );
+    
+    // Get environment details to determine type
+    types:Environment|error environment = storage:getEnvironmentById(environmentId);
+    if environment is error {
+        return false;
+    }
+    
+    final types:EnvironmentType environmentType = environment.isProduction ? types:PROD : types:NON_PROD;
+    
+    return userContext.roles.some(isolated function (types:RoleInfo role) returns boolean {
+        return role.projectId == projectId && 
+        role.environmentType == environmentType && 
+        role.privilegeLevel == types:ADMIN;
+    });
 }
 
 // Check if user is an admin in any environment of a specific project
@@ -551,22 +570,25 @@ public isolated function getAccessibleEnvironmentIds(types:UserContext userConte
         return from types:Environment env in allEnvironments select env.environmentId;
     }
     
+    // Get all environments and filter by user's access to project and environment types
+    types:Environment[]|error allEnvironments = storage:getEnvironments();
+    if allEnvironments is error {
+        log:printError("Failed to fetch environments for access check", allEnvironments);
+        return [];
+    }
+    
     string[] environmentIds = [];
-    foreach types:RoleInfo role in userContext.roles {
-        if role.projectId == projectId {
-            // Add environment ID if not already in list
-            boolean exists = false;
-            foreach string id in environmentIds {
-                if id == role.environmentId {
-                    exists = true;
-                    break;
-                }
-            }
-            if !exists {
-                environmentIds.push(role.environmentId);
-            }
+    foreach types:Environment env in allEnvironments {
+        final types:EnvironmentType envType = env.isProduction ? types:PROD : types:NON_PROD;
+        boolean hasAccess = userContext.roles.some(isolated function (types:RoleInfo role) returns boolean { 
+            return role.projectId == projectId && role.environmentType == envType;
+        });
+        
+        if hasAccess {
+            environmentIds.push(env.environmentId);
         }
     }
+    
     return environmentIds;
 }
 
@@ -601,8 +623,8 @@ public isolated function getAdminProjectIds(types:UserContext userContext) retur
     return adminProjectIds;
 }
 
-// Get list of ALL environment IDs where the user has admin access (across all projects)
-public isolated function getAllAdminEnvironmentIds(types:UserContext userContext) returns string[] {
+// Get list of environment IDs where the user has admin access based on environment types
+public isolated function getAdminEnvironmentIdsByType(types:UserContext userContext) returns string[] {
     // Super admins have admin access to all environments - fetch from database
     if userContext.isSuperAdmin {
         types:Environment[]|error allEnvironments = storage:getEnvironments();
@@ -614,21 +636,24 @@ public isolated function getAllAdminEnvironmentIds(types:UserContext userContext
     }
     
     string[] adminEnvironmentIds = [];
-    foreach types:RoleInfo role in userContext.roles {
-        if role.privilegeLevel == types:ADMIN {
-            // Add environment ID if not already in list (avoid duplicates)
-            boolean exists = false;
-            foreach string id in adminEnvironmentIds {
-                if id == role.environmentId {
-                    exists = true;
-                    break;
-                }
-            }
-            if !exists {
-                adminEnvironmentIds.push(role.environmentId);
-            }
+    types:Environment[]|error allEnvironments = storage:getEnvironments();
+    if allEnvironments is error {
+        log:printError("Failed to fetch environments for admin check", allEnvironments);
+        return [];
+    }
+    
+    // For each environment, check if user has admin access to its type
+    foreach types:Environment env in allEnvironments {
+        final types:EnvironmentType envType = env.isProduction ? types:PROD : types:NON_PROD;
+        boolean hasAdminAccess = userContext.roles.some(isolated function (types:RoleInfo role) returns boolean {
+            return role.environmentType == envType && role.privilegeLevel == types:ADMIN;
+        });
+        
+        if hasAdminAccess {
+            adminEnvironmentIds.push(env.environmentId);
         }
     }
+    
     return adminEnvironmentIds;
 }
 
@@ -647,7 +672,7 @@ public isolated function generateJWTToken(
     types:RoleInfo[] roleInfos = from types:Role role in userRoles
         select {
             projectId: role.projectId,
-            environmentId: role.environmentId,
+            environmentType: role.environmentType,
             privilegeLevel: role.privilegeLevel
         };
     

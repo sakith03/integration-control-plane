@@ -42,12 +42,12 @@ function testExtractUserContextWithRoles() returns error? {
             "roles": [
                 {
                     "projectId": "project-1",
-                    "environmentId": "env-1",
+                    "environmentType": "prod",
                     "privilegeLevel": "admin"
                 },
                 {
                     "projectId": "project-2",
-                    "environmentId": "env-2",
+                    "environmentType": "non-prod",
                     "privilegeLevel": "developer"
                 }
             ]
@@ -69,13 +69,13 @@ function testExtractUserContextWithRoles() returns error? {
     // Verify first role (no roleId in token)
     types:RoleInfo role1 = userContext.roles[0];
     test:assertEquals(role1.projectId, "project-1");
-    test:assertEquals(role1.environmentId, "env-1");
+    test:assertEquals(role1.environmentType, types:PROD);
     test:assertEquals(role1.privilegeLevel, types:ADMIN);
     
     // Verify second role
     types:RoleInfo role2 = userContext.roles[1];
     test:assertEquals(role2.projectId, "project-2");
-    test:assertEquals(role2.environmentId, "env-2");
+    test:assertEquals(role2.environmentType, types:NON_PROD);
     test:assertEquals(role2.privilegeLevel, types:DEVELOPER);
 }
 
@@ -120,12 +120,12 @@ function testHasAccessToProject() returns error? {
         roles: [
             {
                 projectId: "project-1",
-                environmentId: "env-1",
+                environmentType: types:PROD,
                 privilegeLevel: types:ADMIN
             },
             {
                 projectId: "project-2",
-                environmentId: "env-1",
+                environmentType: types:PROD,
                 privilegeLevel: types:DEVELOPER
             }
         ]
@@ -150,27 +150,27 @@ function testHasAccessToEnvironment() returns error? {
         roles: [
             {
                 projectId: "project-1",
-                environmentId: "env-dev",
+                environmentType: types:NON_PROD,
                 privilegeLevel: types:ADMIN
             },
             {
                 projectId: "project-1",
-                environmentId: "env-prod",
+                environmentType: types:PROD,
                 privilegeLevel: types:DEVELOPER
             }
         ]
     };
     
-    // Test positive cases
-    test:assertTrue(utils:hasAccessToEnvironment(userContext, "project-1", "env-dev"), 
-        "Should have access to project-1/env-dev");
-    test:assertTrue(utils:hasAccessToEnvironment(userContext, "project-1", "env-prod"), 
-        "Should have access to project-1/env-prod");
+    // Test positive cases (use seeded environment IDs: dev/prod)
+    test:assertTrue(utils:hasAccessToEnvironment(userContext, "project-1", "750e8400-e29b-41d4-a716-446655440001"), 
+        "Should have access to project-1/dev");
+    test:assertTrue(utils:hasAccessToEnvironment(userContext, "project-1", "750e8400-e29b-41d4-a716-446655440002"), 
+        "Should have access to project-1/prod");
     
     // Test negative cases
     test:assertFalse(utils:hasAccessToEnvironment(userContext, "project-1", "env-staging"), 
         "Should NOT have access to project-1/env-staging");
-    test:assertFalse(utils:hasAccessToEnvironment(userContext, "project-2", "env-dev"), 
+    test:assertFalse(utils:hasAccessToEnvironment(userContext, "project-2", "750e8400-e29b-41d4-a716-446655440001"), 
         "Should NOT have access to project-2/env-dev");
 }
 
@@ -185,26 +185,26 @@ function testHasAdminAccess() returns error? {
         roles: [
             {
                 projectId: "project-1",
-                environmentId: "env-dev",
+                environmentType: types:NON_PROD,
                 privilegeLevel: types:ADMIN
             },
             {
                 projectId: "project-1",
-                environmentId: "env-prod",
+                environmentType: types:PROD,
                 privilegeLevel: types:DEVELOPER
             }
         ]
     };
     
-    // Test positive case
-    test:assertTrue(utils:hasAdminAccess(userContext, "project-1", "env-dev"), 
-        "Should have admin access to project-1/env-dev");
+    // Test positive case (dev environment ID)
+    test:assertTrue(utils:hasAdminAccess(userContext, "project-1", "750e8400-e29b-41d4-a716-446655440001"), 
+        "Should have admin access to project-1/dev");
     
-    // Test negative cases
-    test:assertFalse(utils:hasAdminAccess(userContext, "project-1", "env-prod"), 
-        "Should NOT have admin access to project-1/env-prod (only developer)");
-    test:assertFalse(utils:hasAdminAccess(userContext, "project-2", "env-dev"), 
-        "Should NOT have admin access to project-2/env-dev");
+    // Test negative cases (prod environment ID and project-2 dev ID)
+    test:assertFalse(utils:hasAdminAccess(userContext, "project-1", "750e8400-e29b-41d4-a716-446655440002"), 
+        "Should NOT have admin access to project-1/prod (only developer)");
+    test:assertFalse(utils:hasAdminAccess(userContext, "project-2", "750e8400-e29b-41d4-a716-446655440001"), 
+        "Should NOT have admin access to project-2/dev");
 }
 
 @test:Config {
@@ -218,12 +218,12 @@ function testIsAdminInProject() returns error? {
         roles: [
             {
                 projectId: "project-1",
-                environmentId: "env-dev",
+                environmentType: types:NON_PROD,
                 privilegeLevel: types:ADMIN
             },
             {
                 projectId: "project-2",
-                environmentId: "env-prod",
+                environmentType: types:PROD,
                 privilegeLevel: types:DEVELOPER
             }
         ]
@@ -251,17 +251,17 @@ function testGetAccessibleProjectIds() returns error? {
         roles: [
             {
                 projectId: "project-1",
-                environmentId: "env-dev",
+                environmentType: types:NON_PROD,
                 privilegeLevel: types:ADMIN
             },
             {
                 projectId: "project-1",
-                environmentId: "env-prod",
+                environmentType: types:PROD,
                 privilegeLevel: types:DEVELOPER
             },
             {
                 projectId: "project-2",
-                environmentId: "env-dev",
+                environmentType: types:NON_PROD,
                 privilegeLevel: types:ADMIN
             }
         ]
@@ -286,32 +286,33 @@ function testGetAccessibleEnvironmentIds() returns error? {
         roles: [
             {
                 projectId: "project-1",
-                environmentId: "env-dev",
+                environmentType: types:NON_PROD,
                 privilegeLevel: types:ADMIN
             },
             {
                 projectId: "project-1",
-                environmentId: "env-prod",
+                environmentType: types:PROD,
                 privilegeLevel: types:DEVELOPER
             },
             {
                 projectId: "project-2",
-                environmentId: "env-staging",
+                environmentType: types:NON_PROD,
                 privilegeLevel: types:ADMIN
             }
         ]
     };
     
-    // Test for project-1
+    // Test for project-1 (has NON_PROD and PROD roles)
     string[] env1Ids = utils:getAccessibleEnvironmentIds(userContext, "project-1");
     test:assertEquals(env1Ids.length(), 2, "Should have 2 environments for project-1");
-    test:assertTrue(env1Ids.indexOf("env-dev") != (), "Should include env-dev");
-    test:assertTrue(env1Ids.indexOf("env-prod") != (), "Should include env-prod");
-    
-    // Test for project-2
+    // Environment IDs seeded in DB: dev -> 750e8400-e29b-41d4-a716-446655440001, prod -> 750e8400-e29b-41d4-a716-446655440002
+    test:assertTrue(env1Ids.indexOf("750e8400-e29b-41d4-a716-446655440001") != (), "Should include dev env ID");
+    test:assertTrue(env1Ids.indexOf("750e8400-e29b-41d4-a716-446655440002") != (), "Should include prod env ID");
+
+    // Test for project-2 (has ONLY NON_PROD role -> dev)
     string[] env2Ids = utils:getAccessibleEnvironmentIds(userContext, "project-2");
     test:assertEquals(env2Ids.length(), 1, "Should have 1 environment for project-2");
-    test:assertTrue(env2Ids.indexOf("env-staging") != (), "Should include env-staging");
+    test:assertTrue(env2Ids.indexOf("750e8400-e29b-41d4-a716-446655440001") != (), "Should include dev env ID");
     
     // Test for project with no access
     string[] env3Ids = utils:getAccessibleEnvironmentIds(userContext, "project-3");

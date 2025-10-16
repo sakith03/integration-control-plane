@@ -127,7 +127,7 @@ export interface LoginRequest {
 export interface Role {
     roleId: string;
     projectId: string;
-    environmentId: string;
+    environmentType: 'prod' | 'non-prod';
     privilegeLevel: string;
     roleName: string;
     createdAt: string;

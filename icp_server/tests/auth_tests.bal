@@ -218,7 +218,7 @@ function testJWTContainsUserRoles() returns error? {
     // Verify each role has the minimal RoleInfo structure (no roleId or roleName in token)
     foreach json role in roles {
         test:assertTrue(role.projectId is string, "Role should have projectId");
-        test:assertTrue(role.environmentId is string, "Role should have environmentId");
+        test:assertTrue(role.environmentType is string, "Role should have environmentType");
         test:assertTrue(role.privilegeLevel is string, "Role should have privilegeLevel");
     }
 }

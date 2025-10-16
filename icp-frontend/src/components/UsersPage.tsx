@@ -37,14 +37,15 @@ import {
     Visibility as VisibilityIcon,
     VisibilityOff as VisibilityOffIcon,
     Person as PersonIcon,
+    AccountCircle as AccountCircleIcon,
 } from '@mui/icons-material';
-import { useUsers, useCreateUser, useDeleteUser, useUpdateUserRoles, useAdminProjects, useAdminEnvironments } from '../services/hooks';
+import { useUsers, useCreateUser, useDeleteUser, useUpdateUserRoles, useAdminProjects, useAdminEnvironments, useProjects } from '../services/hooks';
 import { UserWithRoles, CreateUserRequest, Project, Environment, Role } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 interface RoleAssignment {
     projectId: string;
-    environmentId: string;
+    environmentType: 'prod' | 'non-prod';
     privilegeLevel: 'admin' | 'developer' | 'none';
 }
 
@@ -56,8 +57,14 @@ const UsersPage: React.FC = () => {
     const { updateUserRoles, loading: updatingRoles } = useUpdateUserRoles();
     
     // Use admin-filtered projects and environments for permission management
+    // Super admins get all projects, regular users get only admin projects
     const { value: adminProjects, loading: loadingAdminProjects } = useAdminProjects();
+    const { value: allProjects, loading: loadingAllProjects } = useProjects();
     const { value: allAdminEnvironments, loading: loadingAdminEnvironments } = useAdminEnvironments();
+    
+    // Determine which projects to use based on user role
+    const projectsToUse = currentUser?.isSuperAdmin ? allProjects : adminProjects;
+    const loadingProjects = currentUser?.isSuperAdmin ? loadingAllProjects : loadingAdminProjects;
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
     const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -132,12 +139,32 @@ const UsersPage: React.FC = () => {
     };
 
     const handleDeleteClick = (user: UserWithRoles) => {
+        // Prevent delete for super admin users
+        if (user.isSuperAdmin) {
+            setSnackbar({
+                open: true,
+                message: 'Super admin users cannot be deleted',
+                severity: 'error',
+            });
+            return;
+        }
         setSelectedUser(user);
         setDeleteDialogOpen(true);
     };
 
     const handleConfirmDelete = async () => {
         if (!selectedUser) return;
+        // Extra guard: do not delete super admin users
+        if (selectedUser.isSuperAdmin) {
+            setSnackbar({
+                open: true,
+                message: 'Super admin users cannot be deleted',
+                severity: 'error',
+            });
+            setDeleteDialogOpen(false);
+            setSelectedUser(null);
+            return;
+        }
 
         try {
             await deleteUser(selectedUser.userId);
@@ -168,11 +195,11 @@ const UsersPage: React.FC = () => {
         setRoleAssignments([]);
     };
 
-    const handleRoleChange = (projectId: string, environmentId: string, privilegeLevel: 'admin' | 'developer' | 'none') => {
+    const handleRoleChange = (projectId: string, environmentType: 'prod' | 'non-prod', privilegeLevel: 'admin' | 'developer' | 'none') => {
         setRoleAssignments(prev => {
-            // Check if this project-environment combination already exists
+            // Check if this project-environment type combination already exists
             const existingIndex = prev.findIndex(
-                a => a.projectId === projectId && a.environmentId === environmentId
+                a => a.projectId === projectId && a.environmentType === environmentType
             );
             
             if (existingIndex >= 0) {
@@ -182,9 +209,28 @@ const UsersPage: React.FC = () => {
                 return updated;
             } else {
                 // Add new assignment
-                return [...prev, { projectId, environmentId, privilegeLevel }];
+                return [...prev, { projectId, environmentType, privilegeLevel }];
             }
         });
+    };
+
+    // Helper function to get current privilege level for a project and environment type
+    const getCurrentPrivilegeLevel = (projectId: string, environmentType: 'prod' | 'non-prod'): 'admin' | 'developer' | 'none' => {
+        // Check if there's a pending assignment
+        const assignment = roleAssignments.find(
+            a => a.projectId === projectId && a.environmentType === environmentType
+        );
+        
+        if (assignment) {
+            return assignment.privilegeLevel;
+        }
+        
+        // Check existing role from user's current roles
+        const existingRole = selectedUser?.roles.find(
+            r => r.projectId === projectId && r.environmentType === environmentType
+        );
+        
+        return existingRole ? existingRole.privilegeLevel as 'admin' | 'developer' : 'none';
     };
 
     const handleSavePermissions = async () => {
@@ -196,7 +242,7 @@ const UsersPage: React.FC = () => {
                 .filter(r => r.privilegeLevel !== 'none')
                 .map(r => ({
                     projectId: r.projectId,
-                    environmentId: r.environmentId,
+                    environmentType: r.environmentType,
                     privilegeLevel: r.privilegeLevel,
                 }));
             
@@ -288,20 +334,64 @@ const UsersPage: React.FC = () => {
                     )}
                 </Paper>
             ) : (
-                users.map((user) => (
-                    <Accordion key={user.userId} sx={{ mb: 1 }}>
-                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mr: 2 }}>
-                                <PersonIcon sx={{ mr: 2, color: 'primary.main' }} />
-                                <Box sx={{ flexGrow: 1 }}>
-                                    <Typography variant="h6">{user.displayName}</Typography>
-                                    <Typography variant="body2" color="textSecondary">
-                                        @{user.username}
-                                    </Typography>
-                                </Box>
+                users.map((user) => {
+                    const isCurrentUser = currentUser?.username === user.username;
+                    return (
+                        <Accordion 
+                            key={user.userId} 
+                            sx={{ 
+                                mb: 1,
+                                ...(isCurrentUser && {
+                                    border: '2px solid',
+                                    borderColor: 'primary.main',
+                                    bgcolor: 'primary.50',
+                                    '& .MuiAccordionSummary-root': {
+                                        bgcolor: 'primary.50',
+                                    }
+                                })
+                            }}
+                        >
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mr: 2 }}>
+                                    {isCurrentUser ? (
+                                        <AccountCircleIcon sx={{ mr: 2, color: 'primary.main', fontSize: '1.5rem' }} />
+                                    ) : (
+                                        <PersonIcon sx={{ mr: 2, color: 'primary.main' }} />
+                                    )}
+                                    <Box sx={{ flexGrow: 1 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Typography variant="h6">{user.displayName}</Typography>
+                                            {isCurrentUser && (
+                                                <Chip 
+                                                    label="You" 
+                                                    size="small" 
+                                                    color="primary" 
+                                                    variant="filled"
+                                                    sx={{ fontWeight: 'bold' }}
+                                                />
+                                            )}
+                                        </Box>
+                                        <Typography variant="body2" color="textSecondary">
+                                            @{user.username}
+                                        </Typography>
+                                    </Box>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                                    {/* Only super admins can edit super admin permissions */}
-                                    {(user.isSuperAdmin && !currentUser?.isSuperAdmin) ? (
+                                    {/* Current user cannot edit their own permissions */}
+                                    {isCurrentUser ? (
+                                        <Tooltip title="You cannot edit your own permissions">
+                                            <span>
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="primary"
+                                                    startIcon={<EditIcon />}
+                                                    disabled={true}
+                                                >
+                                                    Edit Permissions
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    ) : (user.isSuperAdmin && !currentUser?.isSuperAdmin) ? (
                                         <Tooltip title="Only super admins can edit super admin permissions">
                                             <span>
                                                 <Button
@@ -325,25 +415,40 @@ const UsersPage: React.FC = () => {
                                                 e.stopPropagation();
                                                 handleEditPermissions(user);
                                             }}
-                                            disabled={loadingAdminProjects}
+                                            disabled={loadingProjects}
                                         >
                                             Edit Permissions
                                         </Button>
                                     )}
-                                    {/* Only super admins can delete users */}
+                                    {/* Only super admins can delete users; deleting super admin is not allowed */}
                                     {currentUser?.isSuperAdmin && (
-                                        <IconButton
-                                            size="small"
-                                            color="error"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteClick(user);
-                                            }}
-                                            disabled={deleting}
-                                            title="Delete User"
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
+                                        (user.isSuperAdmin) ? (
+                                            <Tooltip title="Super admin users cannot be deleted">
+                                                <span>
+                                                    <IconButton
+                                                        size="small"
+                                                        color="error"
+                                                        disabled
+                                                        title="Delete User"
+                                                    >
+                                                        <DeleteIcon />
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                        ) : (
+                                            <IconButton
+                                                size="small"
+                                                color="error"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteClick(user);
+                                                }}
+                                                disabled={deleting}
+                                                title="Delete User"
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        )
                                     )}
                                 </Box>
                             </Box>
@@ -410,7 +515,8 @@ const UsersPage: React.FC = () => {
                             </Box>
                         </AccordionDetails>
                     </Accordion>
-                ))
+                    );
+                })
             )}
 
             {/* Add User Dialog */}
@@ -481,8 +587,9 @@ const UsersPage: React.FC = () => {
                 <DialogTitle>Delete User</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Are you sure you want to delete user "{selectedUser?.displayName}" (@{selectedUser?.username})?
-                        This action cannot be undone.
+                        {selectedUser?.isSuperAdmin
+                            ? 'Super admin users cannot be deleted.'
+                            : `Are you sure you want to delete user "${selectedUser?.displayName}" (@${selectedUser?.username})? This action cannot be undone.`}
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
@@ -493,7 +600,7 @@ const UsersPage: React.FC = () => {
                         onClick={handleConfirmDelete}
                         variant="contained"
                         color="error"
-                        disabled={deleting}
+                        disabled={deleting || !!selectedUser?.isSuperAdmin}
                     >
                         {deleting ? <CircularProgress size={24} /> : 'Delete'}
                     </Button>
@@ -511,7 +618,7 @@ const UsersPage: React.FC = () => {
                     Edit Permissions - {selectedUser?.displayName}
                 </DialogTitle>
                 <DialogContent>
-                    {loadingAdminProjects ? (
+                    {loadingProjects ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                             <CircularProgress />
                         </Box>
@@ -549,15 +656,18 @@ const UsersPage: React.FC = () => {
                             </Divider>
                             
                             <Typography variant="body2" color="textSecondary" gutterBottom sx={{ mb: 2 }}>
-                                You can only assign roles in projects and environments where you are an admin.
+                                {currentUser?.isSuperAdmin 
+                                    ? "As a super admin, you can assign roles in all projects and environment types."
+                                    : "You can only assign roles in projects and environments where you are an admin."
+                                }
                             </Typography>
                             
-                            {adminProjects.length === 0 ? (
+                            {projectsToUse.length === 0 && !currentUser?.isSuperAdmin ? (
                                 <Alert severity="warning" sx={{ mt: 2 }}>
                                     You are not an admin in any projects. You cannot manage user permissions.
                                 </Alert>
                             ) : (
-                                adminProjects.map((project) => (
+                                projectsToUse.map((project) => (
                                     <Accordion 
                                         key={project.projectId} 
                                         sx={{ mb: 1 }}
@@ -580,83 +690,59 @@ const UsersPage: React.FC = () => {
                                         </AccordionSummary>
                                         <AccordionDetails>
                                             {(() => {
-                                                // Filter environments for this specific project
-                                                // Environment type doesn't include projectId, so we need to filter by checking
-                                                // if the current user has an admin role for this project+environment combination
-                                                const projectEnvironments = allAdminEnvironments.filter(env => {
-                                                    // Check if current user has an admin role for this project + this environment
-                                                    return currentUser?.roles.some(role =>
-                                                        role.projectId === project.projectId &&
-                                                        role.environmentId === env.environmentId &&
-                                                        role.privilegeLevel === 'admin'
-                                                    ) || false;
-                                                });
+                                                // Super admins have access to all environment types
+                                                const isSuperAdmin = currentUser?.isSuperAdmin || false;
+                                                
+                                                // Check if current user has admin access to this project for both environment types
+                                                const hasProdAdminAccess = isSuperAdmin || currentUser?.roles.some(role =>
+                                                    role.projectId === project.projectId &&
+                                                    role.environmentType === 'prod' &&
+                                                    role.privilegeLevel === 'admin'
+                                                ) || false;
 
-                                                if (loadingAdminEnvironments) {
-                                                    return (
-                                                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                                                            <CircularProgress size={24} />
-                                                        </Box>
-                                                    );
-                                                }
+                                                const hasNonProdAdminAccess = isSuperAdmin || currentUser?.roles.some(role =>
+                                                    role.projectId === project.projectId &&
+                                                    role.environmentType === 'non-prod' &&
+                                                    role.privilegeLevel === 'admin'
+                                                ) || false;
 
-                                                if (projectEnvironments.length === 0) {
+                                                if (!hasProdAdminAccess && !hasNonProdAdminAccess) {
                                                     return (
                                                         <Alert severity="info">
-                                                            You are not an admin in any environments of this project.
+                                                            You are not an admin in this project for any environment type.
                                                         </Alert>
                                                     );
                                                 }
 
                                                 return (
                                                     <Stack spacing={2}>
-                                                        {projectEnvironments.map(environment => {
-                                                        // Find existing role from user's current roles
-                                                        const existingRole = selectedUser?.roles.find(
-                                                            r => r.projectId === project.projectId && 
-                                                                 r.environmentId === environment.environmentId
-                                                        );
-                                                        
-                                                        const assignment = roleAssignments.find(
-                                                            a => a.projectId === project.projectId && 
-                                                                 a.environmentId === environment.environmentId
-                                                        );
-                                                        
-                                                        const currentPrivilegeLevel = assignment?.privilegeLevel || 
-                                                            (existingRole ? existingRole.privilegeLevel as 'admin' | 'developer' : 'none');
-                                                        
-                                                        return (
-                                                            <Paper 
-                                                                key={environment.environmentId} 
-                                                                variant="outlined" 
-                                                                sx={{ p: 2 }}
-                                                            >
-                                                                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                                                        {/* Production Environment Type */}
+                                                        {hasProdAdminAccess && (
+                                                            <Paper variant="outlined" sx={{ p: 2 }}>
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                                     <Box sx={{ flex: 1 }}>
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                                             <Typography variant="subtitle1">
-                                                                                {environment.name}
+                                                                                Production
                                                                             </Typography>
                                                                             <Chip 
-                                                                                label={environment.isProduction ? 'Production' : 'Non-Production'}
+                                                                                label="Production"
                                                                                 size="small" 
-                                                                                color={environment.isProduction ? 'error' : 'primary'}
+                                                                                color="error"
                                                                                 variant="outlined"
                                                                             />
                                                                         </Box>
-                                                                        {environment.description && (
-                                                                            <Typography variant="caption" color="textSecondary">
-                                                                                {environment.description}
-                                                                            </Typography>
-                                                                        )}
+                                                                        <Typography variant="caption" color="textSecondary">
+                                                                            Access to all production environments
+                                                                        </Typography>
                                                                     </Box>
                                                                     <FormControl component="fieldset">
                                                                         <RadioGroup
                                                                             row
-                                                                            value={currentPrivilegeLevel}
+                                                                            value={getCurrentPrivilegeLevel(project.projectId, 'prod')}
                                                                             onChange={(e) => handleRoleChange(
                                                                                 project.projectId,
-                                                                                environment.environmentId,
+                                                                                'prod',
                                                                                 e.target.value as 'admin' | 'developer' | 'none'
                                                                             )}
                                                                         >
@@ -679,8 +765,58 @@ const UsersPage: React.FC = () => {
                                                                     </FormControl>
                                                                 </Box>
                                                             </Paper>
-                                                        );
-                                                    })}
+                                                        )}
+
+                                                        {/* Non-Production Environment Type */}
+                                                        {hasNonProdAdminAccess && (
+                                                            <Paper variant="outlined" sx={{ p: 2 }}>
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                    <Box sx={{ flex: 1 }}>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                            <Typography variant="subtitle1">
+                                                                                Non-Production
+                                                                            </Typography>
+                                                                            <Chip 
+                                                                                label="Non-Production"
+                                                                                size="small" 
+                                                                                color="primary"
+                                                                                variant="outlined"
+                                                                            />
+                                                                        </Box>
+                                                                        <Typography variant="caption" color="textSecondary">
+                                                                            Access to all non-production environments (dev, staging, test, etc.)
+                                                                        </Typography>
+                                                                    </Box>
+                                                                    <FormControl component="fieldset">
+                                                                        <RadioGroup
+                                                                            row
+                                                                            value={getCurrentPrivilegeLevel(project.projectId, 'non-prod')}
+                                                                            onChange={(e) => handleRoleChange(
+                                                                                project.projectId,
+                                                                                'non-prod',
+                                                                                e.target.value as 'admin' | 'developer' | 'none'
+                                                                            )}
+                                                                        >
+                                                                            <FormControlLabel 
+                                                                                value="none" 
+                                                                                control={<Radio size="small" />} 
+                                                                                label="No Access" 
+                                                                            />
+                                                                            <FormControlLabel 
+                                                                                value="developer" 
+                                                                                control={<Radio size="small" />} 
+                                                                                label="Developer" 
+                                                                            />
+                                                                            <FormControlLabel 
+                                                                                value="admin" 
+                                                                                control={<Radio size="small" />} 
+                                                                                label="Admin" 
+                                                                            />
+                                                                        </RadioGroup>
+                                                                    </FormControl>
+                                                                </Box>
+                                                            </Paper>
+                                                        )}
                                                     </Stack>
                                                 );
                                             })()}
@@ -699,7 +835,7 @@ const UsersPage: React.FC = () => {
                         onClick={handleSavePermissions}
                         variant="contained"
                         color="primary"
-                        disabled={loadingAdminProjects || adminProjects.length === 0 || updatingRoles}
+                        disabled={loadingProjects || projectsToUse.length === 0 || updatingRoles}
                     >
                         {updatingRoles ? <CircularProgress size={24} /> : 'Save Permissions'}
                     </Button>

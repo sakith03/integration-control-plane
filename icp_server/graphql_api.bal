@@ -247,7 +247,7 @@ service /graphql on graphqlListener {
         types:UserContext userContext = check utils:extractUserContext(authHeader);
         
         // Get all environment IDs where user is admin (across all projects)
-        string[] adminEnvironmentIds = utils:getAllAdminEnvironmentIds(userContext);
+        string[] adminEnvironmentIds = utils:getAdminEnvironmentIdsByType(userContext);
         
         // Return empty array if user is not admin in any environment
         if adminEnvironmentIds.length() == 0 {
