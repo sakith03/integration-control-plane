@@ -191,54 +191,62 @@ const ComponentsPage: React.FC = () => {
                 size: 160,
                 enableSorting: false,
                 enableColumnFilter: false,
-                Cell: ({ row }) => (
-                    <Box sx={{ display: 'flex', gap: '0.5rem' }}>
-                        <Tooltip title="Copy Runtime Config">
-                            <IconButton
-                                color="primary"
-                                size="small"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleConfigClick(row.original);
-                                }}
-                            >
-                                <ContentCopyIcon />
-                            </IconButton>
-                        </Tooltip>
-                        {/* Only show edit/delete buttons if user has admin access to project */}
-                        {hasAdminAccess && (
-                            <>
-                                <Tooltip title="Edit Component">
-                                    <IconButton
-                                        color="primary"
-                                        size="small"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditClick(row.original);
-                                        }}
-                                    >
-                                        <EditIcon />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete Component">
-                                    <IconButton
-                                        color="error"
-                                        size="small"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteClick(row.original);
-                                        }}
-                                    >
-                                        <DeleteIcon />
-                                    </IconButton>
-                                </Tooltip>
-                            </>
-                        )}
-                    </Box>
-                ),
+                Cell: ({ row }) => {
+                    // Check if user has admin access to this component's project
+                    const componentProjectId = row.original.project.projectId;
+                    const hasAccessToComponent = adminProjects.some(
+                        project => project.projectId === componentProjectId
+                    );
+
+                    return (
+                        <Box sx={{ display: 'flex', gap: '0.5rem' }}>
+                            <Tooltip title="Copy Runtime Config">
+                                <IconButton
+                                    color="primary"
+                                    size="small"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleConfigClick(row.original);
+                                    }}
+                                >
+                                    <ContentCopyIcon />
+                                </IconButton>
+                            </Tooltip>
+                            {/* Only show edit/delete buttons if user has admin access to this component's project */}
+                            {hasAccessToComponent && (
+                                <>
+                                    <Tooltip title="Edit Component">
+                                        <IconButton
+                                            color="primary"
+                                            size="small"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEditClick(row.original);
+                                            }}
+                                        >
+                                            <EditIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Delete Component">
+                                        <IconButton
+                                            color="error"
+                                            size="small"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteClick(row.original);
+                                            }}
+                                        >
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                </>
+                            )}
+                        </Box>
+                    );
+                },
             },
         ],
-        [hasAdminAccess]
+        [adminProjects]
     );
 
     const handleCreateComponent = async () => {
