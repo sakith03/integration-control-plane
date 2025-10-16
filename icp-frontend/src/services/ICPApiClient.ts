@@ -37,8 +37,17 @@ class ICPApiClient {
                 'Content-Type': 'application/json',
             };
 
-            if (this.token) {
-                headers['Authorization'] = `Bearer ${this.token}`;
+            // Dynamically retrieve token from localStorage (where AuthContext stores it)
+            const storedUser = localStorage.getItem('icp_auth_user');
+            if (storedUser) {
+                try {
+                    const parsedUser = JSON.parse(storedUser);
+                    if (parsedUser.token) {
+                        headers['Authorization'] = `Bearer ${parsedUser.token}`;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse stored user for auth header', e);
+                }
             }
 
             const response = await fetch(this.endpoint, {
@@ -108,6 +117,40 @@ class ICPApiClient {
         }
     }
 
+    async refreshToken(): Promise<any> {
+        try {
+            // Get current token from localStorage
+            const storedUser = localStorage.getItem('icp_auth_user');
+            if (!storedUser) {
+                throw new Error('No authentication token found');
+            }
+
+            const parsedUser = JSON.parse(storedUser);
+            if (!parsedUser.token) {
+                throw new Error('No authentication token found');
+            }
+
+            const response = await fetch(`${this.authEndpoint}/refresh-token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${parsedUser.token}`,
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Token refresh failed with status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Token Refresh Error:', error);
+            throw error;
+        }
+    }
+
     // OIDC methods
     async getOIDCAuthorizationUrl(): Promise<{ authorizationUrl: string }> {
         try {
@@ -158,8 +201,17 @@ class ICPApiClient {
                 'Content-Type': 'application/json',
             };
 
-            if (this.token) {
-                headers['Authorization'] = `Bearer ${this.token}`;
+            // Get token from localStorage (same as AuthContext)
+            const storedUser = localStorage.getItem('icp_auth_user');
+            if (storedUser) {
+                try {
+                    const parsedUser = JSON.parse(storedUser);
+                    if (parsedUser.token) {
+                        headers['Authorization'] = `Bearer ${parsedUser.token}`;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse stored user for auth header', e);
+                }
             }
 
             const response = await fetch(`${this.authEndpoint}/users`, {

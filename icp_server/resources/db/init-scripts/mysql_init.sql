@@ -16,9 +16,13 @@ CREATE TABLE users (
     user_id CHAR(36) NOT NULL PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
     display_name VARCHAR(200) NOT NULL,
+    is_super_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    is_project_author BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_username (username)
+    INDEX idx_username (username),
+    INDEX idx_super_admin (is_super_admin),
+    INDEX idx_project_author (is_project_author)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE user_credentials (
@@ -39,13 +43,14 @@ CREATE TABLE projects (
     project_id CHAR(36) PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
-    created_by CHAR(36) NULL,
+    owner_id CHAR(36) NULL, -- User ID of the project owner
+    created_by VARCHAR(200) NULL, -- Display name of who created the project
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_by CHAR(36) NULL,
+    updated_by VARCHAR(200) NULL, -- Display name of who last updated the project
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_projects_created_by FOREIGN KEY (created_by) REFERENCES users (user_id) ON DELETE SET NULL,
-    CONSTRAINT fk_projects_updated_by FOREIGN KEY (updated_by) REFERENCES users (user_id) ON DELETE SET NULL,
-    UNIQUE KEY uk_project_name (name)
+    CONSTRAINT fk_projects_owner FOREIGN KEY (owner_id) REFERENCES users (user_id) ON DELETE SET NULL,
+    UNIQUE KEY uk_project_name (name),
+    INDEX idx_owner_id (owner_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- Components belong to projects; users create components.
@@ -443,12 +448,14 @@ INSERT INTO
     users (
         user_id,
         username,
-        display_name
+        display_name,
+        is_super_admin
     )
 VALUES (
         '550e8400-e29b-41d4-a716-446655440000',
         'admin',
-        'System Administrator'
+        'System Administrator',
+        TRUE
     );
 
 -- Insert credentials for admin user
@@ -479,13 +486,15 @@ INSERT INTO
         project_id,
         name,
         description,
+        owner_id,
         created_by
     )
 VALUES (
         '650e8400-e29b-41d4-a716-446655440001',
         'sample_project',
         'Sample project for testing',
-        '550e8400-e29b-41d4-a716-446655440000'
+        '550e8400-e29b-41d4-a716-446655440000',
+        'Admin User'
     );
 
 INSERT INTO
@@ -572,5 +581,10 @@ INSERT INTO
 VALUES (
         '550e8400-e29b-41d4-a716-446655440000',
         '850e8400-e29b-41d4-a716-446655440003',
+        '550e8400-e29b-41d4-a716-446655440000'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440000',
+        '850e8400-e29b-41d4-a716-446655440001',
         '550e8400-e29b-41d4-a716-446655440000'
     );

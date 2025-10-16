@@ -140,6 +140,8 @@ export interface LoginResponse {
     expiresIn: number;
     username: string;
     roles: Role[];
+    isSuperAdmin: boolean; // Super admin flag from backend
+    isProjectAuthor: boolean; // Project author flag from backend
 }
 
 export interface AuthUser {
@@ -147,6 +149,8 @@ export interface AuthUser {
     token: string;
     roles: Role[];
     expiresAt: number;
+    isSuperAdmin?: boolean; // Super admin flag from JWT
+    isProjectAuthor?: boolean; // Project author flag from JWT
 }
 
 // User management types
@@ -154,6 +158,8 @@ export interface User {
     userId: string;
     username: string;
     displayName: string;
+    isSuperAdmin?: boolean;
+    isProjectAuthor?: boolean;
     createdAt?: string;
     updatedAt?: string;
 }

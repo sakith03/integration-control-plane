@@ -306,6 +306,10 @@ public type Project record {
     string name;
     string description?;
     @sql:Column {
+        name: "owner_id"
+    }
+    string ownerId?;
+    @sql:Column {
         name: "created_by"
     }
     string createdBy?;
@@ -509,6 +513,14 @@ public type User record {
     }
     string displayName;
     @sql:Column {
+        name: "is_super_admin"
+    }
+    boolean isSuperAdmin = false;
+    @sql:Column {
+        name: "is_project_author"
+    }
+    boolean isProjectAuthor = false;
+    @sql:Column {
         name: "created_at"
     }
     string? createdAt?;
@@ -532,6 +544,26 @@ public type UserCredentials record {
 public enum PrivilegeLevel {
     ADMIN = "admin",
     DEVELOPER = "developer"
+};
+
+// === User Context for RBAC ===
+
+// Simplified role info extracted from JWT for authorization checks
+// Contains only the minimal information needed for authorization decisions
+public type RoleInfo record {
+    string projectId;
+    string environmentId;
+    PrivilegeLevel privilegeLevel;
+};
+
+// User context extracted from JWT token for RBAC
+public type UserContext record {
+    string userId;
+    string username;
+    string displayName;
+    RoleInfo[] roles;
+    boolean isSuperAdmin = false; // Global admin with access to all resources
+    boolean isProjectAuthor = false; // Can create/update/delete projects
 };
 
 // Database role record type
@@ -590,4 +622,10 @@ public type RoleAssignment record {
     string projectId;
     string environmentId;
     PrivilegeLevel privilegeLevel;
+};
+
+// Request body for updating user roles and permissions
+public type UpdateUserRolesRequest record {
+    RoleAssignment[] roles;
+    boolean? isProjectAuthor?; // Optional: only super admins can update this
 };

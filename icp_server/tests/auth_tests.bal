@@ -188,7 +188,7 @@ function testJWTTokenExpiration() returns error? {
     }
 }
 
-// Test: JWT token contains user roles
+// Test: JWT token contains user roles (minimal RoleInfo format)
 @test:Config {
     groups: ["auth", "login", "jwt", "roles"]
 }
@@ -214,13 +214,11 @@ function testJWTContainsUserRoles() returns error? {
 
     json[] roles = check payload["roles"].ensureType();
 
-    // Verify each role has the expected structure
+    // Verify each role has the minimal RoleInfo structure (no roleId or roleName in token)
     foreach json role in roles {
-        test:assertTrue(role.roleId is string, "Role should have roleId");
         test:assertTrue(role.projectId is string, "Role should have projectId");
         test:assertTrue(role.environmentId is string, "Role should have environmentId");
         test:assertTrue(role.privilegeLevel is string, "Role should have privilegeLevel");
-        test:assertTrue(role.roleName is string, "Role should have roleName");
     }
 }
 
