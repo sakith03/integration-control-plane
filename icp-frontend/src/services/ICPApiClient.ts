@@ -292,7 +292,7 @@ class ICPApiClient {
 
     async updateUserRoles(userId: string, roles: Array<{
         projectId: string;
-        environmentId: string;
+        environmentType: 'prod' | 'non-prod';
         privilegeLevel: string;
     }>): Promise<any> {
         try {

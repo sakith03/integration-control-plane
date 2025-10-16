@@ -546,13 +546,19 @@ public enum PrivilegeLevel {
     DEVELOPER = "developer"
 };
 
+// Environment type enum
+public enum EnvironmentType {
+    PROD = "prod",
+    NON_PROD = "non-prod"
+};
+
 // === User Context for RBAC ===
 
 // Simplified role info extracted from JWT for authorization checks
 // Contains only the minimal information needed for authorization decisions
 public type RoleInfo record {
     string projectId;
-    string environmentId;
+    EnvironmentType environmentType;
     PrivilegeLevel privilegeLevel;
 };
 
@@ -577,9 +583,9 @@ public type Role record {
     }
     string projectId;
     @sql:Column {
-        name: "environment_id"
+        name: "environment_type"
     }
-    string environmentId;
+    EnvironmentType environmentType;
     @sql:Column {
         name: "privilege_level"
     }
@@ -587,7 +593,7 @@ public type Role record {
     @sql:Column {
         name: "role_name"
     }
-    string roleName; // Format: <project_name>:<env_name>:<privilege_level>
+    string roleName; // Format: <project_name>:<env_type>:<privilege_level>
     @sql:Column {
         name: "created_at"
     }
@@ -617,10 +623,10 @@ public type UpdateUserRolesInput record {
     RoleAssignment[] roles;
 };
 
-// Role assignment for a specific project-environment combination
+// Role assignment for a specific project-environment type combination
 public type RoleAssignment record {
     string projectId;
-    string environmentId;
+    EnvironmentType environmentType;
     PrivilegeLevel privilegeLevel;
 };
 

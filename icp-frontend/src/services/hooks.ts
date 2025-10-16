@@ -492,7 +492,7 @@ export function useUpdateUserRoles() {
         userId: string,
         roles: Array<{
             projectId: string;
-            environmentId: string;
+            environmentType: 'prod' | 'non-prod';
             privilegeLevel: string;
         }>
     ) => {

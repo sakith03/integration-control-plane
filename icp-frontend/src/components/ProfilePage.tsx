@@ -233,6 +233,7 @@ const ProfilePage: React.FC = () => {
                                             label={role.roleName}
                                             size="small"
                                             variant="outlined"
+                                            color={role.environmentType === 'prod' ? 'error' : 'primary'}
                                             sx={{ mb: 1 }}
                                         />
                                     ))}

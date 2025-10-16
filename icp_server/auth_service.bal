@@ -785,16 +785,24 @@ service /auth on httpListener {
             return utils:createUnauthorizedError("Only super admins can edit super admin permissions");
         }
         
-        // RBAC: Verify the calling user has admin access to ALL project-environment pairs being assigned
+        // RBAC: Verify the calling user has admin access to ALL project-environment type pairs being assigned
         foreach types:RoleAssignment roleAssignment in request.roles {
-            if !utils:hasAdminAccess(userContext, roleAssignment.projectId, roleAssignment.environmentId) {
+            final readonly & types:RoleAssignment roleAssignmentValue = roleAssignment.cloneReadOnly();
+            // Check if user has admin access to this project and environment type
+            boolean hasAdminAccess = userContext.roles.some(isolated function (types:RoleInfo role) returns boolean { 
+                return role.projectId == roleAssignmentValue.projectId && 
+                role.environmentType == roleAssignmentValue.environmentType && 
+                role.privilegeLevel == types:ADMIN;
+        });
+            
+            if !hasAdminAccess && !userContext.isSuperAdmin {
                 log:printWarn("User attempted to assign role without admin access", 
                     callingUser = userContext.userId,
                     targetUser = userId,
                     projectId = roleAssignment.projectId,
-                    environmentId = roleAssignment.environmentId);
+                    environmentType = roleAssignment.environmentType);
                 return utils:createUnauthorizedError(
-                    string `Access denied: You must be an admin in project ${roleAssignment.projectId} and environment ${roleAssignment.environmentId} to assign roles`
+                    string `Access denied: You must be an admin in project ${roleAssignment.projectId} and environment type ${roleAssignment.environmentType} to assign roles`
                 );
             }
         }

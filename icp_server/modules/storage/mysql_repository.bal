@@ -265,33 +265,58 @@ public isolated function getRuntimes(string? status, string? runtimeType, string
 }
 
 // Get all runtimes for multiple project+environment combinations (RBAC-aware batch query)
+// Updated to work with environment-type-based role model
 public isolated function getRuntimesByAccessibleEnvironments(types:RoleInfo[] roles) returns types:Runtime[]|error {
     // Return empty array if no roles provided
     if roles.length() == 0 {
         return [];
     }
 
-    types:Runtime[] runtimeList = [];
-
-    // Build WHERE clause for multiple project+environment combinations
-    // We need: WHERE (project_id = ? AND environment_id = ?) OR (project_id = ? AND environment_id = ?) ...
-    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
-                 platform_name, platform_version, platform_home, os_name, os_version, 
-                 registration_time, last_heartbeat FROM runtimes WHERE `;
-
-    // Build OR conditions for each role
-    sql:ParameterizedQuery whereClause = ``;
-    foreach int i in 0 ..< roles.length() {
-        if i > 0 {
-            whereClause = sql:queryConcat(whereClause, ` OR `);
-        }
-        whereClause = sql:queryConcat(whereClause,
-                `(project_id = ${roles[i].projectId} AND environment_id = ${roles[i].environmentId})`);
+    // Get all environments to determine which ones the user has access to
+    types:Environment[]|error allEnvironments = getEnvironments();
+    if allEnvironments is error {
+        log:printError("Failed to fetch environments for runtime access check", allEnvironments);
+        return [];
     }
 
+    // Build list of accessible environment IDs based on user's environment type permissions
+    string[] accessibleEnvironmentIds = [];
+    foreach types:Environment env in allEnvironments {
+        final types:EnvironmentType envType = env.isProduction ? types:PROD : types:NON_PROD;
+
+        // Check if user has any role for this environment type
+        boolean hasAccess = roles.some(isolated function(types:RoleInfo role) returns boolean {
+            return role.environmentType == envType;
+        });
+
+        if hasAccess {
+            accessibleEnvironmentIds.push(env.environmentId);
+        }
+    }
+
+    // Return empty array if no accessible environments
+    if accessibleEnvironmentIds.length() == 0 {
+        return [];
+    }
+
+    // Build WHERE clause for accessible environments
+    sql:ParameterizedQuery whereClause = ` WHERE environment_id IN (`;
+    foreach int i in 0 ..< accessibleEnvironmentIds.length() {
+        if i > 0 {
+            whereClause = sql:queryConcat(whereClause, `, `);
+        }
+        whereClause = sql:queryConcat(whereClause, `${accessibleEnvironmentIds[i]}`);
+    }
+    whereClause = sql:queryConcat(whereClause, `) `);
+
+    // Build the complete query
+    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
+                 platform_name, platform_version, platform_home, os_name, os_version, 
+                 registration_time, last_heartbeat FROM runtimes `;
     sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC`;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, orderByClause);
 
+    types:Runtime[] runtimeList = [];
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(query);
 
     check from types:RuntimeDBRecord runtime in runtimeStream
@@ -299,6 +324,7 @@ public isolated function getRuntimesByAccessibleEnvironments(types:RoleInfo[] ro
             runtimeList.push(check mapToRuntime(runtime));
         };
 
+    log:printDebug(string `Found ${runtimeList.length()} runtimes for ${accessibleEnvironmentIds.length()} accessible environments`);
     return runtimeList;
 }
 
@@ -987,27 +1013,32 @@ public isolated function createProject(types:ProjectInput project, types:UserCon
                 ownerId = userId,
                 createdBy = displayName);
 
-        // Auto-assign admin roles to the creating user for all environments
-        types:Environment[] environments = check getEnvironments();
+        // Auto-assign admin roles to the creating user for both environment types
+        // Skip role assignment if user is super admin
+        if !userContext.isSuperAdmin {
+            // Assign admin role for production environment type
+            string prodRoleId = check getOrCreateRole(projectId, types:PROD, types:ADMIN);
+            sql:ExecutionResult _ = check dbClient->execute(
+                `INSERT INTO user_roles (user_id, role_id, assigned_by)
+                 VALUES (${userId}, ${prodRoleId}, ${userId})`
+            );
+            log:printInfo(string `Assigned production admin role to project creator`,
+                    userId = userId,
+                    projectId = projectId);
 
-        if environments.length() == 0 {
-            log:printWarn("No environments found. User will not get any roles for this project.", projectId = projectId);
+            // Assign admin role for non-production environment type
+            string nonProdRoleId = check getOrCreateRole(projectId, types:NON_PROD, types:ADMIN);
+            sql:ExecutionResult _ = check dbClient->execute(
+                `INSERT INTO user_roles (user_id, role_id, assigned_by)
+                 VALUES (${userId}, ${nonProdRoleId}, ${userId})`
+            );
+            log:printInfo(string `Assigned non-production admin role to project creator`,
+                    userId = userId,
+                    projectId = projectId);
         } else {
-            foreach types:Environment env in environments {
-                // Get or create role for this project-environment-admin combination
-                string roleId = check getOrCreateRole(projectId, env.environmentId, types:ADMIN);
-
-                // Assign role to creating user
-                sql:ExecutionResult _ = check dbClient->execute(
-                    `INSERT INTO user_roles (user_id, role_id, assigned_by)
-                     VALUES (${userId}, ${roleId}, ${userId})`
-                );
-
-                log:printInfo(string `Assigned admin role to project creator`,
-                        userId = userId,
-                        projectId = projectId,
-                        environmentId = env.environmentId);
-            }
+            log:printInfo(string `Skipping role assignment for super admin user`,
+                    userId = userId,
+                    projectId = projectId);
         }
 
         check commit;
@@ -1377,7 +1408,7 @@ public isolated function getUserRoles(string userId) returns types:Role[]|error 
     log:printDebug(string `Fetching roles for user: ${userId}`);
     types:Role[] roles = [];
     stream<types:Role, sql:Error?> roleStream = dbClient->query(
-        `SELECT r.role_id, r.project_id, r.environment_id, r.privilege_level, r.role_name, r.created_at, r.updated_at
+        `SELECT r.role_id, r.project_id, r.environment_type, r.privilege_level, r.role_name, r.created_at, r.updated_at
          FROM roles r
          JOIN user_roles ur ON r.role_id = ur.role_id
          WHERE ur.user_id = ${userId}`
@@ -1391,13 +1422,13 @@ public isolated function getUserRoles(string userId) returns types:Role[]|error 
     return roles;
 }
 
-// Get or create a role for a specific project-environment-privilege combination
-isolated function getOrCreateRole(string projectId, string environmentId, types:PrivilegeLevel privilegeLevel) returns string|error {
+// Get or create a role for a specific project-environment-type-privilege combination
+isolated function getOrCreateRole(string projectId, types:EnvironmentType environmentType, types:PrivilegeLevel privilegeLevel) returns string|error {
     // First try to get existing role
     stream<record {|string role_id;|}, sql:Error?> roleStream = dbClient->query(
         `SELECT role_id FROM roles 
          WHERE project_id = ${projectId} 
-         AND environment_id = ${environmentId} 
+         AND environment_type = ${environmentType} 
          AND privilege_level = ${privilegeLevel}`
     );
 
@@ -1411,19 +1442,17 @@ isolated function getOrCreateRole(string projectId, string environmentId, types:
     // Role doesn't exist, create it
     string roleId = uuid:createRandomUuid();
 
-    // Get project and environment names for role_name
+    // Get project name for role_name
     types:Project project = check getProjectById(projectId);
-    types:Environment environment = check getEnvironmentById(environmentId);
 
-    // Replace spaces with underscores in names
+    // Replace spaces with underscores in project name
     string projectName = re `\s+`.replaceAll(project.name, "_");
-    string environmentName = re `\s+`.replaceAll(environment.name, "_");
 
-    string roleName = string `${projectName}:${environmentName}:${privilegeLevel}`;
+    string roleName = string `${projectName}:${environmentType}:${privilegeLevel}`;
 
     sql:ExecutionResult _ = check dbClient->execute(
-        `INSERT INTO roles (role_id, project_id, environment_id, privilege_level, role_name)
-         VALUES (${roleId}, ${projectId}, ${environmentId}, ${privilegeLevel}, ${roleName})`
+        `INSERT INTO roles (role_id, project_id, environment_type, privilege_level, role_name)
+         VALUES (${roleId}, ${projectId}, ${environmentType}, ${privilegeLevel}, ${roleName})`
     );
 
     log:printInfo(string `Created new role: ${roleName}`);
@@ -1445,7 +1474,7 @@ public isolated function updateUserRoles(string userId, types:RoleAssignment[] r
             // Get or create the role
             string roleId = check getOrCreateRole(
                     assignment.projectId,
-                    assignment.environmentId,
+                    assignment.environmentType,
                     assignment.privilegeLevel
             );
 
