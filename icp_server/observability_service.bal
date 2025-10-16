@@ -150,7 +150,6 @@ service /icp/observability on observabilityListener {
 
         // Get response body and parse it
         string responseBody = check response.getTextPayload();
-        log:printInfo("OpenSearch response: " + responseBody);
         json responseJson = check responseBody.fromJsonString();
         
         // Convert to OpenSearch response record
