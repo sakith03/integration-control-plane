@@ -69,7 +69,7 @@ const LogsPage: React.FC = () => {
     ...(projectFilter !== 'ALL' && { project: projectFilter }),
     ...(componentFilter !== 'ALL' && { component: componentFilter }),
     ...(environmentFilter !== 'ALL' && { environment: environmentFilter }),
-    ...(runtimeFilter !== 'ALL' && { runtimeId: runtimeFilter }),
+    ...(runtimeFilter !== 'ALL' && { runtime: runtimeFilter }),
     ...(levelFilter !== 'ALL' && { logLevel: levelFilter }),
   };
 

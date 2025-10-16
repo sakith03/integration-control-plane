@@ -135,7 +135,7 @@ export interface LogEntry {
 export interface LogRequest {
     duration: number; // in seconds
     logLimit: number;
-    runtimeId?: string;
+    runtime?: string;
     component?: string;
     environment?: string;
     project?: string;

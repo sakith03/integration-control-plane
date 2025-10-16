@@ -8,10 +8,7 @@ class ObservabilityApiClient {
 
   constructor(endpoint?: string) {
     // In development, use relative path to leverage proxy
-    // In production, use full URL
-    const defaultEndpoint = process.env.NODE_ENV === 'development'
-      ? '/icp/observability'
-      : 'https://localhost:9447/icp/observability';
+    const defaultEndpoint = 'https://localhost:9448/icp/observability';
 
     this.endpoint = endpoint || process.env.REACT_APP_OBSERVABILITY_URL || defaultEndpoint;
   }
