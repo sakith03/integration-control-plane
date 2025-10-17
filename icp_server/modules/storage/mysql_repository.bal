@@ -1187,17 +1187,39 @@ public isolated function updateProject(string projectId, string? name, string? d
         return error("No fields to update");
     }
 
-    sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE projects `, updateFields, whereClause);
-    var result = dbClient->execute(updateQuery);
-    if result is sql:Error {
-        log:printError(string `Failed to update project ${projectId}`, result);
-        return result;
+    transaction {
+        // Update the project
+        sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE projects `, updateFields, whereClause);
+        sql:ExecutionResult _ = check dbClient->execute(updateQuery);
+
+        // If project name is being updated, update all associated role names
+        if name is string {
+            // Replace spaces with underscores in project name for role naming
+            string projectName = re `\s+`.replaceAll(name, "_");
+
+            // Update role names for all roles associated with this project
+            // Role name format: <project_name>:<env_type>:<privilege_level>
+            sql:ExecutionResult _ = check dbClient->execute(`
+                UPDATE roles 
+                SET role_name = CONCAT(${projectName}, ':', environment_type, ':', privilege_level),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE project_id = ${projectId}
+            `);
+
+            log:printInfo(string `Updated role names for project ${projectId} with new name: ${name}`);
+        }
+
+        check commit;
+        log:printInfo(string `Successfully updated project ${projectId}`);
+    } on fail error e {
+        log:printError(string `Failed to update project ${projectId}`, e);
+        return error(string `Failed to update project ${projectId}`, e);
     }
-    log:printInfo(string `Successfully updated project ${projectId}`);
+
     return ();
 }
 
-// Delete a project by ID (this will cascade delete all components and runtimes)
+// Delete a project by ID (this will cascade delete all components, runtimes, roles, and user role assignments)
 public isolated function deleteProject(string projectId) returns error? {
     sql:ParameterizedQuery deleteQuery = `DELETE FROM projects WHERE project_id = ${projectId}`;
     var result = dbClient->execute(deleteQuery);
