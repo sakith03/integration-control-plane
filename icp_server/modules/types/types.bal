@@ -364,6 +364,7 @@ public type ComponentInput record {
     string projectId;
     string name;
     string description?;
+    string createdBy?;
 };
 
 public type Environment record {
@@ -403,7 +404,8 @@ public type Environment record {
 public type EnvironmentInput record {
     string name;
     string description?;
-    boolean isProduction?;
+    boolean isProduction;
+    string createdBy?;
 };
 
 public type ComponentInDB record {

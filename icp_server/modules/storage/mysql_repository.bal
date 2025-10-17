@@ -31,6 +31,21 @@ final cache:Cache hashCache = new (capacity = 1000, evictionFactor = 0.2);
 // Heartbeat timeout in seconds from main module config
 configurable int heartbeatTimeoutSeconds = 300;
 
+// Helper function to get display name by user ID
+isolated function getDisplayNameById(string? userId) returns string? {
+    if userId is () {
+        return ();
+    }
+
+    types:User|error user = getUserDetailsById(userId);
+    if user is types:User {
+        return user.displayName;
+    }
+
+    // Return user ID if display name not found
+    return userId;
+}
+
 // Get all environments from the environments table
 public isolated function getEnvironments() returns types:Environment[]|error {
     types:Environment[] environments = [];
@@ -43,7 +58,10 @@ public isolated function getEnvironments() returns types:Environment[]|error {
                 description: env.description,
                 name: env.name,
                 isProduction: env.isProduction,
-                createdAt: env.createdAt
+                createdAt: env.createdAt,
+                createdBy: getDisplayNameById(env.createdBy),
+                updatedAt: env.updatedAt,
+                updatedBy: getDisplayNameById(env.updatedBy)
             });
         };
     return environments;
@@ -84,8 +102,8 @@ public isolated function getEnvironmentsByIds(string[] environmentIds) returns t
                 isProduction: env.isProduction,
                 createdAt: env.createdAt,
                 updatedAt: env.updatedAt,
-                createdBy: env.createdBy,
-                updatedBy: env.updatedBy
+                createdBy: getDisplayNameById(env.createdBy),
+                updatedBy: getDisplayNameById(env.updatedBy)
             });
         };
 
@@ -122,8 +140,9 @@ public isolated function getEnvironmentById(string environmentId) returns types:
 public isolated function createEnvironment(types:EnvironmentInput environment) returns types:Environment|error? {
     log:printInfo(string `Register environment : ${environment.toString()}`);
     string envId = uuid:createRandomUuid();
-    boolean isProduction = environment.isProduction ?: false;
-    sql:ParameterizedQuery insertQuery = `INSERT INTO environments (environment_id, name, description, is_production) VALUES (${envId}, ${environment.name}, ${environment.description}, ${isProduction})`;
+
+    sql:ParameterizedQuery insertQuery = `INSERT INTO environments (environment_id, name, description, is_production, created_by) 
+    VALUES (${envId}, ${environment.name}, ${environment.description}, ${environment.isProduction}, ${environment.createdBy})`;
     var result = dbClient->execute(insertQuery);
     if result is sql:Error {
         // If error is not duplicate entry, log and return
@@ -285,7 +304,7 @@ public isolated function getRuntimesByAccessibleEnvironments(types:UserContext u
 
         return runtimeList;
     }
-    
+
     // Return empty array if no roles provided
     if roles.length() == 0 {
         return [];
@@ -1168,17 +1187,39 @@ public isolated function updateProject(string projectId, string? name, string? d
         return error("No fields to update");
     }
 
-    sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE projects `, updateFields, whereClause);
-    var result = dbClient->execute(updateQuery);
-    if result is sql:Error {
-        log:printError(string `Failed to update project ${projectId}`, result);
-        return result;
+    transaction {
+        // Update the project
+        sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE projects `, updateFields, whereClause);
+        sql:ExecutionResult _ = check dbClient->execute(updateQuery);
+
+        // If project name is being updated, update all associated role names
+        if name is string {
+            // Replace spaces with underscores in project name for role naming
+            string projectName = re `\s+`.replaceAll(name, "_");
+
+            // Update role names for all roles associated with this project
+            // Role name format: <project_name>:<env_type>:<privilege_level>
+            sql:ExecutionResult _ = check dbClient->execute(`
+                UPDATE roles 
+                SET role_name = CONCAT(${projectName}, ':', environment_type, ':', privilege_level),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE project_id = ${projectId}
+            `);
+
+            log:printInfo(string `Updated role names for project ${projectId} with new name: ${name}`);
+        }
+
+        check commit;
+        log:printInfo(string `Successfully updated project ${projectId}`);
+    } on fail error e {
+        log:printError(string `Failed to update project ${projectId}`, e);
+        return error(string `Failed to update project ${projectId}`, e);
     }
-    log:printInfo(string `Successfully updated project ${projectId}`);
+
     return ();
 }
 
-// Delete a project by ID (this will cascade delete all components and runtimes)
+// Delete a project by ID (this will cascade delete all components, runtimes, roles, and user role assignments)
 public isolated function deleteProject(string projectId) returns error? {
     sql:ParameterizedQuery deleteQuery = `DELETE FROM projects WHERE project_id = ${projectId}`;
     var result = dbClient->execute(deleteQuery);
@@ -1193,8 +1234,8 @@ public isolated function deleteProject(string projectId) returns error? {
 // Create a new component in the components table
 public isolated function createComponent(types:ComponentInput component) returns types:Component|error? {
     string componentId = uuid:createType1AsString();
-    sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, description) 
-                                          VALUES (${componentId}, ${component.projectId}, ${component.name}, ${component.description})`;
+    sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, description, created_by) 
+                                          VALUES (${componentId}, ${component.projectId}, ${component.name}, ${component.description}, ${component.createdBy})`;
     var result = dbClient->execute(insertQuery);
     if result is sql:Error {
         return result;
@@ -1241,10 +1282,10 @@ public isolated function getComponents(string? projectId) returns types:Componen
                 },
                 name: component.component_name,
                 description: component.component_description,
-                createdBy: component.component_created_by,
+                createdBy: getDisplayNameById(component.component_created_by),
                 createdAt: component.component_created_at,
                 updatedAt: component.component_updated_at,
-                updatedBy: component.component_updated_by
+                updatedBy: getDisplayNameById(component.component_updated_by)
             });
         };
     return components;
@@ -1301,10 +1342,10 @@ public isolated function getComponentsByProjectIds(string[] projectIds) returns 
                 },
                 name: component.component_name,
                 description: component.component_description,
-                createdBy: component.component_created_by,
+                createdBy: getDisplayNameById(component.component_created_by),
                 createdAt: component.component_created_at,
                 updatedAt: component.component_updated_at,
-                updatedBy: component.component_updated_by
+                updatedBy: getDisplayNameById(component.component_updated_by)
             });
         };
 
@@ -1347,10 +1388,10 @@ public isolated function getComponentById(string componentId) returns types:Comp
         },
         name: component.component_name,
         description: component.component_description,
-        createdBy: component.component_created_by,
+        createdBy: getDisplayNameById(component.component_created_by),
         createdAt: component.component_created_at,
         updatedAt: component.component_updated_at,
-        updatedBy: component.component_updated_by
+        updatedBy: getDisplayNameById(component.component_updated_by)
     };
 }
 
@@ -1367,9 +1408,9 @@ public isolated function deleteComponent(string componentId) returns error? {
 }
 
 // Update component name and/or description
-public isolated function updateComponent(string componentId, string? name, string? description) returns error? {
+public isolated function updateComponent(string componentId, string? name, string? description, string updatedBy) returns error? {
     sql:ParameterizedQuery whereClause = ` WHERE component_id = ${componentId} `;
-    sql:ParameterizedQuery updateFields = ` SET updated_at = CURRENT_TIMESTAMP `;
+    sql:ParameterizedQuery updateFields = ` SET updated_at = CURRENT_TIMESTAMP, updated_by = ${updatedBy} `;
 
     if name is string {
         updateFields = sql:queryConcat(updateFields, `, name = ${name} `);

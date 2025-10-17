@@ -76,10 +76,10 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // If specific projectId and environmentId are provided, verify access
         if projectId is string && environmentId is string {
             if !utils:hasAccessToEnvironment(userContext, projectId, environmentId) {
@@ -87,7 +87,7 @@ service /graphql on graphqlListener {
             }
             return check storage:getRuntimes(status, runtimeType, environmentId, projectId, componentId);
         }
-        
+
         // If only projectId is provided, filter by accessible environments in that project
         if projectId is string {
             if !utils:hasAccessToProject(userContext, projectId) {
@@ -95,7 +95,7 @@ service /graphql on graphqlListener {
             }
             // Get accessible environment IDs for this project
             string[] accessibleEnvIds = utils:getAccessibleEnvironmentIds(userContext, projectId);
-            
+
             // Get runtimes for each accessible environment and aggregate
             types:Runtime[] allRuntimes = [];
             foreach string envId in accessibleEnvIds {
@@ -104,7 +104,7 @@ service /graphql on graphqlListener {
             }
             return allRuntimes;
         }
-        
+
         // No specific filters - return runtimes for all accessible environments
         // Use optimized batch query
         return check storage:getRuntimesByAccessibleEnvironments(userContext);
@@ -116,22 +116,22 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // First, fetch the runtime to get its project and environment
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
-        
+
         if runtime is () {
             return (); // Runtime not found
         }
-        
+
         // Verify user has access to the runtime's project and environment
         if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
             return error("Access denied to runtime");
         }
-        
+
         return runtime;
     }
 
@@ -141,22 +141,22 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // First, fetch the runtime to verify access to its environment
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
-        
+
         if runtime is () {
             return error("Runtime not found");
         }
-        
+
         // Verify user has access to the runtime's project and environment
         if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
             return error("Access denied to runtime");
         }
-        
+
         return check storage:getServicesForRuntime(runtimeId);
     }
 
@@ -166,22 +166,22 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // First, fetch the runtime to verify access to its environment
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
-        
+
         if runtime is () {
             return error("Runtime not found");
         }
-        
+
         // Verify user has access to the runtime's project and environment
         if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
             return error("Access denied to runtime");
         }
-        
+
         return check storage:getListenersForRuntime(runtimeId);
     }
 
@@ -191,22 +191,22 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // First, fetch the runtime to get its project and environment
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
-        
+
         if runtime is () {
             return error("Runtime not found");
         }
-        
+
         // Verify user has admin access to the runtime's project and environment
         if !utils:hasAdminAccess(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
             return error("Admin access required to delete runtime");
         }
-        
+
         check storage:deleteRuntime(runtimeId);
         return true;
     }
@@ -218,15 +218,18 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Only super admins can create environments
         if !userContext.isSuperAdmin {
             return error("Super admin access required to create environments");
         }
-        
+
+        // Set created_by to the current user's ID
+        environment.createdBy = userContext.userId;
+
         // Call storage layer to insert environments
         return storage:createEnvironment(environment);
     }
@@ -242,18 +245,18 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Get all environment IDs where user is admin (across all projects)
         string[] adminEnvironmentIds = utils:getAdminEnvironmentIdsByType(userContext);
-        
+
         // Return empty array if user is not admin in any environment
         if adminEnvironmentIds.length() == 0 {
             return [];
         }
-        
+
         // Fetch environments by admin environment IDs
         return check storage:getEnvironmentsByIds(adminEnvironmentIds);
     }
@@ -264,15 +267,15 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Only super admins can delete environments
         if !userContext.isSuperAdmin {
             return error("Super admin access required to delete environments");
         }
-        
+
         check storage:deleteEnvironment(environmentId);
         return true;
     }
@@ -283,15 +286,15 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Only super admins can update environments
         if !userContext.isSuperAdmin {
             return error("Super admin access required to update environments");
         }
-        
+
         check storage:updateEnvironment(environmentId, name, description);
         return check storage:getEnvironmentById(environmentId);
     }
@@ -302,15 +305,15 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Only super admins can update environment production status
         if !userContext.isSuperAdmin {
             return error("Super admin access required to update environment production status");
         }
-        
+
         check storage:updateEnvironmentProductionStatus(environmentId, isProduction);
         return check storage:getEnvironmentById(environmentId);
     }
@@ -323,14 +326,14 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Check if user is super admin or project author
         if !userContext.isSuperAdmin && !userContext.isProjectAuthor {
             return error("Project author access required to create projects");
         }
-        
+
         // Create project and auto-assign admin roles to creating user
         return check storage:createProject(project, userContext);
     }
@@ -341,11 +344,11 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
         string[] accessibleProjectIds = utils:getAccessibleProjectIds(userContext);
-        
+
         // Get projects filtered by user's access
         return check storage:getProjectsByIds(accessibleProjectIds);
     }
@@ -356,18 +359,18 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Get project IDs where user is admin
         string[] adminProjectIds = utils:getAdminProjectIds(userContext);
-        
+
         // Return empty array if user is not admin in any project
         if adminProjectIds.length() == 0 {
             return [];
         }
-        
+
         // Fetch projects by admin project IDs
         return check storage:getProjectsByIds(adminProjectIds);
     }
@@ -378,15 +381,15 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Verify user has access to this project
         if !utils:hasAccessToProject(userContext, projectId) {
             return error("Access denied to project");
         }
-        
+
         return check storage:getProjectById(projectId);
     }
 
@@ -396,14 +399,14 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Check if user is super admin or project author
         if !userContext.isSuperAdmin && !userContext.isProjectAuthor {
             return error("Project author access required to delete projects");
         }
-        
+
         check storage:deleteProject(projectId);
         return true;
     }
@@ -414,14 +417,14 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Check if user is super admin or project author
         if !userContext.isSuperAdmin && !userContext.isProjectAuthor {
             return error("Project author access required to update projects");
         }
-        
+
         check storage:updateProject(projectId, name, description);
         return check storage:getProjectById(projectId);
     }
@@ -433,14 +436,17 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Check if user is admin in the project (in any environment)
         if !utils:isAdminInAnyEnvironment(userContext, component.projectId) {
             return error("Admin access required in project to create components");
         }
-        
+
+        // Set the createdBy field to the current user's ID
+        component.createdBy = userContext.userId;
+
         return storage:createComponent(component);
     }
 
@@ -450,10 +456,10 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // If projectId is provided, verify access to that specific project
         if projectId is string {
             if !utils:hasAccessToProject(userContext, projectId) {
@@ -461,11 +467,11 @@ service /graphql on graphqlListener {
             }
             return check storage:getComponents(projectId);
         }
-        
+
         // If no projectId filter, return components for all accessible projects
         // Get all accessible project IDs
         string[] accessibleProjectIds = utils:getAccessibleProjectIds(userContext);
-        
+
         // Use optimized batch query with WHERE IN clause
         return check storage:getComponentsByProjectIds(accessibleProjectIds);
     }
@@ -476,22 +482,22 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // First, fetch the component to get its parent project ID
         types:Component? component = check storage:getComponentById(componentId);
-        
+
         if component is () {
             return (); // Component not found
         }
-        
+
         // Verify user has access to the component's parent project
         if !utils:hasAccessToProject(userContext, component.project.projectId) {
             return error("Access denied to component");
         }
-        
+
         return component;
     }
 
@@ -501,30 +507,30 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Get component to check project access
         types:Component? component = check storage:getComponentById(componentId);
         if component is () {
             return error("Component not found");
         }
-        
+
         // Check if user is admin in the project (in any environment)
         if !utils:isAdminInAnyEnvironment(userContext, component.project.projectId) {
             return error("Admin access required in project to delete components");
         }
-        
+
         // Get all environments where this component has runtimes
         string[] environmentsWithRuntimes = check storage:getEnvironmentIdsWithRuntimes(componentId);
-        
+
         // Check if user is admin in ALL environments where the component has runtimes
         foreach string envId in environmentsWithRuntimes {
             if !utils:hasAdminAccess(userContext, component.project.projectId, envId) {
                 return error(string `Cannot delete component: it has runtimes in environment ${envId} where you don't have admin access`);
             }
         }
-        
+
         check storage:deleteComponent(componentId);
         return true;
     }
@@ -535,21 +541,21 @@ service /graphql on graphqlListener {
         if authHeader !is string {
             return error("Authorization header missing in request");
         }
-        
+
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        
+
         // Get component to check project access
         types:Component? component = check storage:getComponentById(componentId);
         if component is () {
             return error("Component not found");
         }
-        
+
         // Check if user is admin in the project (in any environment)
         if !utils:isAdminInAnyEnvironment(userContext, component.project.projectId) {
             return error("Admin access required in project to update components");
         }
-        
-        check storage:updateComponent(componentId, name, description);
+
+        check storage:updateComponent(componentId, name, description, userContext.userId);
         return check storage:getComponentById(componentId);
     }
 }
