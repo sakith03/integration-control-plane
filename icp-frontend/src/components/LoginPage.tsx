@@ -119,14 +119,14 @@ const LoginPage: React.FC = () => {
                             width: 56,
                             height: 56,
                             borderRadius: '50%',
-                            backgroundColor: 'primary.main',
+                            // backgroundColor: 'primary.main',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             mb: 2,
                         }}
                     >
-                        <ICPLogo size={32} />
+                        <ICPLogo size={75} />
                     </Box>
                     <Typography component="h1" variant="h5" gutterBottom color="primary">
                         Integration Control Plane
