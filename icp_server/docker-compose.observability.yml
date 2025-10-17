@@ -65,7 +65,11 @@ services:
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=10s || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -k -f -u admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD} https://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=10s || exit 1",
+        ]
       interval: 15s
       timeout: 10s
       retries: 10
