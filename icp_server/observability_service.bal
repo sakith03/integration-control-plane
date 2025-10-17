@@ -81,8 +81,7 @@ service /icp/observability on observabilityListener {
 
         // Extract user context for RBAC
         types:UserContext userContext = check utils:extractUserContext(authHeader);
-        log:printInfo(string `Fetching logs for user ${userContext.toString()}`);
-
+        
         // Build the OpenSearch query
         map<json> query = {
             "query": {
@@ -160,8 +159,7 @@ service /icp/observability on observabilityListener {
                     types:Environment env = check storage:getEnvironmentById(envId);
                     accessibleEnvironments.push(env.name);
                 }
-                log:printInfo(string `Filtering logs for accessible environments: ${accessibleEnvironments.toString()}`);
-
+                
                 json environmentAccessFilter = {
                     "terms": {
                         "environment.keyword": accessibleEnvironments
@@ -188,8 +186,7 @@ service /icp/observability on observabilityListener {
                     types:Project project = check storage:getProjectById(projectId);
                     accessibleProjects.push(project.name);
                 }
-                log:printInfo(string `Filtering logs for accessible projects: ${accessibleProjects[0]}`);
-
+                
                 json projectAccessFilter = {
                     "terms": {
                         "project.keyword": accessibleProjects
