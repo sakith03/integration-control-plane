@@ -20,7 +20,7 @@ import ballerina/log;
 import ballerina/time;
 
 // Mock OIDC Provider Configuration
-const string MOCK_OIDC_PROVIDER_PORT = "9448";
+const string MOCK_OIDC_PROVIDER_PORT = "9458";
 const string MOCK_OIDC_PROVIDER_URL = "http://localhost:" + MOCK_OIDC_PROVIDER_PORT;
 
 // Mock OIDC provider data
@@ -43,16 +43,16 @@ const string TEST_USER_NAME = "Test User";
 listener http:Listener mockOidcListener = check new (check int:fromString(MOCK_OIDC_PROVIDER_PORT));
 
 service /oauth2 on mockOidcListener {
-    
+
     // Token endpoint - exchanges authorization code for tokens
     resource function post token(http:Request request) returns http:Response {
         http:Response response = new;
-        
+
         do {
             // Parse form data
             string payload = check request.getTextPayload();
             log:printInfo("Mock OIDC: Received token request", payload = payload);
-            
+
             // Extract parameters from form-urlencoded body
             map<string> params = {};
             string[] pairs = re `&`.split(payload);
@@ -62,7 +62,7 @@ service /oauth2 on mockOidcListener {
                     params[keyValue[0]] = keyValue[1];
                 }
             }
-            
+
             // Verify grant type
             if params["grant_type"] != "authorization_code" {
                 response.statusCode = 400;
@@ -72,7 +72,7 @@ service /oauth2 on mockOidcListener {
                 });
                 return response;
             }
-            
+
             // Verify authorization code
             string? code = params["code"];
             if code is () {
@@ -83,7 +83,7 @@ service /oauth2 on mockOidcListener {
                 });
                 return response;
             }
-            
+
             // Check for invalid code
             if code == INVALID_AUTH_CODE {
                 response.statusCode = 401;
@@ -93,7 +93,7 @@ service /oauth2 on mockOidcListener {
                 });
                 return response;
             }
-            
+
             // Check for expired code
             if code == EXPIRED_AUTH_CODE {
                 response.statusCode = 401;
@@ -103,10 +103,10 @@ service /oauth2 on mockOidcListener {
                 });
                 return response;
             }
-            
+
             // Generate mock ID token
             string idToken = check generateMockIdToken();
-            
+
             // Return successful token response
             response.statusCode = 200;
             response.setJsonPayload({
@@ -117,10 +117,10 @@ service /oauth2 on mockOidcListener {
                 "expires_in": 3600,
                 "scope": "openid email profile"
             });
-            
+
             log:printInfo("Mock OIDC: Returning successful token response");
             return response;
-            
+
         } on fail error e {
             log:printError("Mock OIDC: Error processing token request", e);
             response.statusCode = 500;
@@ -139,7 +139,7 @@ function generateMockIdToken() returns string|error {
     time:Utc currentTime = time:utcNow();
     int currentTimestamp = <int>currentTime[0];
     int expiryTimestamp = currentTimestamp + 3600; // 1 hour from now
-    
+
     // Create ID token claims
     jwt:IssuerConfig issuerConfig = {
         username: TEST_USER_ID,
@@ -158,7 +158,7 @@ function generateMockIdToken() returns string|error {
             "exp": expiryTimestamp
         }
     };
-    
+
     string idToken = check jwt:issue(issuerConfig);
     return idToken;
 }

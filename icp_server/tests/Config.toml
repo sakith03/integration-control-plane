@@ -38,10 +38,10 @@ defaultTokenExpiryTime = 3600
 # =============================================================================
 # Mock OIDC provider for integration tests
 ssoEnabled = true
-ssoIssuer = "http://localhost:9448/oauth2/token"
-ssoAuthorizationEndpoint = "http://localhost:9448/oauth2/authorize"
-ssoTokenEndpoint = "http://localhost:9448/oauth2/token"
-ssoLogoutEndpoint = "http://localhost:9448/oauth2/logout"
+ssoIssuer = "http://localhost:9458/oauth2/token"
+ssoAuthorizationEndpoint = "http://localhost:9458/oauth2/authorize"
+ssoTokenEndpoint = "http://localhost:9458/oauth2/token"
+ssoLogoutEndpoint = "http://localhost:9458/oauth2/logout"
 ssoClientId = "test-client-id"
 ssoClientSecret = "test-client-secret"
 ssoRedirectUri = "http://localhost:3000/auth/callback"
