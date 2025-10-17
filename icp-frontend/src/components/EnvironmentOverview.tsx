@@ -259,7 +259,7 @@ const EnvironmentOverview: React.FC = () => {
                     source: projectNodeId,
                     target: componentNodeId,
                     style: { stroke: '#1976d2', strokeWidth: 2 },
-                    type: 'smoothstep',
+                    type: 'straight',
                 });
 
                 // Create runtime nodes
@@ -345,7 +345,7 @@ const EnvironmentOverview: React.FC = () => {
                         source: componentNodeId,
                         target: runtimeNodeId,
                         style: { stroke: '#2777b0ff', strokeWidth: 2 },
-                        type: 'smoothstep',
+                        type: 'straight',
                     });
                 });
 
