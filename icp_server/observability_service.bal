@@ -92,7 +92,8 @@ service /icp/observability on observabilityListener {
                 }
             },
             "sort": [{"@timestamp": {"order": "desc"}}],
-            "size": logRequest.logLimit
+            "size": 10000,
+            "track_total_hits": true
         };
 
         // Get the must array to add filters
