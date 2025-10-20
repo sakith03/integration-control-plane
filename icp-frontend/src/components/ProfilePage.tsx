@@ -254,18 +254,31 @@ const ProfilePage: React.FC = () => {
                             <LockIcon sx={{ mr: 1, color: 'primary.main' }} />
                             <Typography variant="h6">Security</Typography>
                         </Box>
-                        <Button
-                            variant="outlined"
-                            startIcon={<LockIcon />}
-                            onClick={handleOpenChangePassword}
-                            size="small"
-                        >
-                            Change Password
-                        </Button>
+                        {!user?.isOidcUser && (
+                            <Button
+                                variant="outlined"
+                                startIcon={<LockIcon />}
+                                onClick={handleOpenChangePassword}
+                                size="small"
+                            >
+                                Change Password
+                            </Button>
+                        )}
                     </Box>
-                    <Typography variant="body2" color="text.secondary">
-                        Manage your account security and password settings
-                    </Typography>
+                    {user?.isOidcUser ? (
+                        <Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Your password is managed by your external authentication provider.
+                            </Typography>
+                            <Alert severity="info" sx={{ mt: 1 }}>
+                                To change your password, please use your organization's identity provider settings.
+                            </Alert>
+                        </Box>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary">
+                            Manage your account security and password settings
+                        </Typography>
+                    )}
                 </CardContent>
             </Card>
 

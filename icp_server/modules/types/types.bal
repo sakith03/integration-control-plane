@@ -712,6 +712,7 @@ public type UpdateProfileRequest record {
 
 // Input type for changing password
 public type ChangePasswordRequest record {
+    string userId?;
     string currentPassword;
     string newPassword;
 };

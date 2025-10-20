@@ -23,6 +23,7 @@ import ballerina/http;
 import ballerina/log;
 import ballerina/sql;
 import ballerina/time;
+import ballerina/uuid;
 
 configurable int authServicePort = 9447;
 configurable string authServiceHost = "0.0.0.0";
@@ -51,7 +52,7 @@ service / on defaultAuthServiceListener {
         // TODO Validate API key
         if apiKeyHeader is () || apiKeyHeader != apiKey {
             log:printWarn("Authentication attempt with invalid API key");
-            return utils:createBadRequestError("Invalid API key");
+            return utils:createUnauthorizedError("Invalid API key");
         }
 
         // Perform authentication against database
@@ -70,6 +71,122 @@ service / on defaultAuthServiceListener {
                 userId: user.userId,
                 displayName: user.displayName,
                 timestamp: responseTimestamp
+            }
+        };
+    }
+
+    resource function post change\-password(@http:Header {name: "X-API-Key"} string? apiKeyHeader, types:ChangePasswordRequest request) returns http:Ok|http:BadRequest|http:Unauthorized|http:InternalServerError|error {
+
+        // TODO Validate API key
+        if apiKeyHeader is () || apiKeyHeader != apiKey {
+            log:printWarn("Password change attempt with invalid API key");
+            return utils:createUnauthorizedError("Invalid API key");
+        }
+
+        // Validate request
+        if request.currentPassword.trim().length() == 0 {
+            return utils:createBadRequestError("Current password is required");
+        }
+        if request.newPassword.trim().length() == 0 {
+            return utils:createBadRequestError("New password is required");
+        }
+        if request.newPassword.length() < 6 {
+            return utils:createBadRequestError("New password must be at least 6 characters long");
+        }
+
+        // Get user credentials to verify current password
+        string|() userId = request.userId;
+        if userId is () {
+            log:printError("User ID is required");
+            return utils:createBadRequestError("User ID is required");
+        }
+        types:UserCredentials|error credentials = getUserCredentialsById(userId);
+        if credentials is error {
+            if credentials is sql:NoRowsError {
+                log:printWarn("User attempted password change but has no local credentials (likely OIDC user)", 
+                    userId = request.userId);
+                return utils:createBadRequestError("Password change is not available for SSO users");
+            }
+            log:printError("Error fetching user credentials", credentials);
+            return utils:createInternalServerError("Failed to verify credentials");
+        }
+        
+        // Verify current password
+        boolean|crypto:Error? matches = crypto:verifyBcrypt(request.currentPassword, credentials.passwordHash);
+        if matches is crypto:Error {
+            log:printError("Error verifying current password", matches);
+            return utils:createInternalServerError("Failed to verify current password");
+        } else if matches is boolean && !matches {
+            log:printWarn("User provided incorrect current password", userId = request.userId);
+            return utils:createBadRequestError("Current password is incorrect");
+        }
+        
+        // Hash new password
+        string|crypto:Error newPasswordHash = crypto:hashBcrypt(request.newPassword);
+        if newPasswordHash is crypto:Error {
+            log:printError("Error hashing new password", newPasswordHash);
+            return utils:createInternalServerError("Failed to process new password");
+        }
+        
+        // Update password
+        error? updateResult = updateUserPasswordInDb(userId, newPasswordHash);
+        if updateResult is error {
+            log:printError("Error updating password", updateResult, userId = userId);
+            return utils:createInternalServerError("Failed to update password");
+        }
+        
+        log:printInfo("Password changed successfully", userId = userId);
+        return <http:Ok>{
+            body: {
+                message: "Password changed successfully"
+            }
+        };
+    }
+
+    resource function post users(@http:Header {name: "X-API-Key"} string? apiKeyHeader, types:CreateUserInput request) returns http:Created|http:BadRequest|http:Unauthorized|http:InternalServerError|error {
+
+        // Validate API key
+        if apiKeyHeader is () || apiKeyHeader != apiKey {
+            log:printWarn("User creation attempt with invalid API key");
+            return utils:createUnauthorizedError("Invalid API key");
+        }
+
+        // Validate input
+        if request.username.trim().length() == 0 {
+            return utils:createBadRequestError("Username is required");
+        }
+        if request.displayName.trim().length() == 0 {
+            return utils:createBadRequestError("Display name is required");
+        }
+        if request.password.trim().length() == 0 {
+            return utils:createBadRequestError("Password is required");
+        }
+
+        // Hash password
+        string|crypto:Error passwordHash = crypto:hashBcrypt(request.password);
+        if passwordHash is crypto:Error {
+            log:printError("Error hashing password during user creation", passwordHash);
+            return utils:createInternalServerError("Failed to process password");
+        }
+
+        // Create user credentials only (auth backend manages user_credentials table)
+        string userId = uuid:createRandomUuid();
+        error? createResult = createUserCredentials(userId, request.username, request.displayName, passwordHash);
+
+        if createResult is error {
+            log:printError("Error creating user credentials in auth backend", createResult, username = request.username);
+            if createResult.toString().toLowerAscii().includes("duplicate") {
+                return utils:createBadRequestError("Username already exists");
+            }
+            return utils:createInternalServerError("Failed to create user credentials");
+        }
+
+        log:printInfo("User credentials created successfully by auth backend", username = request.username, userId = userId);
+        return <http:Created>{ 
+            body: {
+                userId: userId,
+                username: request.username,
+                displayName: request.displayName
             }
         };
     }
@@ -111,5 +228,60 @@ isolated function authenticateUser(string username, string password) returns typ
     };
 
     return user;
+}
+
+isolated function getUserCredentialsById(string userId) returns types:UserCredentials|error {
+    sql:Client dbClient = storage:dbClient;
+    log:printDebug(string `Fetching credentials for userId: ${userId}`);
+    types:UserCredentials|sql:Error credentials = dbClient->queryRow(
+        `SELECT user_id as userId, username, display_name as displayName, 
+                password_hash as passwordHash, created_at as createdAt, updated_at as updatedAt
+         FROM user_credentials 
+         WHERE user_id = ${userId}`
+    );
+
+    if credentials is sql:Error {
+        log:printError("Error getting credentials from database", credentials);
+        return error("Invalid credentials");
+    }
+
+    return credentials;
+}
+
+isolated function updateUserPasswordInDb(string userId, string newPasswordHash) returns error? {
+    sql:Client dbClient = storage:dbClient;
+    log:printDebug(string `Updating password for user: ${userId}`);
+
+    sql:ExecutionResult result = check dbClient->execute(
+        `UPDATE user_credentials 
+         SET password_hash = ${newPasswordHash}, updated_at = CURRENT_TIMESTAMP 
+         WHERE user_id = ${userId}`
+    );
+
+    if result.affectedRowCount == 0 {
+        return error(string `User not found in credentials table or user does not have local authentication: ${userId}`);
+    }
+
+    log:printInfo(string `Successfully updated password for user ${userId}`);
+    return ();
+}
+
+// Local helper: create user credentials only (auth backend manages user_credentials table)
+isolated function createUserCredentials(string userId, string username, string displayName, string passwordHash) returns error? {
+    sql:Client dbClient = storage:dbClient;
+    log:printDebug(string `Auth backend creating user credentials: ${username} (${userId})`);
+
+    sql:ExecutionResult|error insertError = dbClient->execute(
+        `INSERT INTO user_credentials (user_id, username, display_name, password_hash)
+         VALUES (${userId}, ${username}, ${displayName}, ${passwordHash})`
+    );
+    
+    if insertError is error {
+        log:printError("Error creating user credentials in database", insertError, username = username);
+        return insertError;
+    }
+
+    log:printInfo(string `Auth backend: created user credentials for ${username} (${userId})`);
+    return ();
 }
 

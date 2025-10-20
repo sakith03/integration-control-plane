@@ -181,6 +181,7 @@ export interface LoginResponse {
     roles: Role[];
     isSuperAdmin: boolean; // Super admin flag from backend
     isProjectAuthor: boolean; // Project author flag from backend
+    isOidcUser: boolean; // OIDC user flag from backend
 }
 
 export interface AuthUser {
@@ -191,6 +192,7 @@ export interface AuthUser {
     expiresAt: number;
     isSuperAdmin?: boolean; // Super admin flag from JWT
     isProjectAuthor?: boolean; // Project author flag from JWT
+    isOidcUser?: boolean; // OIDC user flag from JWT
 }
 
 // User management types

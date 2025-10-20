@@ -18,7 +18,6 @@ import icp_server.storage;
 import icp_server.types as types;
 import icp_server.utils;
 
-import ballerina/crypto;
 import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
@@ -151,7 +150,8 @@ service /auth on httpListener {
                 displayName: userDetails.displayName,
                 roles: userRoles,
                 isSuperAdmin: userDetails.isSuperAdmin,
-                isProjectAuthor: userDetails.isProjectAuthor
+                isProjectAuthor: userDetails.isProjectAuthor,
+                isOidcUser: false
             }
         };
     }
@@ -222,8 +222,6 @@ service /auth on httpListener {
                     log:printError("Error getting newly created OIDC user details", userDetails);
                     return utils:createInternalServerError("Error getting user details");
                 }
-                
-                // TODO: Handle roles for new OIDC users
             } else {
                 log:printError("Error getting OIDC user details", userDetails);
                 return utils:createInternalServerError("Error getting user details");
@@ -262,7 +260,8 @@ service /auth on httpListener {
                 displayName: userDetails.displayName,
                 roles: userRoles,
                 isSuperAdmin: userDetails.isSuperAdmin,
-                isProjectAuthor: userDetails.isProjectAuthor
+                isProjectAuthor: userDetails.isProjectAuthor,
+                isOidcUser: true
             }
         };
     }
@@ -494,35 +493,70 @@ service /auth on httpListener {
             return utils:createBadRequestError("Password is required");
         }
         
-        // Hash the password using bcrypt
-        string|crypto:Error passwordHash = crypto:hashBcrypt(request.password);
-        if passwordHash is crypto:Error {
-            log:printError("Error hashing password", passwordHash);
-            return utils:createInternalServerError("Failed to process password");
+        // Call authentication backend to create user
+        http:Response|error authResponse = authBackendClient->post("/users", request, {
+            "X-API-Key": authBackendApiKey
+        });
+
+        if authResponse is error {
+            log:printError("Error calling authentication backend for user creation", authResponse);
+            return utils:createInternalServerError("Authentication service unavailable");
         }
-        
-        // Create user with hashed password
-        types:User|error user = storage:createUserWithCredentials(
-            request.username,
-            request.displayName,
-            passwordHash
-        );
-        
-        if user is error {
-            log:printError("Error creating user", user, username = request.username);
-            // Check if it's a duplicate username error
-            if user.toString().toLowerAscii().includes("duplicate") {
-                return utils:createBadRequestError("Username already exists");
+
+        if authResponse.statusCode == http:STATUS_BAD_REQUEST {
+            json|error payload = authResponse.getJsonPayload();
+            if payload is map<json> {
+                json msg = payload["message"];
+                if msg is string {
+                    return utils:createBadRequestError(msg);
+                }
             }
-            return utils:createInternalServerError("Failed to create user");
+            return utils:createBadRequestError("Invalid user data");
+        } else if authResponse.statusCode == http:STATUS_UNAUTHORIZED {
+            log:printError("Invalid API key for auth backend while creating user");
+            return utils:createInternalServerError("Invalid API key");
+        } else if authResponse.statusCode != http:STATUS_CREATED {
+            log:printError("Unexpected status from auth backend", status = authResponse.statusCode);
+            return utils:createInternalServerError("Authentication service error");
         }
-        
-        log:printInfo("User created successfully by super admin", 
-            username = request.username, 
-            createdBy = userContext.userId);
-        return <http:Created>{
-            body: user
-        };
+
+        // Parse response to get user details
+        json|error successPayload = authResponse.getJsonPayload();
+        if successPayload is error {
+            log:printError("Error parsing auth backend response", successPayload);
+            return utils:createInternalServerError("Failed to parse user creation response");
+        }
+
+        if successPayload is map<json> {
+            json userIdJson = successPayload["userId"];
+            json usernameJson = successPayload["username"];
+            json displayNameJson = successPayload["displayName"];
+            
+            if userIdJson is string && usernameJson is string && displayNameJson is string {
+                // Create user in users table (auth service manages users table)
+                error? createUserResult = storage:createUser(userIdJson, usernameJson, displayNameJson);
+                if createUserResult is error {
+                    log:printError("Error creating user in users table", createUserResult, username = usernameJson);
+                    return utils:createInternalServerError("Failed to create user record");
+                }
+
+                // Get the created user details
+                types:User|error userDetails = storage:getUserDetailsById(userIdJson);
+                if userDetails is error {
+                    log:printError("Error getting created user details", userDetails);
+                    return utils:createInternalServerError("Failed to get user details");
+                }
+
+                log:printInfo("User created successfully by super admin", 
+                    username = usernameJson, 
+                    userId = userIdJson,
+                    createdBy = userContext.userId);
+                return <http:Created>{ body: userDetails };
+            }
+        }
+
+        log:printError("Invalid response format from auth backend");
+        return utils:createInternalServerError("Invalid response from authentication service");
     }
     
     // Delete a user by ID
@@ -696,42 +730,34 @@ service /auth on httpListener {
             return utils:createBadRequestError("New password must be at least 6 characters long");
         }
         
-        // Get user credentials to verify current password
-        types:UserCredentials|error credentials = storage:getUserCredentials(userContext.userId);
-        if credentials is error {
-            if credentials is sql:NoRowsError {
-                log:printWarn("User attempted password change but has no local credentials (likely OIDC user)", 
-                    userId = userContext.userId);
-                return utils:createBadRequestError("Password change is not available for SSO users");
-            }
-            log:printError("Error fetching user credentials", credentials);
-            return utils:createInternalServerError("Failed to verify credentials");
-        }
+        // Call the authentication backend to change password
+        types:ChangePasswordRequest changePasswordRequest = {
+            userId: userContext.userId,
+            currentPassword: request.currentPassword,
+            newPassword: request.newPassword
+        };
         
-        // Verify current password
-        boolean|crypto:Error? matches = crypto:verifyBcrypt(request.currentPassword, credentials.passwordHash);
-        if matches is crypto:Error {
-            log:printError("Error verifying current password", matches);
-            return utils:createInternalServerError("Failed to verify current password");
-        } else if matches is boolean && !matches {
-            log:printWarn("User provided incorrect current password", userId = userContext.userId);
+        http:Response|error authResponse = authBackendClient->post("/change-password", changePasswordRequest, {
+            "X-API-Key": authBackendApiKey
+        });
+
+        if authResponse is error {
+            log:printError("Error calling authentication backend for password change", authResponse);
+            return utils:createInternalServerError("Authentication service unavailable");
+        }
+
+        // Check status code before parsing response
+        if authResponse.statusCode == http:STATUS_BAD_REQUEST {
+            log:printError("Password change failed - incorrect current password", userId = userContext.userId);
             return utils:createBadRequestError("Current password is incorrect");
+        } else if authResponse.statusCode == http:STATUS_UNAUTHORIZED {
+            log:printError("Invalid API key", userId = userContext.userId);
+            return utils:createInternalServerError("Invalid API key");
+        } else if authResponse.statusCode != http:STATUS_OK {
+            log:printError("Unexpected status code from authentication backend", statusCode = authResponse.statusCode);
+            return utils:createInternalServerError("Authentication service error");
         }
-        
-        // Hash new password
-        string|crypto:Error newPasswordHash = crypto:hashBcrypt(request.newPassword);
-        if newPasswordHash is crypto:Error {
-            log:printError("Error hashing new password", newPasswordHash);
-            return utils:createInternalServerError("Failed to process new password");
-        }
-        
-        // Update password
-        error? updateResult = storage:updateUserPassword(userContext.userId, newPasswordHash);
-        if updateResult is error {
-            log:printError("Error updating password", updateResult, userId = userContext.userId);
-            return utils:createInternalServerError("Failed to update password");
-        }
-        
+
         log:printInfo("Password changed successfully", userId = userContext.userId);
         return <http:Ok>{
             body: {

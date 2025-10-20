@@ -54,6 +54,7 @@ const OIDCCallbackPage: React.FC = () => {
                     expiresAt,
                     isSuperAdmin: response.isSuperAdmin,
                     isProjectAuthor: response.isProjectAuthor,
+                    isOidcUser: response.isOidcUser,
                 };
 
                 // Set token in API client
