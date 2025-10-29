@@ -23,20 +23,20 @@ import Box from '@material-ui/core/Box';
 import AppBar from '@material-ui/core/AppBar';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
-import {makeStyles} from '@material-ui/core/styles';
-import {useSelector} from 'react-redux';
-import Editor, {loader} from "@monaco-editor/react";
+import { makeStyles } from '@material-ui/core/styles';
+import { useSelector } from 'react-redux';
+import Editor, { loader } from "@monaco-editor/react";
 import HTTPClient from '../../../utils/HTTPClient';
 const format = require('xml-formatter');
 
 loader.config({
     paths: {
-      vs: '/monaco-editor/min/vs'
+        vs: '/monaco-editor/min/vs'
     }
- });
+});
 
 export default function SourceViewSection(props) {
-    const {artifactType, artifactName, nodeId, designContent, source: propSource, isXml } = props;
+    const { artifactType, artifactName, nodeId, designContent, source: propSource, isXml } = props;
     const globalGroupId = useSelector(state => state.groupId);
     const [source, setSource] = React.useState(propSource || null);
     const hasSource = source !== null;
@@ -62,7 +62,7 @@ export default function SourceViewSection(props) {
     const descriptionElementRef = React.useRef(null);
     React.useEffect(() => {
         if (open) {
-            const {current: descriptionElement} = descriptionElementRef;
+            const { current: descriptionElement } = descriptionElementRef;
             if (descriptionElement !== null) {
                 descriptionElement.focus();
             }
@@ -74,15 +74,16 @@ export default function SourceViewSection(props) {
     }
     const classes = useStyles();
     if (designContent) {
-        return (<><AppBar position="static" classes={{root: classes.tabsAppBar}}>
+        return (<><AppBar position="static" classes={{ root: classes.tabsAppBar }}>
             <Tabs value={selectedTab} onChange={changeTab} aria-label="design source selection">
-                <Tab label="Overview"/>
-                {hasSource && <Tab label="Source"/>}
+                <Tab label="Overview" />
+                {hasSource && <Tab label="Source" />}
             </Tabs>
         </AppBar>
             {selectedTab === 0 && (<>{designContent}</>)}
             {selectedTab === 1 && (<Box p={5} overflow='auto'>
                 <Editor
+                    key={`${artifactType}-${artifactName}-${nodeId}`}
                     height="70vh"
                     defaultLanguage={isXml == null || isXml ? "xml" : "sql"}
                     defaultValue={isXml == null || isXml ? format(source || "") : source || ""}
