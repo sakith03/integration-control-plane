@@ -54,14 +54,17 @@ public isolated function createInternalServerError(string message) returns http:
 // OIDC helper functions
 
 // Build OIDC authorization URL with query parameters
-public isolated function buildAuthorizationUrl(types:SSOConfig config) returns string|error {
+public isolated function buildAuthorizationUrl(types:SSOConfig config, string? state = ()) returns string|error {
+    // Use provided state or generate a default one
+    string stateParam = state ?: "default";
+    
     // Build query parameters
     map<string> params = {
         "response_type": "code",
         "client_id": config.clientId,
         "redirect_uri": config.redirectUri,
         "scope": string:'join(" ", ...config.scopes),
-        "state": "default" // TODO Add CSRF protection
+        "state": stateParam // CSRF protection token
     };
 
     // URL encode each parameter

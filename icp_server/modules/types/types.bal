@@ -638,6 +638,7 @@ public type OIDCAuthorizationUrlResponse record {|
 // OIDC callback request
 public type OIDCCallbackRequest record {|
     string code;
+    string state?; // CSRF protection token
 |};
 
 // OIDC token response from provider

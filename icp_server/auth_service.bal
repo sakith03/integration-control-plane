@@ -603,8 +603,8 @@ service /auth on httpListener {
     }
 
     // OIDC Authorization URL endpoint
-    isolated resource function get oidc/'authorize\-url() returns http:Ok|http:BadRequest|http:InternalServerError {
-        log:printInfo("OIDC authorization URL requested");
+    isolated resource function get oidc/'authorize\-url(string? state) returns http:Ok|http:BadRequest|http:InternalServerError {
+        log:printInfo("OIDC authorization URL requested", hasState = state is string);
 
         // Get SSO configuration
         types:SSOConfig ssoConfig = getSSOConfig();
@@ -622,8 +622,8 @@ service /auth on httpListener {
             return utils:createBadRequestError("SSO authentication is not enabled");
         }
 
-        // Build authorization URL
-        string|error authorizationUrl = utils:buildAuthorizationUrl(ssoConfig);
+        // Build authorization URL with state parameter for CSRF protection
+        string|error authorizationUrl = utils:buildAuthorizationUrl(ssoConfig, state);
         if authorizationUrl is error {
             log:printError("Error building authorization URL", authorizationUrl);
             return utils:createInternalServerError("Failed to generate authorization URL");
