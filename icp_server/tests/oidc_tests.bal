@@ -68,8 +68,35 @@ function testGetAuthorizationUrl() returns error? {
     test:assertTrue(authUrl.includes("client_id="), "URL should contain client_id");
     test:assertTrue(authUrl.includes("redirect_uri="), "URL should contain redirect_uri");
     test:assertTrue(authUrl.includes("scope="), "URL should contain scope");
+    test:assertTrue(authUrl.includes("state="), "URL should contain state parameter");
 
     log:printInfo("OIDC Test: Authorization URL generated successfully");
+}
+
+// Test: Get OIDC authorization URL with custom state parameter
+@test:Config {
+    groups: ["oidc", "authorization", "csrf"]
+}
+function testGetAuthorizationUrlWithState() returns error? {
+    // Send request to get authorization URL with custom state
+    string customState = "custom-csrf-token-12345";
+    http:Response response = check authClient->get("/auth/oidc/authorize-url?state=" + customState);
+
+    // Assert response status
+    test:assertEquals(response.statusCode, 200, "Expected status code 200 for authorization URL request");
+
+    // Parse response body
+    json responseBody = check response.getJsonPayload();
+
+    // Assert response structure
+    test:assertTrue(responseBody.authorizationUrl is string, "Authorization URL should be present");
+
+    string authUrl = check responseBody.authorizationUrl;
+
+    // Verify URL contains the custom state parameter
+    test:assertTrue(authUrl.includes("state=" + customState), "URL should contain custom state parameter");
+
+    log:printInfo("OIDC Test: Authorization URL with custom state generated successfully");
 }
 
 // Test: Get OIDC authorization URL when SSO is disabled
@@ -105,7 +132,8 @@ function testGetAuthorizationUrlWhenSSODisabled() returns error? {
 function testOIDCLoginWithValidCode() returns error? {
     // Prepare OIDC login request with valid authorization code
     json loginRequest = {
-        code: VALID_AUTH_CODE
+        code: VALID_AUTH_CODE,
+        state: "test-state-123" // Optional CSRF protection state
     };
 
     // Send OIDC login request
@@ -231,7 +259,8 @@ function testOIDCLoginWithMissingCode() returns error? {
 }
 function testOIDCUserAutoCreation() returns error? {
     json loginRequest = {
-        code: NEW_USER_CODE
+        code: NEW_USER_CODE,
+        state: "test-state-789" // Optional CSRF protection state
     };
 
     // Send OIDC login request (first time for this user)
@@ -262,7 +291,8 @@ function testOIDCUserAutoCreation() returns error? {
 }
 function testIDTokenClaimExtraction() returns error? {
     json loginRequest = {
-        code: VALID_AUTH_CODE
+        code: VALID_AUTH_CODE,
+        state: "test-state-456" // Optional CSRF protection state
     };
 
     http:Response response = check authClient->post("/auth/login/oidc", loginRequest);
