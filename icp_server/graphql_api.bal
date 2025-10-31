@@ -128,7 +128,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has access to the runtime's project and environment
-        if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.environmentId) {
             return error("Access denied to runtime");
         }
 
@@ -153,7 +153,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has access to the runtime's project and environment
-        if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.environmentId) {
             return error("Access denied to runtime");
         }
 
@@ -178,7 +178,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has access to the runtime's project and environment
-        if !utils:hasAccessToEnvironment(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.environmentId) {
             return error("Access denied to runtime");
         }
 
@@ -203,7 +203,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has admin access to the runtime's project and environment
-        if !utils:hasAdminAccess(userContext, runtime.component.project.projectId, runtime.environment.environmentId) {
+        if !utils:hasAdminAccess(userContext, runtime.component.projectId, runtime.environment.environmentId) {
             return error("Admin access required to delete runtime");
         }
 
@@ -497,7 +497,7 @@ service /graphql on graphqlListener {
     }
 
     // Get all components with optional project filter
-    isolated resource function get components(graphql:Context context, string? projectId) returns types:Component[]|error {
+    isolated resource function get components(graphql:Context context, string orgHandler, string? projectId, types:ComponentOptionsInput? options) returns types:Component[]|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
             return error("Authorization header missing in request");
@@ -511,7 +511,7 @@ service /graphql on graphqlListener {
             if !utils:hasAccessToProject(userContext, projectId) {
                 return error("Access denied to project");
             }
-            return check storage:getComponents(projectId);
+            return check storage:getComponents(projectId, options);
         }
 
         // If no projectId filter, return components for all accessible projects
@@ -519,7 +519,7 @@ service /graphql on graphqlListener {
         string[] accessibleProjectIds = utils:getAccessibleProjectIds(userContext);
 
         // Use optimized batch query with WHERE IN clause
-        return check storage:getComponentsByProjectIds(accessibleProjectIds);
+        return check storage:getComponentsByProjectIds(accessibleProjectIds, options);
     }
 
     // Get a specific component by ID
@@ -540,7 +540,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has access to the component's parent project
-        if !utils:hasAccessToProject(userContext, component.project.projectId) {
+        if !utils:hasAccessToProject(userContext, component.projectId) {
             return error("Access denied to component");
         }
 
@@ -563,7 +563,7 @@ service /graphql on graphqlListener {
         }
 
         // Check if user is admin in the project (in any environment)
-        if !utils:isAdminInAnyEnvironment(userContext, component.project.projectId) {
+        if !utils:isAdminInAnyEnvironment(userContext, component.projectId) {
             return error("Admin access required in project to delete components");
         }
 
@@ -572,7 +572,7 @@ service /graphql on graphqlListener {
 
         // Check if user is admin in ALL environments where the component has runtimes
         foreach string envId in environmentsWithRuntimes {
-            if !utils:hasAdminAccess(userContext, component.project.projectId, envId) {
+            if !utils:hasAdminAccess(userContext, component.projectId, envId) {
                 return error(string `Cannot delete component: it has runtimes in environment ${envId} where you don't have admin access`);
             }
         }
@@ -597,7 +597,7 @@ service /graphql on graphqlListener {
         }
 
         // Check if user is admin in the project (in any environment)
-        if !utils:isAdminInAnyEnvironment(userContext, component.project.projectId) {
+        if !utils:isAdminInAnyEnvironment(userContext, component.projectId) {
             return error("Admin access required in project to update components");
         }
 
