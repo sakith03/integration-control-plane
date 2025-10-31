@@ -8,6 +8,7 @@ type Query {
   project(orgId: Int, projectId: String!): Project
   components(orgHandler: String!, projectId: String, options: ComponentOptionsInput): [Component!]!
   component(componentId: String!): Component
+  projectCreationEligibility(orgId: Int!, orgHandler: String!): ProjectCreationEligibility!
 }
 
 type Runtime {
@@ -404,4 +405,11 @@ input PaginationInput {
   limit: Int
   offset: Int
   cursor: String
+}
+
+# ============================================
+# Project Creation Eligibility Type
+# ============================================
+type ProjectCreationEligibility {
+  isProjectCreationAllowed: Boolean!
 }

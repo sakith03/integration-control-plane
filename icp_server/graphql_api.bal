@@ -447,6 +447,19 @@ service /graphql on graphqlListener {
         return project;
     }
 
+    // Check project creation eligibility for an organization
+    isolated resource function get projectCreationEligibility(graphql:Context context, int orgId, string orgHandler) returns types:ProjectCreationEligibility|error {
+        // Note: This endpoint might not require authentication depending on business requirements
+        // For now, we'll allow it without authentication to match the example
+        // value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        // if authHeader !is string {
+        //     return error("Authorization header missing in request");
+        // }
+
+        // Call storage layer to check eligibility
+        return check storage:checkProjectCreationEligibility(orgId, orgHandler);
+    }
+
     // Delete a project
     isolated remote function deleteProject(graphql:Context context, string projectId) returns boolean|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");

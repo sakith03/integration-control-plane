@@ -62,7 +62,7 @@ public type Resource record {
     }
     string path = ""; // "/unittest", "/", "/send", etc.
     @sql:Column {
-        name: "resource_method" 
+        name: "resource_method"
     }
     string method = ""; // "GET", "POST", "PUT", "DELETE"
     // Legacy fields for backward compatibility
@@ -1185,7 +1185,7 @@ public type RefreshTokenRequest record {
 
 // Request type for revoke token endpoint
 public type RevokeTokenRequest record {
-    string? refreshToken?;  // If provided, revokes specific token. If omitted, revokes all user's tokens
+    string? refreshToken?; // If provided, revokes specific token. If omitted, revokes all user's tokens
 };
 
 // Types for the /authenticate endpoint
@@ -1397,4 +1397,10 @@ public type ChangePasswordRequest record {
     string userId?;
     string currentPassword;
     string newPassword;
+};
+
+// === Project Creation Eligibility ===
+
+public type ProjectCreationEligibility record {
+    boolean isProjectCreationAllowed;
 };

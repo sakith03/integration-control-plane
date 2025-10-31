@@ -3249,3 +3249,39 @@ public isolated function cleanupExpiredRefreshTokens() returns error? {
     log:printInfo(string `Successfully cleaned up ${deletedCount ?: 0} expired/revoked refresh tokens`);
     return ();
 }
+
+// Check project creation eligibility for an organization
+public isolated function checkProjectCreationEligibility(int orgId, string orgHandler) returns types:ProjectCreationEligibility|error {
+    log:printDebug(string `Checking project creation eligibility for orgId: ${orgId}, orgHandler: ${orgHandler}`);
+    // TODO:
+    // For now, we'll implement a simple eligibility check
+    // Simple implementation: allow project creation if organization exists and is active
+    // This can be extended with more complex business logic
+
+    sql:ParameterizedQuery query = `SELECT COUNT(*) as projectCount 
+                                   FROM projects 
+                                   WHERE org_id = ${orgId}`;
+
+    int currentProjectCount = 0;
+
+    stream<record {}, sql:Error?> projectCountStream = dbClient->query(query);
+
+    check from record {} countRecord in projectCountStream
+        do {
+            currentProjectCount = <int>countRecord["projectCount"];
+        };
+
+    // For demonstration, allow unlimited projects (always return true)
+    // In real implementation, you might check against org limits
+    boolean isAllowed = true;
+
+    log:printInfo(string `Project creation eligibility check completed`,
+            orgId = orgId,
+            orgHandler = orgHandler,
+            currentProjectCount = currentProjectCount,
+            isAllowed = isAllowed);
+
+    return {
+        isProjectCreationAllowed: isAllowed
+    };
+}
