@@ -743,26 +743,108 @@ public type ProjectInput record {
 };
 
 public type Component record {
+    // Basic Identity Fields
+    string id; // Alias for componentId
     @sql:Column {
-        name: "component_id"
+        name: "project_id"
     }
-    string componentId;
-    Project project;
+    string projectId;
+    @sql:Column {
+        name: "org_handler"
+    }
+    string orgHandler;
+    @sql:Column {
+        name: "org_id"
+    }
+    int orgId?;
+
+    // Component Metadata
     string name;
-    string description?;
+    string handler;
     @sql:Column {
-        name: "created_by"
+        name: "display_name"
     }
-    string createdBy?;
+    string displayName;
+    @sql:Column {
+        name: "display_type"
+    }
+    string displayType;
+    string description?;
+
+    // Status Fields
+    string status;
+    @sql:Column {
+        name: "init_status"
+    }
+    string initStatus?;
+
+    // Version & Timestamps
+    string version;
     @sql:Column {
         name: "created_at"
     }
-    string createdAt?;
-
+    string createdAt;
+    @sql:Column {
+        name: "last_build_date"
+    }
+    string lastBuildDate?;
     @sql:Column {
         name: "updated_at"
     }
     string updatedAt?;
+
+    // Classification
+    @sql:Column {
+        name: "component_sub_type"
+    }
+    string componentSubType?;
+    @sql:Column {
+        name: "component_type"
+    }
+    string componentType?;
+    string labels?;
+
+    // System Component Flag
+    @sql:Column {
+        name: "is_system_component"
+    }
+    boolean isSystemComponent?;
+
+    // Nested Objects
+    Repository repository?;
+    ApiVersion[] apiVersions?;
+    DeploymentTrack[] deploymentTracks?;
+
+    // Git Integration
+    @sql:Column {
+        name: "git_provider"
+    }
+    string gitProvider?;
+    @sql:Column {
+        name: "git_organization"
+    }
+    string gitOrganization?;
+    @sql:Column {
+        name: "git_repository"
+    }
+    string gitRepository?;
+    string branch?;
+
+    // Advanced Fields
+    ComponentEndpoint[] endpoints?;
+    ComponentEnvironmentVariable[] environmentVariables?;
+    ComponentSecret[] secrets?;
+
+    // Legacy fields for backward compatibility
+    @sql:Column {
+        name: "component_id"
+    }
+    string componentId?;
+    Project project?;
+    @sql:Column {
+        name: "created_by"
+    }
+    string createdBy?;
     @sql:Column {
         name: "updated_by"
     }
@@ -774,6 +856,149 @@ public type ComponentInput record {
     string name;
     string description?;
     string createdBy?;
+};
+
+// === Component Related Nested Types ===
+
+public type Repository record {
+    BuildpackConfig buildpackConfig?;
+    ByocWebAppBuildConfig byocWebAppBuildConfig?;
+    DockerBuildConfig dockerBuildConfig?;
+    string repositoryType?;
+    string repositoryBranch?;
+    string repositorySubPath?;
+    string repositoryUrl?;
+    string buildContext?;
+    string dockerContext?;
+};
+
+public type BuildpackConfig record {
+    string versionId?;
+    string buildContext?;
+    string languageVersion?;
+    string buildCommand?;
+    string runCommand?;
+    Buildpack buildpack?;
+};
+
+public type Buildpack record {
+    string id;
+    string name?;
+    string language;
+    string version?;
+    string description?;
+};
+
+public type ByocWebAppBuildConfig record {
+    string id?;
+    string dockerContext?;
+    string webAppType?;
+    int port?;
+    string imageUrl?;
+    string registryId?;
+    string dockerfile?;
+};
+
+public type DockerBuildConfig record {
+    string id?;
+    string dockerContext?;
+    string dockerfile?;
+    int port?;
+    string imageUrl?;
+    string registryId?;
+};
+
+public type ApiVersion record {
+    string id;
+    string apiVersion;
+    string proxyName?;
+    string proxyUrl?;
+    string proxyId?;
+    string state;
+    boolean latest;
+    string branch?;
+    string accessibility?;
+    boolean autoDeployEnabled?;
+    CellDiagram cellDiagram?;
+    string openApiSpec?;
+    string graphqlSchema?;
+    string createdAt?;
+    string updatedAt?;
+    string description?;
+};
+
+public type CellDiagram record {
+    string data?;
+    string message?;
+    string errorName?;
+    boolean success;
+};
+
+public type DeploymentTrack record {
+    string id;
+    string componentId;
+    string createdAt;
+    string updatedAt;
+    string apiVersion;
+    string branch?;
+    boolean latest;
+    string versionStrategy?;
+    string description?;
+    boolean autoDeployEnabled?;
+    boolean autoBuildEnabled?;
+    string environmentName?;
+    string environmentId?;
+    string deploymentStatus?;
+    string lastDeployedAt?;
+};
+
+public type ComponentEndpoint record {
+    string id;
+    string componentId;
+    string name;
+    string url;
+    string 'type;
+    string protocol?;
+    int port?;
+    string visibility?;
+};
+
+public type ComponentEnvironmentVariable record {
+    string key;
+    string value?;
+    boolean isSecret;
+    string description?;
+};
+
+public type ComponentSecret record {
+    string key;
+    string description?;
+    string createdAt?;
+    string updatedAt?;
+};
+
+public type ComponentFilterInput record {
+    boolean withSystemComponents?;
+    string displayType?;
+    string status?;
+    string componentSubType?;
+};
+
+public type ComponentSortInput record {
+    string 'field;
+    string 'order;
+};
+
+public type PaginationInput record {
+    int 'limit?;
+    int offset?;
+    string cursor?;
+};
+
+public type ComponentOptionsInput record {
+    ComponentFilterInput filter?;
+    ComponentSortInput sort?;
+    PaginationInput pagination?;
 };
 
 public type Environment record {

@@ -6,7 +6,7 @@ type Query {
   environments: [Environment!]
   projects(orgId: Int): [Project!]!
   project(orgId: Int, projectId: String!): Project
-  components(projectId: String): [Component!]!
+  components(orgHandler: String!, projectId: String, options: ComponentOptionsInput): [Component!]!
   component(componentId: String!): Component
 }
 
@@ -28,14 +28,58 @@ type Runtime {
 }
 
 type Component {
-  componentId: String!
-  project: Project!
+  # Basic Identity Fields
+  id: String!
+  projectId: String!
+  orgHandler: String!
+  orgId: Int
+
+  # Component Metadata
   name: String!
+  handler: String!
+  displayName: String!
+  displayType: String!
   description: String
-  createdBy: String
-  createdAt: String
+
+  # Status Fields
+  status: String!
+  initStatus: String
+
+  # Version & Timestamps
+  version: String!
+  createdAt: String!
+  lastBuildDate: String
   updatedAt: String
+
+  # Classification
+  componentSubType: String
+  componentType: String
+  labels: String
+
+  # System Component Flag
+  isSystemComponent: Boolean
+
+  # Nested Objects
+  repository: Repository
+  apiVersions: [ApiVersion!]
+  deploymentTracks: [DeploymentTrack!]
+
+  # Git Integration (for components with source control)
+  gitProvider: String
+  gitOrganization: String
+  gitRepository: String
+  branch: String
+
+  # Advanced Fields (used in specific views)
+  endpoints: [Endpoint!]
+  environmentVariables: [EnvironmentVariable!]
+  secrets: [Secret!]
+
+  # Legacy fields for backward compatibility
+  createdBy: String
   updatedBy: String
+  componentId: String
+  project: Project
 }
 
 type Project {
@@ -149,4 +193,215 @@ input ComponentInput {
   projectId: String!
   name: String!
   description: String
+}
+
+# ============================================
+# Repository Type - Build & Deploy Configuration
+# ============================================
+type Repository {
+  # Buildpack Configuration (for source-based components)
+  buildpackConfig: BuildpackConfig
+
+  # BYOC (Bring Your Own Container) Configuration
+  byocWebAppBuildConfig: ByocWebAppBuildConfig
+
+  # Docker Configuration (alternative to BYOC)
+  dockerBuildConfig: DockerBuildConfig
+
+  # Repository Source Information
+  repositoryType: String
+  repositoryBranch: String
+  repositorySubPath: String
+  repositoryUrl: String
+
+  # Build Settings
+  buildContext: String
+  dockerContext: String
+}
+
+# ============================================
+# Buildpack Configuration
+# ============================================
+type BuildpackConfig {
+  versionId: String
+  buildContext: String
+  languageVersion: String
+  buildCommand: String
+  runCommand: String
+  buildpack: Buildpack
+}
+
+type Buildpack {
+  id: String!
+  name: String
+  language: String!
+  version: String
+  description: String
+}
+
+# ============================================
+# BYOC Web App Build Configuration
+# ============================================
+type ByocWebAppBuildConfig {
+  id: String
+  dockerContext: String
+  webAppType: String
+  port: Int
+  imageUrl: String
+  registryId: String
+  dockerfile: String
+}
+
+# ============================================
+# Docker Build Configuration
+# ============================================
+type DockerBuildConfig {
+  id: String
+  dockerContext: String
+  dockerfile: String
+  port: Int
+  imageUrl: String
+  registryId: String
+}
+
+# ============================================
+# API Version Type - API Management
+# ============================================
+type ApiVersion {
+  # Identity
+  id: String!
+  apiVersion: String!
+
+  # Proxy Configuration
+  proxyName: String
+  proxyUrl: String
+  proxyId: String
+
+  # State Management
+  state: String!
+  latest: Boolean!
+
+  # Git Integration
+  branch: String
+
+  # Access Control
+  accessibility: String
+
+  # Deployment Settings
+  autoDeployEnabled: Boolean
+
+  # Observability
+  cellDiagram: CellDiagram
+
+  # API Specification
+  openApiSpec: String
+  graphqlSchema: String
+
+  # Metadata
+  createdAt: String
+  updatedAt: String
+  description: String
+}
+
+# ============================================
+# Cell Diagram - Observability & Architecture View
+# ============================================
+type CellDiagram {
+  data: String
+  message: String
+  errorName: String
+  success: Boolean!
+}
+
+# ============================================
+# Deployment Track Type - CI/CD Configuration
+# ============================================
+type DeploymentTrack {
+  # Identity
+  id: String!
+  componentId: String!
+
+  # Timestamps
+  createdAt: String!
+  updatedAt: String!
+
+  # Version Configuration
+  apiVersion: String!
+  branch: String
+  latest: Boolean!
+  versionStrategy: String
+
+  # Deployment Settings
+  description: String
+  autoDeployEnabled: Boolean
+  autoBuildEnabled: Boolean
+
+  # Environment Settings
+  environmentName: String
+  environmentId: String
+
+  # Deployment Status
+  deploymentStatus: String
+  lastDeployedAt: String
+}
+
+# ============================================
+# Endpoint Type - Service Endpoints
+# ============================================
+type Endpoint {
+  id: String!
+  componentId: String!
+  name: String!
+  url: String!
+  type: String!
+  protocol: String
+  port: Int
+  visibility: String
+}
+
+# ============================================
+# Environment Variable Type
+# ============================================
+type EnvironmentVariable {
+  key: String!
+  value: String
+  isSecret: Boolean!
+  description: String
+}
+
+# ============================================
+# Secret Type
+# ============================================
+type Secret {
+  key: String!
+  description: String
+  createdAt: String
+  updatedAt: String
+}
+
+# ============================================
+# Input Types for Queries
+# ============================================
+input ComponentFilterInput {
+  withSystemComponents: Boolean
+  displayType: String
+  status: String
+  componentSubType: String
+}
+
+input ComponentOptionsInput {
+  filter: ComponentFilterInput
+  sort: ComponentSortInput
+  pagination: PaginationInput
+}
+
+input ComponentSortInput {
+  field: String!
+  order: String!
+}
+
+input PaginationInput {
+  limit: Int
+  offset: Int
+  cursor: String
 }

@@ -2381,7 +2381,7 @@ public isolated function createComponent(types:ComponentInput component) returns
 }
 
 // Get all components with optional project filter
-public isolated function getComponents(string? projectId) returns types:Component[]|error {
+public isolated function getComponents(string? projectId, types:ComponentOptionsInput? options = ()) returns types:Component[]|error {
     types:Component[] components = [];
     sql:ParameterizedQuery whereClause = ` WHERE 1=1 `;
     sql:ParameterizedQuery whereConditions = ` `;
@@ -2419,8 +2419,54 @@ public isolated function getComponents(string? projectId) returns types:Componen
             }
 
             components.push({
+                // Basic Identity Fields
+                id: component.component_id,
+                projectId: component.project_id,
+                orgHandler: component.project_handler, // Using project handler as org handler
+                orgId: component.project_org_id,
+
+                // Component Metadata
+                name: component.component_name,
+                handler: component.component_name, // Using component name as handler
+                displayName: component.component_name, // Using component name as display name
+                displayType: "service", // Default to "service"
+                description: component.component_description,
+
+                // Status Fields
+                status: "active", // Default to "active"
+                initStatus: "completed", // Default to "completed"
+
+                // Version & Timestamps
+                version: "v1.0.0", // Default version
+                createdAt: component.component_created_at ?: "",
+                lastBuildDate: component.component_updated_at,
+                updatedAt: component.component_updated_at,
+
+                // Classification
+                // componentSubType, componentType, labels omitted (optional fields)
+
+                // System Component Flag
+                // isSystemComponent omitted (optional field, defaults to false)
+
+                // Nested Objects (empty arrays for now)
+                apiVersions: [],
+                deploymentTracks: [],
+
+                // Git Integration
+                gitProvider: component.project_git_provider,
+                gitOrganization: component.project_git_organization,
+                gitRepository: component.project_repository,
+                branch: component.project_branch,
+
+                // Advanced Fields
+                endpoints: [],
+                environmentVariables: [],
+                secrets: [],
+
+                // Legacy fields for backward compatibility
                 componentId: component.component_id,
                 project: {
+                    id: component.project_id,
                     projectId: component.project_id,
                     orgId: component.project_org_id,
                     name: component.project_name,
@@ -2441,11 +2487,7 @@ public isolated function getComponents(string? projectId) returns types:Componen
                     updatedAt: component.project_updated_at,
                     updatedBy: component.project_updated_by
                 },
-                name: component.component_name,
-                description: component.component_description,
                 createdBy: getDisplayNameById(component.component_created_by),
-                createdAt: component.component_created_at,
-                updatedAt: component.component_updated_at,
                 updatedBy: getDisplayNameById(component.component_updated_by)
             });
         };
@@ -2453,7 +2495,7 @@ public isolated function getComponents(string? projectId) returns types:Componen
 }
 
 // Get all components for multiple projects (RBAC-aware batch query)
-public isolated function getComponentsByProjectIds(string[] projectIds) returns types:Component[]|error {
+public isolated function getComponentsByProjectIds(string[] projectIds, types:ComponentOptionsInput? options = ()) returns types:Component[]|error {
     // Return empty array if no project IDs provided
     if projectIds.length() == 0 {
         return [];
@@ -2504,8 +2546,54 @@ public isolated function getComponentsByProjectIds(string[] projectIds) returns 
             }
 
             components.push({
+                // Basic Identity Fields
+                id: component.component_id,
+                projectId: component.project_id,
+                orgHandler: component.project_handler, // Using project handler as org handler
+                orgId: component.project_org_id,
+
+                // Component Metadata
+                name: component.component_name,
+                handler: component.component_name, // Using component name as handler
+                displayName: component.component_name, // Using component name as display name
+                displayType: "service", // Default to "service"
+                description: component.component_description,
+
+                // Status Fields
+                status: "active", // Default to "active"
+                initStatus: "completed", // Default to "completed"
+
+                // Version & Timestamps
+                version: "v1.0.0", // Default version
+                createdAt: component.component_created_at ?: "",
+                lastBuildDate: component.component_updated_at,
+                updatedAt: component.component_updated_at,
+
+                // Classification
+                // componentSubType, componentType, labels omitted (optional fields)
+
+                // System Component Flag
+                // isSystemComponent omitted (optional field, defaults to false)
+
+                // Nested Objects (empty arrays for now)
+                apiVersions: [],
+                deploymentTracks: [],
+
+                // Git Integration
+                gitProvider: component.project_git_provider,
+                gitOrganization: component.project_git_organization,
+                gitRepository: component.project_repository,
+                branch: component.project_branch,
+
+                // Advanced Fields
+                endpoints: [],
+                environmentVariables: [],
+                secrets: [],
+
+                // Legacy fields for backward compatibility
                 componentId: component.component_id,
                 project: {
+                    id: component.project_id,
                     projectId: component.project_id,
                     orgId: component.project_org_id,
                     name: component.project_name,
@@ -2526,11 +2614,7 @@ public isolated function getComponentsByProjectIds(string[] projectIds) returns 
                     updatedAt: component.project_updated_at,
                     updatedBy: component.project_updated_by
                 },
-                name: component.component_name,
-                description: component.component_description,
                 createdBy: getDisplayNameById(component.component_created_by),
-                createdAt: component.component_created_at,
-                updatedAt: component.component_updated_at,
                 updatedBy: getDisplayNameById(component.component_updated_by)
             });
         };
@@ -2575,8 +2659,57 @@ public isolated function getComponentById(string componentId) returns types:Comp
     }
 
     return {
+        // Basic Identity Fields
+        id: component.component_id,
+        projectId: component.project_id,
+        orgHandler: component.project_handler, // Using project handler as org handler
+        orgId: component.project_org_id,
+
+        // Component Metadata
+        name: component.component_name,
+        handler: component.component_name, // Using component name as handler
+        displayName: component.component_name, // Using component name as display name
+        displayType: "service", // Default to "service"
+        description: component.component_description,
+
+        // Status Fields
+        status: "active", // Default to "active"
+        initStatus: "completed", // Default to "completed"
+
+        // Version & Timestamps
+        version: "v1.0.0", // Default version
+        createdAt: component.component_created_at ?: "",
+        lastBuildDate: component.component_updated_at,
+        updatedAt: component.component_updated_at,
+
+        // Classification
+        componentSubType: (),
+        componentType: (),
+        labels: (),
+
+        // System Component Flag
+        isSystemComponent: false,
+
+        // Nested Objects (empty for now)
+        repository: (),
+        apiVersions: [],
+        deploymentTracks: [],
+
+        // Git Integration
+        gitProvider: component.project_git_provider,
+        gitOrganization: component.project_git_organization,
+        gitRepository: component.project_repository,
+        branch: component.project_branch,
+
+        // Advanced Fields
+        endpoints: [],
+        environmentVariables: [],
+        secrets: [],
+
+        // Legacy fields for backward compatibility
         componentId: component.component_id,
         project: {
+            id: component.project_id,
             projectId: component.project_id,
             orgId: component.project_org_id,
             name: component.project_name,
@@ -2597,11 +2730,7 @@ public isolated function getComponentById(string componentId) returns types:Comp
             updatedAt: component.project_updated_at,
             updatedBy: component.project_updated_by
         },
-        name: component.component_name,
-        description: component.component_description,
         createdBy: getDisplayNameById(component.component_created_by),
-        createdAt: component.component_created_at,
-        updatedAt: component.component_updated_at,
         updatedBy: getDisplayNameById(component.component_updated_by)
     };
 }
