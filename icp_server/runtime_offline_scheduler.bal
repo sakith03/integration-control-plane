@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import icp_server.storage;
+import icp_server.storage as storage;
 
 import ballerina/log;
 import ballerina/task;
@@ -36,8 +36,8 @@ function init() returns error? {
         if (id is error) {
             log:printError("Failed to schedule refresh token cleanup job", id);
         } else {
-            log:printInfo("Refresh token cleanup job scheduled successfully", 
-                intervalSeconds = refreshTokenCleanupIntervalSeconds);
+            log:printInfo("Refresh token cleanup job scheduled successfully",
+                    intervalSeconds = refreshTokenCleanupIntervalSeconds);
         }
     }
 }

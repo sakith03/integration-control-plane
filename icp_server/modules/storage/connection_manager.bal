@@ -14,28 +14,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/log;
 import ballerina/sql;
+import ballerinax/java.jdbc as jdbc;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
-import ballerinax/postgresql;
-import ballerinax/postgresql.driver as _;
-
-type Config record {
-    string host = dbHost;
-    int port = dbPort;
-    string name = dbName;
-    string username = dbUser;
-    string password = dbPassword;
-    int maxPoolSize = 10;
-};
-
-type MySQLConfig record {
-    *Config;
-};
 
 enum DatabaseType {
     MYSQL = "mysql",
-    POSTGRESQL = "postgresql"
+    H2 = "h2"
 }
 
 public client class DatabaseConnectionManager {
@@ -52,8 +39,10 @@ public client class DatabaseConnectionManager {
 
         if dbType == MYSQL {
             self.dbClient = check new mysql:Client(dbHost, dbUser, dbPassword, dbName, dbPort, connectionPool = pool);
+            log:printInfo("MySQL Database initialized successfully.");
         } else {
-            self.dbClient = check new postgresql:Client(dbHost, dbUser, dbPassword, dbName, dbPort, connectionPool = pool);
+            self.dbClient = check new jdbc:Client("jdbc:h2:file:./database/icpdb;MODE=MySQL;AUTO_SERVER=TRUE", "sa", "");
+            log:printInfo("H2 Database initialized successfully.");
         }
     }
 

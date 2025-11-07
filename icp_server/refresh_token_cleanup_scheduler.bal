@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import icp_server.storage;
+import icp_server.storage as storage;
 
 import ballerina/log;
 import ballerina/task;

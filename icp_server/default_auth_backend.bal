@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import icp_server.storage;
 import icp_server.types;
 import icp_server.utils;
 
@@ -24,6 +23,7 @@ import ballerina/log;
 import ballerina/sql;
 import ballerina/time;
 import ballerina/uuid;
+import ballerinax/java.jdbc;
 
 configurable int authServicePort = 9447;
 configurable string authServiceHost = "0.0.0.0";
@@ -40,6 +40,8 @@ listener http:Listener defaultAuthServiceListener = new (authServicePort,
         }
     }
 );
+
+final sql:Client dbClient = check new jdbc:Client("jdbc:h2:file:./database/icpdb;MODE=MySQL;AUTO_SERVER=TRUE", "sa", "");
 
 service / on defaultAuthServiceListener {
 
@@ -103,14 +105,14 @@ service / on defaultAuthServiceListener {
         types:UserCredentials|error credentials = getUserCredentialsById(userId);
         if credentials is error {
             if credentials is sql:NoRowsError {
-                log:printWarn("User attempted password change but has no local credentials (likely OIDC user)", 
-                    userId = request.userId);
+                log:printWarn("User attempted password change but has no local credentials (likely OIDC user)",
+                        userId = request.userId);
                 return utils:createBadRequestError("Password change is not available for SSO users");
             }
             log:printError("Error fetching user credentials", credentials);
             return utils:createInternalServerError("Failed to verify credentials");
         }
-        
+
         // Verify current password
         boolean|crypto:Error? matches = crypto:verifyBcrypt(request.currentPassword, credentials.passwordHash);
         if matches is crypto:Error {
@@ -120,21 +122,21 @@ service / on defaultAuthServiceListener {
             log:printWarn("User provided incorrect current password", userId = request.userId);
             return utils:createBadRequestError("Current password is incorrect");
         }
-        
+
         // Hash new password
         string|crypto:Error newPasswordHash = crypto:hashBcrypt(request.newPassword);
         if newPasswordHash is crypto:Error {
             log:printError("Error hashing new password", newPasswordHash);
             return utils:createInternalServerError("Failed to process new password");
         }
-        
+
         // Update password
         error? updateResult = updateUserPasswordInDb(userId, newPasswordHash);
         if updateResult is error {
             log:printError("Error updating password", updateResult, userId = userId);
             return utils:createInternalServerError("Failed to update password");
         }
-        
+
         log:printInfo("Password changed successfully", userId = userId);
         return <http:Ok>{
             body: {
@@ -169,20 +171,31 @@ service / on defaultAuthServiceListener {
             return utils:createInternalServerError("Failed to process password");
         }
 
+        // Check if user already exists
+        types:UserCredentials|sql:Error existingUser = dbClient->queryRow(
+            `SELECT user_id, username, display_name FROM user_credentials WHERE username = ${request.username}`
+        );
+
+        if existingUser is types:UserCredentials {
+            log:printWarn("Attempt to create user with existing username", username = request.username);
+            return utils:createBadRequestError("Username already exists");
+        }
+
         // Create user credentials only (auth backend manages user_credentials table)
         string userId = uuid:createRandomUuid();
         error? createResult = createUserCredentials(userId, request.username, request.displayName, passwordHash);
 
         if createResult is error {
             log:printError("Error creating user credentials in auth backend", createResult, username = request.username);
-            if createResult.toString().toLowerAscii().includes("duplicate") {
+            string errorMsg = createResult.toString().toLowerAscii();
+            if errorMsg.includes("duplicate") || errorMsg.includes("unique") || errorMsg.includes("constraint") {
                 return utils:createBadRequestError("Username already exists");
             }
             return utils:createInternalServerError("Failed to create user credentials");
         }
 
         log:printInfo("User credentials created successfully by auth backend", username = request.username, userId = userId);
-        return <http:Created>{ 
+        return <http:Created>{
             body: {
                 userId: userId,
                 username: request.username,
@@ -193,7 +206,6 @@ service / on defaultAuthServiceListener {
 }
 
 isolated function authenticateUser(string username, string password) returns types:User|error {
-    sql:Client dbClient = storage:dbClient;
     log:printDebug("Attempting to authenticate user: " + username);
     // Query user credentials table only (auth backend is independent)
     types:UserCredentials|sql:Error credentials = dbClient->queryRow(
@@ -231,7 +243,6 @@ isolated function authenticateUser(string username, string password) returns typ
 }
 
 isolated function getUserCredentialsById(string userId) returns types:UserCredentials|error {
-    sql:Client dbClient = storage:dbClient;
     log:printDebug(string `Fetching credentials for userId: ${userId}`);
     types:UserCredentials|sql:Error credentials = dbClient->queryRow(
         `SELECT user_id as userId, username, display_name as displayName, 
@@ -249,7 +260,6 @@ isolated function getUserCredentialsById(string userId) returns types:UserCreden
 }
 
 isolated function updateUserPasswordInDb(string userId, string newPasswordHash) returns error? {
-    sql:Client dbClient = storage:dbClient;
     log:printDebug(string `Updating password for user: ${userId}`);
 
     sql:ExecutionResult result = check dbClient->execute(
@@ -268,14 +278,13 @@ isolated function updateUserPasswordInDb(string userId, string newPasswordHash) 
 
 // Local helper: create user credentials only (auth backend manages user_credentials table)
 isolated function createUserCredentials(string userId, string username, string displayName, string passwordHash) returns error? {
-    sql:Client dbClient = storage:dbClient;
     log:printDebug(string `Auth backend creating user credentials: ${username} (${userId})`);
 
     sql:ExecutionResult|error insertError = dbClient->execute(
         `INSERT INTO user_credentials (user_id, username, display_name, password_hash)
          VALUES (${userId}, ${username}, ${displayName}, ${passwordHash})`
     );
-    
+
     if insertError is error {
         log:printError("Error creating user credentials in database", insertError, username = username);
         return insertError;

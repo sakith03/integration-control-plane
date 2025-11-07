@@ -24,15 +24,8 @@ import ballerina/lang.value;
 import ballerina/log;
 
 // GraphQL listener configuration
-listener graphql:Listener graphqlListener = new (graphqlPort
-// ,
-//     secureSocket = {
-//         key: {
-//             path: keystorePath,
-//             password: keystorePassword
-//         }
-//     }
-);
+// TODO: Enable SSL
+listener graphql:Listener graphqlListener = new (graphqlPort);
 
 isolated function contextInit(http:RequestContext reqCtx, http:Request request) returns graphql:Context {
     string|error authorization = request.getHeader("Authorization");
@@ -45,7 +38,6 @@ isolated function contextInit(http:RequestContext reqCtx, http:Request request) 
 }
 
 // GraphQL service for runtime details
-
 @graphql:ServiceConfig {
     contextInit,
     cors: {
@@ -63,6 +55,7 @@ isolated function contextInit(http:RequestContext reqCtx, http:Request request) 
         }
     ]
 }
+
 service /graphql on graphqlListener {
 
     function init() {
@@ -497,7 +490,7 @@ service /graphql on graphqlListener {
     }
 
     // Update project name and/or description
-    isolated remote function updateProject(graphql:Context context, types:ProjectUpdateInput project) returns types:Project?|error {
+    isolated remote function updateProject(graphql:Context context, types:ProjectUpdateInput project) returns types:Project|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
             return error("Authorization header missing in request");
@@ -511,7 +504,11 @@ service /graphql on graphqlListener {
         }
 
         check storage:updateProjectWithInput(project);
-        return check storage:getProjectById(project.id);
+        types:Project? updatedProject = check storage:getProjectById(project.id);
+        if updatedProject is () {
+            return error("Project not found after update");
+        }
+        return updatedProject;
     }
 
     // ----------- Component Resources
@@ -546,12 +543,6 @@ service /graphql on graphqlListener {
 
         // Set the createdBy field to the current user's ID
         component.createdBy = userContext.userId;
-
-        // Note: The extended fields (orgId, orgHandler, componentType, technology, repository, etc.)
-        // are accepted for compatibility with the frontend but not yet persisted to the database.
-        // The current database schema only stores: component_id, project_id, name, description,
-        // created_by, created_at, updated_by, updated_at.
-        // These extended fields will be used in future implementations.
 
         return storage:createComponent(component);
     }

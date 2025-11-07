@@ -16,7 +16,6 @@
 
 import icp_server.types as types;
 
-import ballerina/cache;
 import ballerina/log;
 import ballerina/sql;
 import ballerina/time;
@@ -25,13 +24,6 @@ import ballerina/uuid;
 final DatabaseConnectionManager dbManager = check new (dbType);
 public final sql:Client dbClient = dbManager.getClient();
 
-// Cache for storing runtime hash values
-final cache:Cache hashCache = new (capacity = 1000, evictionFactor = 0.2);
-
-// Heartbeat timeout in seconds from main module config
-configurable int heartbeatTimeoutSeconds = 300;
-
-// Helper function to get display name by user ID
 isolated function getDisplayNameById(string? userId) returns string? {
     if userId is () {
         return ();
@@ -46,11 +38,10 @@ isolated function getDisplayNameById(string? userId) returns string? {
     return userId;
 }
 
-// Get all environments from the environments table
 public isolated function getEnvironments() returns types:Environment[]|error {
     types:Environment[] environments = [];
-    stream<types:Environment, sql:Error?> envStream = dbClient->query(`SELECT environment_id, name , description, is_production, created_at, updated_at, created_by, updated_by
-                                                                       FROM environments ORDER BY name ASC`);
+    stream<types:Environment, sql:Error?> envStream = dbClient->query(`SELECT environment_id, name , description, is_production, created_at, 
+        updated_at, created_by, updated_by FROM environments ORDER BY name ASC`);
     check from types:Environment env in envStream
         do {
             environments.push({
@@ -67,7 +58,6 @@ public isolated function getEnvironments() returns types:Environment[]|error {
     return environments;
 }
 
-// Get environments by specific environment IDs (for admin environment filtering)
 public isolated function getEnvironmentsByIds(string[] environmentIds) returns types:Environment[]|error {
     // Return empty array if no environment IDs provided
     if environmentIds.length() == 0 {
@@ -927,19 +917,6 @@ public isolated function mapToService(types:Service serviceRecord, string runtim
     };
 }
 
-// Helper function to convert time:Utc to MySQL datetime format
-isolated function utcToMySQLDateTime(time:Utc utcTime) returns string|error {
-    time:Civil civilTime = time:utcToCivil(utcTime);
-    // Ensure seconds is between 0-59 by truncating instead of rounding
-    int seconds = <int>civilTime.second;
-    if seconds > 59 {
-        seconds = 59;
-    }
-    // Format: YYYY-MM-DD HH:MM:SS
-    string formattedTime = string `${civilTime.year}-${civilTime.month.toString().padStart(2, "0")}-${civilTime.day.toString().padStart(2, "0")} ${civilTime.hour.toString().padStart(2, "0")}:${civilTime.minute.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-    return formattedTime;
-}
-
 // Periodically mark runtimes as OFFLINE if heartbeat is too old
 public isolated function markOfflineRuntimes() returns error? {
     log:printDebug("Marking offline runtimes");
@@ -947,8 +924,8 @@ public isolated function markOfflineRuntimes() returns error? {
     // Calculate the threshold timestamp
     time:Utc threshold = time:utcAddSeconds(now, -<decimal>heartbeatTimeoutSeconds);
 
-    // Convert threshold to MySQL datetime format
-    string thresholdStr = check utcToMySQLDateTime(threshold);
+    // Convert threshold to H2 datetime format
+    string thresholdStr = check convertUtcToDbDateTime(threshold);
 
     // Update all runtimes whose last_heartbeat is too old and not already OFFLINE
     sql:ParameterizedQuery updateQuery = `
@@ -969,7 +946,7 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
     }
 
     time:Utc currentTime = time:utcNow();
-    string currentTimeStr = check utcToMySQLDateTime(currentTime);
+    string currentTimeStr = check convertUtcToDbDateTime(currentTime);
     types:ControlCommand[] pendingCommands = [];
     boolean hashMatches = false;
 
@@ -1484,36 +1461,25 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
 // Returns true if it was a new registration, false if it was an update
 isolated function upsertRuntime(types:Heartbeat heartbeat, string currentTimeStr) returns boolean|error {
     sql:ExecutionResult result = check dbClient->execute(`
-        INSERT INTO runtimes (
+        MERGE INTO runtimes (
             runtime_id, name, runtime_type, status, version,
             environment_id, project_id, component_id,
             platform_name, platform_version, platform_home,
             os_name, os_version,
             registration_time, last_heartbeat
-        ) VALUES (
+        ) KEY (runtime_id)
+        VALUES (
             ${heartbeat.runtime}, ${heartbeat.runtime}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
             ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
             ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.ballerinaHome},
             ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion},
             ${currentTimeStr}, ${currentTimeStr}
         )
-        ON DUPLICATE KEY UPDATE
-            status = VALUES(status),
-            runtime_type = VALUES(runtime_type),
-            environment_id = VALUES(environment_id),
-            version = VALUES(version),
-            platform_name = VALUES(platform_name),
-            platform_version = VALUES(platform_version),
-            platform_home = VALUES(platform_home),
-            os_name = VALUES(os_name),
-            os_version = VALUES(os_version),
-            last_heartbeat = VALUES(last_heartbeat)
     `);
 
     // Determine if this was a new registration or an update based on affected rows
-    // In MySQL, for INSERT ... ON DUPLICATE KEY UPDATE:
-    // - affectedRowCount = 1 means new insert
-    // - affectedRowCount = 2 means update (1 for delete + 1 for insert)
+    // In H2, for MERGE:
+    // - affectedRowCount = 1 means either new insert or update
     // - affectedRowCount = 0 means no change (values were same)
     int? affectedRows = result.affectedRowCount;
     return affectedRows == 1;
@@ -1790,7 +1756,7 @@ isolated function countTotalArtifacts(types:Artifacts artifacts) returns int {
 public isolated function processHeartbeat(types:Heartbeat heartbeat) returns types:HeartbeatResponse|error {
     check validateHeartbeatData(heartbeat);
     time:Utc currentTime = time:utcNow();
-    string currentTimeStr = check utcToMySQLDateTime(currentTime);
+    string currentTimeStr = check convertUtcToDbDateTime(currentTime);
     boolean isNewRegistration = false;
     types:ControlCommand[] pendingCommands = [];
 
@@ -2102,7 +2068,7 @@ public isolated function createProject(types:ProjectInput project, types:UserCon
             sql:ExecutionResult _ = check dbClient->execute(
                 `INSERT INTO user_roles (user_id, role_id, assigned_by)
                  VALUES (${userId}, ${prodRoleId}, ${userId})`
-            );
+                );
             log:printInfo(string `Assigned production admin role to project creator`,
                     userId = userId,
                     projectId = projectId);
@@ -2112,7 +2078,7 @@ public isolated function createProject(types:ProjectInput project, types:UserCon
             sql:ExecutionResult _ = check dbClient->execute(
                 `INSERT INTO user_roles (user_id, role_id, assigned_by)
                  VALUES (${userId}, ${nonProdRoleId}, ${userId})`
-            );
+                );
             log:printInfo(string `Assigned non-production admin role to project creator`,
                     userId = userId,
                     projectId = projectId);
@@ -2136,46 +2102,18 @@ public isolated function getProjects() returns types:Project[]|error {
     types:Project[] projects = [];
 
     sql:ParameterizedQuery query = `SELECT project_id, org_id, name, version, created_date, handler, region, 
-                                          description, default_deployment_pipeline_id, deployment_pipeline_ids, 
+                                          description, 
                                           type, git_provider, git_organization, repository, branch, secret_ref,
                                           owner_id, created_by, updated_at, updated_by 
                                    FROM projects 
                                    ORDER BY name ASC`;
 
-    stream<record {}, sql:Error?> projectStream = dbClient->query(query);
+    stream<types:Project, sql:Error?> projectStream = dbClient->query(query);
 
-    check from record {} projectRecord in projectStream
+    check from types:Project projectRecord in projectStream
         do {
-            // Parse deployment pipeline IDs from JSON if present
-            string[]? deploymentPipelineIds = ();
-            if projectRecord["deployment_pipeline_ids"] is string {
-                string pipelineIdsJson = <string>projectRecord["deployment_pipeline_ids"];
-                json pipelineIdsJsonParsed = check pipelineIdsJson.fromJsonString();
-                deploymentPipelineIds = check pipelineIdsJsonParsed.cloneWithType();
-            }
-
             projects.push({
-                id: <string>projectRecord["project_id"], // Populate the id field as alias for projectId
-                projectId: <string>projectRecord["project_id"],
-                orgId: <int>projectRecord["org_id"],
-                name: <string>projectRecord["name"],
-                version: <string?>projectRecord["version"],
-                createdDate: <string?>projectRecord["created_date"],
-                handler: <string>projectRecord["handler"],
-                region: <string?>projectRecord["region"],
-                description: <string?>projectRecord["description"],
-                defaultDeploymentPipelineId: <string?>projectRecord["default_deployment_pipeline_id"],
-                deploymentPipelineIds: deploymentPipelineIds,
-                'type: <string?>projectRecord["type"],
-                gitProvider: <string?>projectRecord["git_provider"],
-                gitOrganization: <string?>projectRecord["git_organization"],
-                repository: <string?>projectRecord["repository"],
-                branch: <string?>projectRecord["branch"],
-                secretRef: <string?>projectRecord["secret_ref"],
-                ownerId: <string?>projectRecord["owner_id"],
-                createdBy: <string?>projectRecord["created_by"],
-                updatedAt: <string?>projectRecord["updated_at"],
-                updatedBy: <string?>projectRecord["updated_by"]
+                ...projectRecord
             });
         };
 
@@ -2195,7 +2133,7 @@ public isolated function getProjectsByIds(string[] projectIds) returns types:Pro
 
     // Build WHERE clause to filter by project IDs
     sql:ParameterizedQuery query = `SELECT project_id, org_id, name, version, created_date, handler, region, 
-                                          description, default_deployment_pipeline_id, deployment_pipeline_ids, 
+                                          description,   
                                           type, git_provider, git_organization, repository, branch, secret_ref,
                                           owner_id, created_by, updated_at, updated_by 
                                      FROM projects 
@@ -2211,40 +2149,13 @@ public isolated function getProjectsByIds(string[] projectIds) returns types:Pro
 
     query = sql:queryConcat(query, `) ORDER BY name ASC`);
 
-    stream<record {}, sql:Error?> projectStream = dbClient->query(query);
+    stream<types:Project, sql:Error?> projectStream = dbClient->query(query);
 
-    check from record {} projectRecord in projectStream
+    check from types:Project projectRecord in projectStream
         do {
-            // Parse deployment pipeline IDs from JSON if present
-            string[]? deploymentPipelineIds = ();
-            if projectRecord["deployment_pipeline_ids"] is string {
-                string pipelineIdsJson = <string>projectRecord["deployment_pipeline_ids"];
-                json pipelineIdsJsonParsed = check pipelineIdsJson.fromJsonString();
-                deploymentPipelineIds = check pipelineIdsJsonParsed.cloneWithType();
-            }
 
             projects.push({
-                id: <string>projectRecord["project_id"], // Populate the id field as alias for projectId
-                projectId: <string>projectRecord["project_id"],
-                orgId: <int>projectRecord["org_id"],
-                name: <string>projectRecord["name"],
-                version: <string?>projectRecord["version"],
-                createdDate: <string?>projectRecord["created_date"],
-                handler: <string>projectRecord["handler"],
-                region: <string?>projectRecord["region"],
-                description: <string?>projectRecord["description"],
-                defaultDeploymentPipelineId: <string?>projectRecord["default_deployment_pipeline_id"],
-                deploymentPipelineIds: deploymentPipelineIds,
-                'type: <string?>projectRecord["type"],
-                gitProvider: <string?>projectRecord["git_provider"],
-                gitOrganization: <string?>projectRecord["git_organization"],
-                repository: <string?>projectRecord["repository"],
-                branch: <string?>projectRecord["branch"],
-                secretRef: <string?>projectRecord["secret_ref"],
-                ownerId: <string?>projectRecord["owner_id"],
-                createdBy: <string?>projectRecord["created_by"],
-                updatedAt: <string?>projectRecord["updated_at"],
-                updatedBy: <string?>projectRecord["updated_by"]
+                ...projectRecord
             });
         };
 
@@ -2255,58 +2166,23 @@ public isolated function getProjectsByIds(string[] projectIds) returns types:Pro
 
 // Get a specific project by ID
 public isolated function getProjectById(string projectId) returns types:Project|error {
-    stream<record {}, sql:Error?> projectStream =
+    stream<types:Project, sql:Error?> projectStream =
         dbClient->query(`SELECT project_id, org_id, name, version, created_date, handler, region, 
-                                description, default_deployment_pipeline_id, deployment_pipeline_ids, 
+                                description, 
                                 type, git_provider, git_organization, repository, branch, secret_ref,
                                 owner_id, created_by, updated_at, updated_by 
                          FROM projects WHERE project_id = ${projectId}`);
 
-    record {}[] projectRecords =
-        check from record {} projectRecord in projectStream
+    types:Project[] projectRecords =
+        check from types:Project projectRecord in projectStream
         select projectRecord;
 
     if projectRecords.length() == 0 {
         return error(string `Project with ID ${projectId} not found`);
     }
 
-    record {} projectRecord = projectRecords[0];
-
-    // Parse deployment pipeline IDs from JSON if present
-    string[]? deploymentPipelineIds = ();
-    if projectRecord["deployment_pipeline_ids"] is string {
-        string pipelineIdsJson = <string>projectRecord["deployment_pipeline_ids"];
-        json pipelineIdsJsonParsed = check pipelineIdsJson.fromJsonString();
-        deploymentPipelineIds = check pipelineIdsJsonParsed.cloneWithType();
-    }
-
-    types:Project project = {
-        id: <string>projectRecord["project_id"], // Populate the id field as alias for projectId
-        projectId: <string>projectRecord["project_id"],
-        orgId: <int>projectRecord["org_id"],
-        name: <string>projectRecord["name"],
-        version: <string?>projectRecord["version"],
-        createdDate: <string?>projectRecord["created_date"],
-        handler: <string>projectRecord["handler"],
-        extendedHandler: <string?>projectRecord["extended_handler"],
-        region: <string?>projectRecord["region"],
-        description: <string?>projectRecord["description"],
-        ownerId: <string?>projectRecord["owner_id"],
-        labels: (),
-        defaultDeploymentPipelineId: <string?>projectRecord["default_deployment_pipeline_id"],
-        deploymentPipelineIds: deploymentPipelineIds,
-        'type: <string?>projectRecord["type"],
-        gitProvider: <string?>projectRecord["git_provider"],
-        gitOrganization: <string?>projectRecord["git_organization"],
-        repository: <string?>projectRecord["repository"],
-        branch: <string?>projectRecord["branch"],
-        secretRef: <string?>projectRecord["secret_ref"],
-        createdBy: <string?>projectRecord["created_by"],
-        updatedAt: <string?>projectRecord["updated_at"],
-        updatedBy: <string?>projectRecord["updated_by"]
-    };
-
-    return project;
+    types:Project projectRecord = projectRecords[0];
+    return projectRecord;
 }
 
 // Update project name and/or description
@@ -2493,12 +2369,6 @@ public isolated function getComponents(string? projectId, types:ComponentOptions
     check from types:ComponentInDB component in componentStream
         do {
             // Parse deployment pipeline IDs from JSON if present
-            string[]? deploymentPipelineIds = ();
-            string? pipelineIdsJsonStr = component.project_deployment_pipeline_ids;
-            if pipelineIdsJsonStr is string {
-                json pipelineIdsJsonParsed = check pipelineIdsJsonStr.fromJsonString();
-                deploymentPipelineIds = check pipelineIdsJsonParsed.cloneWithType();
-            }
 
             components.push({
                 // Basic Identity Fields
@@ -2549,16 +2419,14 @@ public isolated function getComponents(string? projectId, types:ComponentOptions
                 componentId: component.component_id,
                 project: {
                     id: component.project_id,
-                    projectId: component.project_id,
                     orgId: component.project_org_id,
                     name: component.project_name,
-                    version: component.project_version,
+                    version: <string>component.project_version,
                     createdDate: component.project_created_date,
                     handler: component.project_handler,
                     region: component.project_region,
                     description: component.project_description,
-                    defaultDeploymentPipelineId: component.project_default_deployment_pipeline_id,
-                    deploymentPipelineIds: deploymentPipelineIds,
+
                     'type: component.project_type,
                     gitProvider: component.project_git_provider,
                     gitOrganization: component.project_git_organization,
@@ -2619,13 +2487,6 @@ public isolated function getComponentsByProjectIds(string[] projectIds, types:Co
 
     check from types:ComponentInDB component in componentStream
         do {
-            // Parse deployment pipeline IDs from JSON if present
-            string[]? deploymentPipelineIds = ();
-            string? pipelineIdsJsonStr = component.project_deployment_pipeline_ids;
-            if pipelineIdsJsonStr is string {
-                json pipelineIdsJsonParsed = check pipelineIdsJsonStr.fromJsonString();
-                deploymentPipelineIds = check pipelineIdsJsonParsed.cloneWithType();
-            }
 
             components.push({
                 // Basic Identity Fields
@@ -2676,16 +2537,13 @@ public isolated function getComponentsByProjectIds(string[] projectIds, types:Co
                 componentId: component.component_id,
                 project: {
                     id: component.project_id,
-                    projectId: component.project_id,
                     orgId: component.project_org_id,
                     name: component.project_name,
-                    version: component.project_version,
+                    version: <string>component.project_version,
                     createdDate: component.project_created_date,
                     handler: component.project_handler,
                     region: component.project_region,
                     description: component.project_description,
-                    defaultDeploymentPipelineId: component.project_default_deployment_pipeline_id,
-                    deploymentPipelineIds: deploymentPipelineIds,
                     'type: component.project_type,
                     gitProvider: component.project_git_provider,
                     gitOrganization: component.project_git_organization,
@@ -2731,14 +2589,6 @@ public isolated function getComponentById(string componentId) returns types:Comp
     }
 
     types:ComponentInDB component = componentRecords[0];
-
-    // Parse deployment pipeline IDs from JSON if present
-    string[]? deploymentPipelineIds = ();
-    string? pipelineIdsJsonStr = component.project_deployment_pipeline_ids;
-    if pipelineIdsJsonStr is string {
-        json pipelineIdsJsonParsed = check pipelineIdsJsonStr.fromJsonString();
-        deploymentPipelineIds = check pipelineIdsJsonParsed.cloneWithType();
-    }
 
     return {
         // Basic Identity Fields
@@ -2792,16 +2642,13 @@ public isolated function getComponentById(string componentId) returns types:Comp
         componentId: component.component_id,
         project: {
             id: component.project_id,
-            projectId: component.project_id,
             orgId: component.project_org_id,
             name: component.project_name,
-            version: component.project_version,
+            version: <string>component.project_version,
             createdDate: component.project_created_date,
             handler: component.project_handler,
             region: component.project_region,
             description: component.project_description,
-            defaultDeploymentPipelineId: component.project_default_deployment_pipeline_id,
-            deploymentPipelineIds: deploymentPipelineIds,
             'type: component.project_type,
             gitProvider: component.project_git_provider,
             gitOrganization: component.project_git_organization,
@@ -2858,7 +2705,7 @@ public isolated function getUserDetailsById(string userId) returns types:User|er
         `SELECT user_id, username, display_name, is_super_admin, is_project_author, created_at, updated_at 
          FROM users 
          WHERE user_id = ${userId}`
-    );
+        );
 
     if user is sql:Error {
         log:printError(string `Failed to get user details for ${userId}`, user);
@@ -2874,7 +2721,7 @@ public isolated function createUser(string userId, string username, string displ
     sql:ExecutionResult|sql:Error result = dbClient->execute(
         `INSERT INTO users (user_id, username, display_name) 
          VALUES (${userId}, ${username}, ${displayName})`
-    );
+        );
 
     if result is sql:Error {
         log:printError(string `Failed to create user ${username}`, result);
@@ -2894,7 +2741,7 @@ public isolated function getUserRoles(string userId) returns types:Role[]|error 
          FROM roles r
          JOIN user_roles ur ON r.role_id = ur.role_id
          WHERE ur.user_id = ${userId}`
-    );
+        );
 
     check from types:Role role in roleStream
         do {
@@ -2912,7 +2759,7 @@ isolated function getOrCreateRole(string projectId, types:EnvironmentType enviro
          WHERE project_id = ${projectId} 
          AND environment_type = ${environmentType} 
          AND privilege_level = ${privilegeLevel}`
-    );
+        );
 
     record {|string role_id;|}[] existingRoles = check from record {|string role_id;|} role in roleStream
         select role;
@@ -2935,7 +2782,7 @@ isolated function getOrCreateRole(string projectId, types:EnvironmentType enviro
     sql:ExecutionResult _ = check dbClient->execute(
         `INSERT INTO roles (role_id, project_id, environment_type, privilege_level, role_name)
          VALUES (${roleId}, ${projectId}, ${environmentType}, ${privilegeLevel}, ${roleName})`
-    );
+        );
 
     log:printInfo(string `Created new role: ${roleName}`);
     return roleId;
@@ -2949,22 +2796,22 @@ public isolated function updateUserRoles(string userId, types:RoleAssignment[] r
         // First, delete all existing user_roles for this user
         sql:ExecutionResult _ = check dbClient->execute(
             `DELETE FROM user_roles WHERE user_id = ${userId}`
-        );
+            );
 
         // Insert new role assignments
         foreach types:RoleAssignment assignment in roleAssignments {
             // Get or create the role
             string roleId = check getOrCreateRole(
-                    assignment.projectId,
+                        assignment.projectId,
                     assignment.environmentType,
                     assignment.privilegeLevel
-            );
+                );
 
             // Assign role to user
             sql:ExecutionResult _ = check dbClient->execute(
                 `INSERT INTO user_roles (user_id, role_id)
                  VALUES (${userId}, ${roleId})`
-            );
+                );
         }
 
         check commit;
@@ -2985,7 +2832,7 @@ public isolated function updateUserProjectAuthor(string userId, boolean isProjec
         `UPDATE users 
          SET is_project_author = ${isProjectAuthor}
          WHERE user_id = ${userId}`
-    );
+        );
 
     if result.affectedRowCount == 0 {
         return error(string `User not found: ${userId}`);
@@ -3003,7 +2850,7 @@ public isolated function getEnvironmentIdsWithRuntimes(string componentId) retur
         `SELECT DISTINCT environment_id 
          FROM runtimes 
          WHERE component_id = ${componentId}`
-    );
+        );
 
     string[] environmentIds = [];
     check from record {|string environment_Id;|} envRecord in envStream
@@ -3025,7 +2872,7 @@ public isolated function getAllUsers() returns types:UserWithRoles[]|error {
         `SELECT user_id, username, display_name, is_super_admin, is_project_author, created_at, updated_at
          FROM users
          ORDER BY username ASC`
-    );
+        );
 
     check from types:User user in userStream
         do {
@@ -3123,12 +2970,12 @@ public isolated function deleteUserById(string userId) returns error? {
         // Delete from user_credentials table (explicit delete, though FK might handle it)
         sql:ExecutionResult _ = check dbClient->execute(
             `DELETE FROM user_credentials WHERE user_id = ${userId}`
-        );
+            );
 
         // Delete from users table (will cascade to user_roles)
         sql:ExecutionResult _ = check dbClient->execute(
             `DELETE FROM users WHERE user_id = ${userId}`
-        );
+            );
 
         check commit;
         log:printInfo(string `Successfully deleted user ${userId}`);
@@ -3157,14 +3004,14 @@ public isolated function updateUserProfile(string userId, string displayName) re
             `UPDATE users 
              SET display_name = ${displayName}, updated_at = CURRENT_TIMESTAMP 
              WHERE user_id = ${userId}`
-        );
+            );
 
         // Update user_credentials table if exists (for users with local auth)
         sql:ExecutionResult _ = check dbClient->execute(
             `UPDATE user_credentials 
              SET display_name = ${displayName}, updated_at = CURRENT_TIMESTAMP 
              WHERE user_id = ${userId}`
-        );
+            );
 
         check commit;
         log:printInfo(string `Successfully updated profile for user ${userId}`);
@@ -3181,21 +3028,20 @@ public isolated function updateUserProfile(string userId, string displayName) re
 // ============================================================================
 
 // Store a new refresh token in the database
-public isolated function storeRefreshToken(
-        string tokenId,
-        string userId,
-        string tokenHash,
-        int expirySeconds,
-        string? userAgent,
-        string? ipAddress
-) returns error? {
+public isolated function storeRefreshToken(string tokenId, string userId, string tokenHash, int expirySeconds, string? userAgent,
+        string? ipAddress) returns error? {
     log:printDebug(string `Storing refresh token for user: ${userId}`);
 
-    // Use MySQL DATE_ADD to calculate expiry time directly in the database
+    // Calculate expiry time in Ballerina by adding seconds to current time
+    time:Utc currentTime = time:utcNow();
+    decimal expiryEpoch = <decimal>currentTime[0] + <decimal>expirySeconds;
+    time:Utc expiryUtc = [<int>expiryEpoch, currentTime[1]];
+    string expiryUtcStr = check convertUtcToDbDateTime(expiryUtc);
+
     sql:ExecutionResult|sql:Error result = dbClient->execute(
         `INSERT INTO refresh_tokens (token_id, user_id, token_hash, expires_at, user_agent, ip_address) 
-         VALUES (${tokenId}, ${userId}, ${tokenHash}, DATE_ADD(NOW(), INTERVAL ${expirySeconds} SECOND), ${userAgent}, ${ipAddress})`
-    );
+         VALUES (${tokenId}, ${userId}, ${tokenHash}, ${expiryUtcStr}, ${userAgent}, ${ipAddress})`
+        );
 
     if result is sql:Error {
         log:printError(string `Failed to store refresh token for user ${userId}`, result);
@@ -3221,7 +3067,7 @@ public isolated function validateRefreshToken(string tokenHash) returns types:Us
         `SELECT token_id, user_id, revoked, UNIX_TIMESTAMP(expires_at) as expires_at_epoch
          FROM refresh_tokens 
          WHERE token_hash = ${tokenHash}`
-    );
+        );
 
     if refreshToken is sql:Error {
         log:printWarn("Refresh token not found in database");
@@ -3249,7 +3095,7 @@ public isolated function validateRefreshToken(string tokenHash) returns types:Us
         `UPDATE refresh_tokens 
          SET last_used_at = CURRENT_TIMESTAMP 
          WHERE token_hash = ${tokenHash}`
-    );
+        );
 
     if updateResult is sql:Error {
         log:printWarn("Failed to update last_used_at for refresh token", updateResult);
@@ -3275,7 +3121,7 @@ public isolated function revokeRefreshToken(string tokenHash) returns error? {
         `UPDATE refresh_tokens 
          SET revoked = TRUE, revoked_at = CURRENT_TIMESTAMP 
          WHERE token_hash = ${tokenHash}`
-    );
+        );
 
     if result is sql:Error {
         log:printError("Failed to revoke refresh token", result);
@@ -3301,7 +3147,7 @@ public isolated function revokeAllUserRefreshTokens(string userId) returns error
         `UPDATE refresh_tokens 
          SET revoked = TRUE, revoked_at = CURRENT_TIMESTAMP 
          WHERE user_id = ${userId} AND revoked = FALSE`
-    );
+        );
 
     if result is sql:Error {
         log:printError(string `Failed to revoke refresh tokens for user ${userId}`, result);
@@ -3320,7 +3166,7 @@ public isolated function cleanupExpiredRefreshTokens() returns error? {
     sql:ExecutionResult|sql:Error result = dbClient->execute(
         `DELETE FROM refresh_tokens 
          WHERE expires_at < CURRENT_TIMESTAMP OR revoked = TRUE`
-    );
+        );
 
     if result is sql:Error {
         log:printError("Failed to cleanup expired refresh tokens", result);
@@ -3336,11 +3182,10 @@ public isolated function cleanupExpiredRefreshTokens() returns error? {
 public isolated function checkProjectCreationEligibility(int orgId, string orgHandler) returns types:ProjectCreationEligibility|error {
     log:printDebug(string `Checking project creation eligibility for orgId: ${orgId}, orgHandler: ${orgHandler}`);
     // TODO:
-    // For now, we'll implement a simple eligibility check
     // Simple implementation: allow project creation if organization exists and is active
     // This can be extended with more complex business logic
 
-    sql:ParameterizedQuery query = `SELECT COUNT(*) as projectCount 
+    sql:ParameterizedQuery query = `SELECT COUNT(*) as PROJECTCOUNT 
                                    FROM projects 
                                    WHERE org_id = ${orgId}`;
 
@@ -3350,11 +3195,9 @@ public isolated function checkProjectCreationEligibility(int orgId, string orgHa
 
     check from record {} countRecord in projectCountStream
         do {
-            currentProjectCount = <int>countRecord["projectCount"];
+            currentProjectCount = <int>countRecord["PROJECTCOUNT"];
         };
 
-    // For demonstration, allow unlimited projects (always return true)
-    // In real implementation, you might check against org limits
     boolean isAllowed = true;
 
     log:printInfo(string `Project creation eligibility check completed`,
@@ -3373,7 +3216,7 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
     log:printDebug(string `Checking project handler availability for orgId: ${orgId}, handler: ${projectHandlerCandidate}`);
 
     // Check if the handler already exists for this organization
-    sql:ParameterizedQuery query = `SELECT COUNT(*) as handlerCount 
+    sql:ParameterizedQuery query = `SELECT COUNT(*) as HANDLECOUNT 
                                    FROM projects 
                                    WHERE org_id = ${orgId} AND handler = ${projectHandlerCandidate}`;
 
@@ -3383,7 +3226,7 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
 
     check from record {} countRecord in handlerCountStream
         do {
-            existingHandlerCount = <int>countRecord["handlerCount"];
+            existingHandlerCount = <int>countRecord["HANDLECOUNT"];
         };
 
     boolean isHandlerUnique = existingHandlerCount == 0;
@@ -3398,7 +3241,7 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
         while counter <= 10 { // Limit to 10 attempts to avoid infinite loop
             string candidate = string `${baseHandler}${counter}`;
 
-            sql:ParameterizedQuery alternateQuery = `SELECT COUNT(*) as handlerCount 
+            sql:ParameterizedQuery alternateQuery = `SELECT COUNT(*) as HANDLECOUNT 
                                                    FROM projects 
                                                    WHERE org_id = ${orgId} AND handler = ${candidate}`;
 
@@ -3407,7 +3250,7 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
 
             check from record {} candidateRecord in candidateStream
                 do {
-                    candidateCount = <int>candidateRecord["handlerCount"];
+                    candidateCount = <int>candidateRecord["HANDLECOUNT"];
                 };
 
             if candidateCount == 0 {
@@ -3430,3 +3273,4 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
         alternateHandlerCandidate: alternateCandidate
     };
 }
+

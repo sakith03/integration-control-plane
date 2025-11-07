@@ -550,7 +550,7 @@ public isolated function getAccessibleProjectIds(types:UserContext userContext) 
             return [];
         }
         return from types:Project project in allProjects
-            select project.projectId;
+            select project.id;
     }
 
     string[] projectIds = [];
@@ -615,7 +615,7 @@ public isolated function getAdminProjectIds(types:UserContext userContext) retur
             return [];
         }
         return from types:Project project in allProjects
-            select project.projectId;
+            select project.id;
     }
 
     string[] adminProjectIds = [];

@@ -24,4 +24,7 @@ configurable int dbMaxPoolSize = 10;
 configurable int maxOpenConnections = 10;
 configurable int minIdleConnections = 5;
 configurable decimal maxConnectionLifeTime = 1800.0; // 30 minutes
-configurable string dbType = "mysql";
+configurable DatabaseType dbType = "mysql";
+
+// Heartbeat timeout in seconds
+configurable int heartbeatTimeoutSeconds = 300;
