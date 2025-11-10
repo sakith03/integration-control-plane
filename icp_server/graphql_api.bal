@@ -128,6 +128,40 @@ service /graphql on graphqlListener {
         return runtime;
     }
 
+    // Get component deployment information for a specific environment
+    isolated resource function get componentDeployment(
+        graphql:Context context,
+        string orgHandler,
+        string orgUuid,
+        string componentId,
+        string versionId,
+        string environmentId
+    ) returns types:ComponentDeployment?|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+
+        // Extract user context for RBAC
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+
+        // Get component to verify access
+        types:Component? component = check storage:getComponentById(componentId);
+        if component is () {
+            return (); // Component not found
+        }
+
+        // Verify user has access to the component's project and environment
+        if !utils:hasAccessToEnvironment(userContext, component.projectId, environmentId) {
+            return error("Access denied to component deployment");
+        }
+
+        // Get deployment information from runtimes table
+        types:ComponentDeployment? deployment = check storage:getComponentDeployment(componentId, environmentId, versionId);
+
+        return deployment;
+    }
+
     // Get services for a specific runtime
     isolated resource function get services(graphql:Context context, string runtimeId) returns types:Service[]|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
@@ -741,8 +775,8 @@ service /graphql on graphqlListener {
         };
     }
 
-    // Update component - supports both legacy parameters and component object
-    isolated remote function updateComponent(graphql:Context context, string? componentId, string? name, string? description, types:ComponentUpdateInput? component) returns types:Component|error {
+    // Update component using ComponentUpdateInput object
+    isolated remote function updateComponent(graphql:Context context, types:ComponentUpdateInput component) returns types:Component|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
             return error("Authorization header missing in request");
@@ -750,25 +784,10 @@ service /graphql on graphqlListener {
 
         types:UserContext userContext = check utils:extractUserContext(authHeader);
 
-        // Determine which format is being used and extract values
-        string targetComponentId;
-        string? targetName;
-        string? targetDescription;
-
-        if component is types:ComponentUpdateInput {
-            // New format: using component object
-            targetComponentId = component.id;
-            targetName = component.name ?: component.displayName; // Use displayName if name is not provided
-            targetDescription = component.description;
-        } else {
-            // Legacy format: using individual parameters
-            if componentId is () {
-                return error("Either componentId or component object must be provided");
-            }
-            targetComponentId = componentId;
-            targetName = name;
-            targetDescription = description;
-        }
+        // Extract values from ComponentUpdateInput
+        string targetComponentId = component.id;
+        string? targetName = component.name ?: component.displayName; // Use displayName if name is not provided
+        string? targetDescription = component.description;
 
         // Get component to check project access
         types:Component? existingComponent = check storage:getComponentById(targetComponentId);
