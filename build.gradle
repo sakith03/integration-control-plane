@@ -130,7 +130,7 @@ task packageICP {
         
         def jarFile = file('icp_server/target/bin/icp_server.jar')
         def zipDir = file('build/distribution')
-        def zipFile = file("build/distribution/icp-server-${version}.zip")
+        def zipFile = file("build/distribution/wso2-integrator-icp-${version}.zip")
         
         if (!zipDir.exists()) {
             zipDir.mkdirs()
@@ -139,13 +139,15 @@ task packageICP {
         if (jarFile.exists()) {
             // Create a temporary directory for packaging
             def tempDir = file('build/temp-package')
+            def rootDir = file("${tempDir}/wso2-integrator-icp-${version}")
             if (tempDir.exists()) {
                 delete tempDir
             }
             tempDir.mkdirs()
+            rootDir.mkdirs()
             
             // Copy JAR to bin directory
-            def binDir = file("${tempDir}/bin")
+            def binDir = file("${rootDir}/bin")
             if (!binDir.exists()) {
                 binDir.mkdirs()
             }
@@ -159,20 +161,20 @@ task packageICP {
             if (file('README.md').exists()) {
                 copy {
                     from 'README.md'
-                    into tempDir
+                    into rootDir
                 }
             }
             
             if (file('LICENSE').exists()) {
                 copy {
                     from 'LICENSE'
-                    into tempDir
+                    into rootDir
                 }
             }
             
             // Copy Config.toml if it exists
             if (file('icp_server/Config.toml').exists()) {
-                def confDir = file("${tempDir}/conf")
+                def confDir = file("${rootDir}/conf")
                 if (!confDir.exists()) {
                     confDir.mkdirs()
                 }
@@ -185,7 +187,7 @@ task packageICP {
             
             // Copy conf/security folder if it exists (from root conf folder)
             if (file('conf/security').exists()) {
-                def securityDir = file("${tempDir}/conf/security")
+                def securityDir = file("${rootDir}/conf/security")
                 if (!securityDir.exists()) {
                     securityDir.mkdirs()
                 }
@@ -198,7 +200,7 @@ task packageICP {
             
             // Copy database file if it exists
             if (file('icp_server/database/icpdb.mv.db').exists()) {
-                def dbDir = file("${tempDir}/bin/database")
+                def dbDir = file("${rootDir}/bin/database")
                 if (!dbDir.exists()) {
                     dbDir.mkdirs()
                 }
@@ -212,7 +214,7 @@ task packageICP {
             def scriptsDir = file('distribution/scripts')
             if (scriptsDir.exists()) {
                 // Copy only to bin directory
-                def tempBinDir = file("${tempDir}/bin")
+                def tempBinDir = file("${rootDir}/bin")
                 if (!tempBinDir.exists()) {
                     tempBinDir.mkdirs()
                 }
@@ -231,7 +233,7 @@ task packageICP {
             
             // Copy www folder if it exists
             if (file('www').exists()) {
-                def wwwDir = file("${tempDir}/www")
+                def wwwDir = file("${rootDir}/www")
                 if (!wwwDir.exists()) {
                     wwwDir.mkdirs()
                 }
@@ -240,6 +242,20 @@ task packageICP {
                     into wwwDir
                 }
                 logger.info("Added www folder to package")
+            }
+            
+            // Copy database init scripts if they exist
+            def dbInitScriptsDir = file('icp_server/resources/db/init-scripts')
+            if (dbInitScriptsDir.exists()) {
+                def dbScriptsDir = file("${rootDir}/dbscripts")
+                if (!dbScriptsDir.exists()) {
+                    dbScriptsDir.mkdirs()
+                }
+                copy {
+                    from dbInitScriptsDir
+                    into dbScriptsDir
+                }
+                logger.info("Added database init scripts to package")
             }
             
             // Create the zip file
