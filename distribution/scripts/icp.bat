@@ -29,6 +29,9 @@ if not exist "!JAR_FILE!" (
     exit /b 1
 )
 
+REM Change to bin directory so relative paths in config work correctly
+cd /d "!SCRIPT_DIR!"
+
 if not exist "!CONFIG_FILE!" (
     echo Warning: Configuration file not found at !CONFIG_FILE!
     echo Starting ICP Server without custom configuration...
