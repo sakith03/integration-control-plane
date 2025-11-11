@@ -19,19 +19,10 @@ import ballerina/http;
 import ballerina/io;
 import ballerina/log;
 
-listener http:Listener secureListener = new (webServerPort, {
-    secureSocket: {
-        key: {
-            path: webServerKeystorePath,
-            password: webServerKeystorePassword
-        }
-    }
-});
-
-service / on secureListener {
+service / on httpListener {
 
     function init() {
-        log:printInfo("Starting webserver on https://localhost:3000");
+        log:printInfo("Starting webserver on https://localhost:9445");
     }
 
     // Serve static files from build directory

@@ -29,6 +29,9 @@ if [ ! -f "$JAR_FILE" ]; then
     exit 1
 fi
 
+# Change to bin directory so relative paths in config work correctly
+cd "$SCRIPT_DIR"
+
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Warning: Configuration file not found at $CONFIG_FILE"
     echo "Starting ICP Server without custom configuration..."
