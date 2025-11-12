@@ -127,8 +127,15 @@ CREATE TABLE components (
 CREATE TABLE environments (
     environment_id CHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL UNIQUE, -- e.g., dev, stage, prod
-    description TEXT,
-    is_production BOOLEAN NOT NULL DEFAULT FALSE, -- Flag to mark environment as production
+    description TEXT NULL,
+    region VARCHAR(100) NULL,
+    cluster_id VARCHAR(200) NULL,
+    choreo_env VARCHAR(50) NULL,
+    external_apim_env_name VARCHAR(200) NULL,
+    internal_apim_env_name VARCHAR(200) NULL,
+    sandbox_apim_env_name VARCHAR(200) NULL,
+    critical BOOLEAN NOT NULL DEFAULT FALSE,
+    dns_prefix VARCHAR(100) NULL,
     created_by CHAR(36) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by CHAR(36) NULL,
@@ -1021,21 +1028,42 @@ INSERT INTO
         environment_id,
         name,
         description,
-        is_production,
+        region,
+        cluster_id,
+        choreo_env,
+        external_apim_env_name,
+        internal_apim_env_name,
+        sandbox_apim_env_name,
+        critical,
+        dns_prefix,
         created_by
     )
 VALUES (
         '750e8400-e29b-41d4-a716-446655440001',
         'dev',
         'Development environment',
+        'us-east-1',
+        'cluster-abc123',
+        'dev',
+        'dev-external',
+        'dev-internal',
+        'dev-sandbox',
         FALSE,
+        'dev',
         '550e8400-e29b-41d4-a716-446655440000'
     ),
     (
         '750e8400-e29b-41d4-a716-446655440002',
         'prod',
         'Production environment',
+        'us-east-1',
+        'cluster-abc123',
+        'prod',
+        'prod-external',
+        'prod-internal',
+        'prod-sandbox',
         TRUE,
+        'prod',
         '550e8400-e29b-41d4-a716-446655440000'
     );
 

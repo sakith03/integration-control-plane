@@ -226,30 +226,40 @@ type Environment {
   description: String
   isProduction: Boolean!
 
+  # Infrastructure & Region Configuration
+  region: String
+  clusterId: String
+  dnsPrefix: String
+
   # Choreo Environment Configuration
   choreoEnv: String
 
-  # Virtual Host Configuration
-  vhost: String
-  sandboxVhost: String
-
-  # API Management
-  apiEnvName: String
-  apimEnvId: String
-
-  # Migration & Deployment
-  isMigrating: Boolean
-  promoteFrom: String
-
-  # Infrastructure
-  namespace: String
-  dpId: String
-  templateId: String!
+  # API Management Environment Names
+  externalApimEnvName: String
+  internalApimEnvName: String
+  sandboxApimEnvName: String
 
   # Features & Flags
   critical: Boolean
+
+  # Legacy Virtual Host Configuration (deprecated)
+  vhost: String
+  sandboxVhost: String
+
+  # Legacy API Management (deprecated)
+  apiEnvName: String
+  apimEnvId: String
+
+  # Legacy Migration & Deployment (deprecated)
+  isMigrating: Boolean
+  promoteFrom: String
+
+  # Legacy Infrastructure (deprecated)
+  namespace: String
+  dpId: String
+  templateId: String
   isPdp: Boolean
-  scaleToZeroEnabled: Boolean!
+  scaleToZeroEnabled: Boolean
 
   # Audit Fields
   createdAt: String

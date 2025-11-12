@@ -40,15 +40,24 @@ isolated function getDisplayNameById(string? userId) returns string? {
 
 public isolated function getEnvironments() returns types:Environment[]|error {
     types:Environment[] environments = [];
-    stream<types:Environment, sql:Error?> envStream = dbClient->query(`SELECT environment_id, name , description, is_production, created_at, 
-        updated_at, created_by, updated_by FROM environments ORDER BY name ASC`);
+    stream<types:Environment, sql:Error?> envStream = dbClient->query(`SELECT environment_id, name, description, 
+        region, cluster_id, choreo_env, external_apim_env_name, internal_apim_env_name, sandbox_apim_env_name, 
+        critical, dns_prefix, created_at, updated_at, created_by, updated_by 
+        FROM environments ORDER BY name ASC`);
     check from types:Environment env in envStream
         do {
             environments.push({
-                environmentId: env.environmentId,
+                id: env.id,
                 description: env.description,
                 name: env.name,
-                isProduction: env.isProduction,
+                region: env.region,
+                clusterId: env.clusterId,
+                choreoEnv: env.choreoEnv,
+                externalApimEnvName: env.externalApimEnvName,
+                internalApimEnvName: env.internalApimEnvName,
+                sandboxApimEnvName: env.sandboxApimEnvName,
+                critical: env.critical,
+                dnsPrefix: env.dnsPrefix,
                 createdAt: env.createdAt,
                 createdBy: getDisplayNameById(env.createdBy),
                 updatedAt: env.updatedAt,
@@ -67,7 +76,9 @@ public isolated function getEnvironmentsByIds(string[] environmentIds) returns t
     types:Environment[] environments = [];
 
     // Build WHERE clause to filter by environment IDs
-    sql:ParameterizedQuery query = `SELECT environment_id, name, description, is_production, created_at, updated_at, created_by, updated_by
+    sql:ParameterizedQuery query = `SELECT environment_id, name, description, 
+                                     region, cluster_id, choreo_env, external_apim_env_name, internal_apim_env_name, 
+                                     sandbox_apim_env_name, critical, dns_prefix, created_at, updated_at, created_by, updated_by
                                      FROM environments 
                                      WHERE environment_id IN (`;
 
@@ -86,10 +97,17 @@ public isolated function getEnvironmentsByIds(string[] environmentIds) returns t
     check from types:Environment env in envStream
         do {
             environments.push({
-                environmentId: env.environmentId,
+                id: env.id,
                 description: env.description,
                 name: env.name,
-                isProduction: env.isProduction,
+                region: env.region,
+                clusterId: env.clusterId,
+                choreoEnv: env.choreoEnv,
+                externalApimEnvName: env.externalApimEnvName,
+                internalApimEnvName: env.internalApimEnvName,
+                sandboxApimEnvName: env.sandboxApimEnvName,
+                critical: env.critical,
+                dnsPrefix: env.dnsPrefix,
                 createdAt: env.createdAt,
                 updatedAt: env.updatedAt,
                 createdBy: getDisplayNameById(env.createdBy),
@@ -116,9 +134,9 @@ public isolated function getEnvironmentIdsByTypes(boolean hasProdAccess, boolean
     if hasProdAccess && hasNonProdAccess {
         query = sql:queryConcat(query, `1=1`);
     } else if hasProdAccess {
-        query = sql:queryConcat(query, `is_production = true`);
+        query = sql:queryConcat(query, `critical = true`);
     } else if hasNonProdAccess {
-        query = sql:queryConcat(query, `is_production = false`);
+        query = sql:queryConcat(query, `critical = false`);
     }
 
     query = sql:queryConcat(query, ` ORDER BY name ASC`);
@@ -137,25 +155,33 @@ public isolated function getEnvironmentIdsByTypes(boolean hasProdAccess, boolean
 
 // Get environment by ID
 public isolated function getEnvironmentById(string environmentId) returns types:Environment|error {
-    stream<record {|string environment_id; string name; string? description; boolean is_production; string? created_at; string? updated_at;|}, sql:Error?> envStream =
-        dbClient->query(`SELECT environment_id, name, description, is_production, created_at, updated_at FROM environments WHERE environment_id = ${environmentId}`);
+    stream<types:Environment, sql:Error?> envStream =
+        dbClient->query(`SELECT environment_id, name, description, region, cluster_id, choreo_env, 
+                        external_apim_env_name, internal_apim_env_name, sandbox_apim_env_name, critical, dns_prefix, 
+                        created_at, updated_at FROM environments WHERE environment_id = ${environmentId}`);
 
-    record {|string environment_id; string name; string? description; boolean is_production; string? created_at; string? updated_at;|}[] envRecords =
-        check from record {|string environment_id; string name; string? description; boolean is_production; string? created_at; string? updated_at;|} env in envStream
+    types:Environment[] envRecords = check from types:Environment env in envStream
         select env;
 
     if envRecords.length() == 0 {
         return error(string `Environment ${environmentId} not found.`);
     }
 
-    record {|string environment_id; string name; string? description; boolean is_production; string? created_at; string? updated_at;|} env = envRecords[0];
+    types:Environment env = envRecords[0];
     return {
-        environmentId: env.environment_id,
+        id: env.id,
         name: env.name,
         description: env.description,
-        isProduction: env.is_production,
-        createdAt: env.created_at,
-        updatedAt: env.updated_at
+        region: env?.region,
+        clusterId: env?.clusterId,
+        choreoEnv: env?.choreoEnv,
+        externalApimEnvName: env?.externalApimEnvName,
+        internalApimEnvName: env?.internalApimEnvName,
+        sandboxApimEnvName: env?.sandboxApimEnvName,
+        critical: env?.critical,
+        dnsPrefix: env?.dnsPrefix,
+        createdAt: env.createdAt,
+        updatedAt: env.updatedAt
     };
 }
 
@@ -164,8 +190,8 @@ public isolated function createEnvironment(types:EnvironmentInput environment) r
     log:printInfo(string `Register environment : ${environment.toString()}`);
     string envId = uuid:createRandomUuid();
 
-    sql:ParameterizedQuery insertQuery = `INSERT INTO environments (environment_id, name, description, is_production, created_by) 
-    VALUES (${envId}, ${environment.name}, ${environment.description}, ${environment.isProduction}, ${environment.createdBy})`;
+    sql:ParameterizedQuery insertQuery = `INSERT INTO environments (environment_id, name, description, critical, created_by) 
+    VALUES (${envId}, ${environment.name}, ${environment.description}, ${environment.critical}, ${environment.createdBy})`;
     var result = dbClient->execute(insertQuery);
     if result is sql:Error {
         // If error is not duplicate entry, log and return
@@ -181,7 +207,7 @@ public isolated function createEnvironment(types:EnvironmentInput environment) r
 }
 
 // Update environment name and/or description
-public isolated function updateEnvironment(string environmentId, string? name, string? description) returns error? {
+public isolated function updateEnvironment(string environmentId, string? name, string? description, boolean? critical) returns error? {
     sql:ParameterizedQuery whereClause = ` WHERE environment_id = ${environmentId} `;
     sql:ParameterizedQuery updateFields = ` SET updated_at = CURRENT_TIMESTAMP `;
 
@@ -190,6 +216,9 @@ public isolated function updateEnvironment(string environmentId, string? name, s
     }
     if description is string {
         updateFields = sql:queryConcat(updateFields, `, description = ${description} `);
+    }
+    if critical is boolean {
+        updateFields = sql:queryConcat(updateFields, `, critical = ${critical} `);
     }
 
     sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE environments `, updateFields, whereClause);
@@ -203,8 +232,8 @@ public isolated function updateEnvironment(string environmentId, string? name, s
 }
 
 // Update environment production status
-public isolated function updateEnvironmentProductionStatus(string environmentId, boolean isProduction) returns error? {
-    sql:ParameterizedQuery updateQuery = `UPDATE environments SET is_production = ${isProduction}, updated_at = CURRENT_TIMESTAMP WHERE environment_id = ${environmentId}`;
+public isolated function updateEnvironmentProductionStatus(string environmentId, boolean critical) returns error? {
+    sql:ParameterizedQuery updateQuery = `UPDATE environments SET critical = ${critical}, updated_at = CURRENT_TIMESTAMP WHERE environment_id = ${environmentId}`;
     var result = dbClient->execute(updateQuery);
     if result is sql:Error {
         log:printError(string `Failed to update environment production status ${environmentId}`, result);
@@ -343,7 +372,7 @@ public isolated function getRuntimesByAccessibleEnvironments(types:UserContext u
     // Build list of accessible environment IDs based on user's environment type permissions
     string[] accessibleEnvironmentIds = [];
     foreach types:Environment env in allEnvironments {
-        final types:EnvironmentType envType = env.isProduction ? types:PROD : types:NON_PROD;
+        final types:EnvironmentType envType = env.critical ? types:PROD : types:NON_PROD;
 
         // Check if user has any role for this environment type
         boolean hasAccess = roles.some(isolated function(types:RoleInfo role) returns boolean {
@@ -351,7 +380,7 @@ public isolated function getRuntimesByAccessibleEnvironments(types:UserContext u
         });
 
         if hasAccess {
-            accessibleEnvironmentIds.push(env.environmentId);
+            accessibleEnvironmentIds.push(env.id);
         }
     }
 
@@ -469,9 +498,9 @@ public isolated function getComponentDeployment(string componentId, string envir
         cronTimezone: ()
     };
 
-    log:printInfo(string `Retrieved deployment info for component ${componentId}`, 
-                  status = runtime.status, 
-                  configCount = configCount);
+    log:printInfo(string `Retrieved deployment info for component ${componentId}`,
+            status = runtime.status,
+            configCount = configCount);
 
     return deployment;
 }
@@ -2757,14 +2786,6 @@ public isolated function getComponentByProjectAndHandler(string projectId, strin
     }
 
     types:ComponentInDB component = componentRecords[0];
-
-    // Parse deployment pipeline IDs from JSON if present
-    string[]? deploymentPipelineIds = ();
-    string? pipelineIdsJsonStr = component.project_deployment_pipeline_ids;
-    if pipelineIdsJsonStr is string {
-        json pipelineIdsJsonParsed = check pipelineIdsJsonStr.fromJsonString();
-        deploymentPipelineIds = check pipelineIdsJsonParsed.cloneWithType();
-    }
 
     return {
         // Basic Identity Fields
