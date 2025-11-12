@@ -1,12 +1,9 @@
 -- ============================================================================
--- ICP Server H2 Database Schema (Full Rewrite for H2 2.0+)
+-- ICP Server H2 Database Schema
 -- ============================================================================
 
--- DROP SCHEMA IF EXISTS ICP_DATABASE CASCADE;
-
--- CREATE SCHEMA ICP_DATABASE;
-
--- SET SCHEMA ICP_DATABASE;
+-- Drop all database objects (tables, views, sequences, etc.)
+DROP ALL OBJECTS;
 
 -- ============================================================================
 -- ORGANIZATIONS
@@ -137,7 +134,14 @@ CREATE TABLE environments (
     environment_id CHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL UNIQUE,
     description TEXT,
-    is_production BOOLEAN NOT NULL DEFAULT FALSE,
+    region VARCHAR(100),
+    cluster_id VARCHAR(200),
+    choreo_env VARCHAR(50),
+    external_apim_env_name VARCHAR(200),
+    internal_apim_env_name VARCHAR(200),
+    sandbox_apim_env_name VARCHAR(200),
+    critical BOOLEAN NOT NULL DEFAULT FALSE,
+    dns_prefix VARCHAR(100),
     created_by CHAR(36),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by CHAR(36),
@@ -1003,21 +1007,42 @@ INSERT INTO
         environment_id,
         name,
         description,
-        is_production,
+        region,
+        cluster_id,
+        choreo_env,
+        external_apim_env_name,
+        internal_apim_env_name,
+        sandbox_apim_env_name,
+        critical,
+        dns_prefix,
         created_by
     )
 VALUES (
         '750e8400-e29b-41d4-a716-446655440001',
         'dev',
         'Development environment',
+        'us-east-1',
+        'cluster-abc123',
+        'dev',
+        'dev-external',
+        'dev-internal',
+        'dev-sandbox',
         FALSE,
+        'dev',
         '550e8400-e29b-41d4-a716-446655440000'
     ),
     (
         '750e8400-e29b-41d4-a716-446655440002',
         'prod',
         'Production environment',
+        'us-east-1',
+        'cluster-abc123',
+        'prod',
+        'prod-external',
+        'prod-internal',
+        'prod-sandbox',
         TRUE,
+        'prod',
         '550e8400-e29b-41d4-a716-446655440000'
     );
 

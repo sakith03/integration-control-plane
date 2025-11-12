@@ -121,7 +121,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has access to the runtime's project and environment
-        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.environmentId) {
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.id) {
             return error("Access denied to runtime");
         }
 
@@ -130,12 +130,12 @@ service /graphql on graphqlListener {
 
     // Get component deployment information for a specific environment
     isolated resource function get componentDeployment(
-        graphql:Context context,
-        string orgHandler,
-        string orgUuid,
-        string componentId,
-        string versionId,
-        string environmentId
+            graphql:Context context,
+            string orgHandler,
+            string orgUuid,
+            string componentId,
+            string versionId,
+            string environmentId
     ) returns types:ComponentDeployment?|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
@@ -180,7 +180,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has access to the runtime's project and environment
-        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.environmentId) {
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.id) {
             return error("Access denied to runtime");
         }
 
@@ -205,7 +205,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has access to the runtime's project and environment
-        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.environmentId) {
+        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.id) {
             return error("Access denied to runtime");
         }
 
@@ -230,7 +230,7 @@ service /graphql on graphqlListener {
         }
 
         // Verify user has admin access to the runtime's project and environment
-        if !utils:hasAdminAccess(userContext, runtime.component.projectId, runtime.environment.environmentId) {
+        if !utils:hasAdminAccess(userContext, runtime.component.projectId, runtime.environment.id) {
             return error("Admin access required to delete runtime");
         }
 
@@ -289,14 +289,7 @@ service /graphql on graphqlListener {
         // Fetch environments by accessible environment IDs
         types:Environment[] environments = check storage:getEnvironmentsByIds(accessibleEnvironmentIds);
 
-        // Populate extended fields with default values (since they're not in DB)
-        foreach var env in environments {
-            env.id = env.environmentId; // Set id alias
-            env.templateId = ""; // Required field, default to empty
-            env.scaleToZeroEnabled = false; // Required field, default to false
-            // All other optional fields will remain null/unset
-        }
-
+        // The id alias is already set in the storage layer
         return environments;
     }
 
@@ -341,8 +334,8 @@ service /graphql on graphqlListener {
         return true;
     }
 
-    // Update environment name and/or description (super admin only)
-    isolated remote function updateEnvironment(graphql:Context context, string environmentId, string? name, string? description) returns types:Environment?|error {
+    // Update environment name, description, and/or critical status (super admin only)
+    isolated remote function updateEnvironment(graphql:Context context, string environmentId, string? name, string? description, boolean? critical) returns types:Environment?|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
             return error("Authorization header missing in request");
@@ -356,7 +349,7 @@ service /graphql on graphqlListener {
             return error("Super admin access required to update environments");
         }
 
-        check storage:updateEnvironment(environmentId, name, description);
+        check storage:updateEnvironment(environmentId, name, description, critical);
         return check storage:getEnvironmentById(environmentId);
     }
 

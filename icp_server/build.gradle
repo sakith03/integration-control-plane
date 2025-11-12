@@ -3,11 +3,21 @@
 
 description = 'WSO2 ICP Server - Ballerina Backend'
 
+// Build script dependencies for H2 database initialization
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.h2database:h2:2.2.224'
+    }
+}
+
 // Ballerina project tasks
 task ballerinaClean {
     description = 'Clean Ballerina build artifacts'
     doLast {
-        println 'Cleaning Ballerina artifacts...'
+        logger.lifecycle('Cleaning Ballerina artifacts...')
         exec {
             commandLine 'bal', 'clean'
         }
@@ -18,22 +28,22 @@ task ballerinaBuild {
     description = 'Build Ballerina project'
     dependsOn ballerinaClean
     doLast {
-        println 'Building Ballerina project...'
+        logger.lifecycle('Building Ballerina project...')
         exec {
             commandLine 'bal', 'build'
         }
-        println 'Ballerina build complete'
+        logger.lifecycle('Ballerina build complete')
     }
 }
 
 task ballerinaTest {
     description = 'Run Ballerina tests'
     doLast {
-        println 'Running Ballerina tests...'
+        logger.lifecycle('Running Ballerina tests...')
         exec {
             commandLine 'bal', 'test'
         }
-        println 'Ballerina tests complete'
+        logger.lifecycle('Ballerina tests complete')
     }
 }
 
@@ -41,7 +51,7 @@ task ballerinaRun {
     description = 'Run Ballerina application'
     dependsOn ballerinaBuild
     doLast {
-        println 'Starting Ballerina application...'
+        logger.lifecycle('Starting Ballerina application...')
         exec {
             commandLine 'bal', 'run'
         }
@@ -51,7 +61,7 @@ task ballerinaRun {
 task ballerinaFormat {
     description = 'Format Ballerina code'
     doLast {
-        println 'Formatting Ballerina code...'
+        logger.lifecycle('Formatting Ballerina code...')
         exec {
             commandLine 'bal', 'format'
         }
@@ -62,7 +72,7 @@ task ballerinaFormat {
 task dockerBuild {
     description = 'Build Docker image locally'
     doLast {
-        println 'Building Docker image with docker-compose...'
+        logger.lifecycle('Building Docker image with docker-compose...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.local.yml', 'build'
         }
@@ -73,11 +83,11 @@ task dockerUp {
     description = 'Start Docker containers'
     dependsOn dockerBuild
     doLast {
-        println 'Starting Docker containers...'
+        logger.lifecycle('Starting Docker containers...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.local.yml', 'up', '-d'
         }
-        println """
+        logger.quiet("""
         ╔════════════════════════════════════════╗
         ║  ICP Server is starting...             ║
         ║                                        ║
@@ -89,25 +99,25 @@ task dockerUp {
         ║                                        ║
         ║  Logs: docker-compose logs -f          ║
         ╚════════════════════════════════════════╝
-        """
+        """)
     }
 }
 
 task dockerDown {
     description = 'Stop Docker containers'
     doLast {
-        println 'Stopping Docker containers...'
+        logger.lifecycle('Stopping Docker containers...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.local.yml', 'down'
         }
-        println 'Docker containers stopped'
+        logger.lifecycle('Docker containers stopped')
     }
 }
 
 task dockerLogs {
     description = 'View Docker logs'
     doLast {
-        println 'Showing Docker logs (press Ctrl+C to exit)...'
+        logger.lifecycle('Showing Docker logs (press Ctrl+C to exit)...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.local.yml', 'logs', '-f'
         }
@@ -117,7 +127,7 @@ task dockerLogs {
 task dockerTestUp {
     description = 'Start Docker containers for testing'
     doLast {
-        println 'Starting test Docker containers...'
+        logger.lifecycle('Starting test Docker containers...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.test.yml', 'up'
         }
@@ -127,7 +137,7 @@ task dockerTestUp {
 task dockerTestDown {
     description = 'Stop test Docker containers'
     doLast {
-        println 'Stopping test Docker containers...'
+        logger.lifecycle('Stopping test Docker containers...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.test.yml', 'down'
         }
@@ -138,22 +148,22 @@ task dockerTestDown {
 task observabilityUp {
     description = 'Start observability stack (Prometheus, Grafana, etc.)'
     doLast {
-        println 'Starting observability stack...'
+        logger.lifecycle('Starting observability stack...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.observability.yml', 'up', '-d'
         }
-        println """
+        logger.quiet("""
         Observability stack started:
         - Grafana: http://localhost:3000
         - Prometheus: http://localhost:9090
-        """
+        """)
     }
 }
 
 task observabilityDown {
     description = 'Stop observability stack'
     doLast {
-        println 'Stopping observability stack...'
+        logger.lifecycle('Stopping observability stack...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.observability.yml', 'down'
         }
@@ -164,21 +174,75 @@ task observabilityDown {
 task dbUp {
     description = 'Start MySQL database'
     doLast {
-        println 'Starting MySQL database...'
+        logger.lifecycle('Starting MySQL database...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.mysql.yml', 'up', '-d'
         }
-        println 'MySQL database started on localhost:3307'
+        logger.lifecycle('MySQL database started on localhost:3307')
     }
 }
 
 task dbDown {
     description = 'Stop MySQL database'
     doLast {
-        println 'Stopping MySQL database...'
+        logger.lifecycle('Stopping MySQL database...')
         exec {
             commandLine 'docker-compose', '-f', 'docker-compose.mysql.yml', 'down'
         }
+    }
+}
+
+// H2 database initialization task
+task initH2Database {
+    description = 'Initialize H2 database with schema from h2_init.sql'
+    
+    doLast {
+        logger.quiet('╔════════════════════════════════════════╗')
+        logger.quiet('║  Initializing H2 Database...           ║')
+        logger.quiet('╚════════════════════════════════════════╝')
+        
+        def h2InitScript = file('resources/db/init-scripts/h2_init.sql')
+        def h2DbFile = file('database/icpdb')
+        
+        if (!h2InitScript.exists()) {
+            throw new Exception("H2 init script not found at: ${h2InitScript.absolutePath}")
+        }
+        
+        logger.lifecycle("Using init script: ${h2InitScript.absolutePath}")
+        logger.lifecycle("Database file: ${h2DbFile.absolutePath}")
+        
+        // Execute H2 initialization using Ant SQL task
+        ant.sql(
+            driver: 'org.h2.Driver',
+            url: "jdbc:h2:file:${h2DbFile.absolutePath};MODE=MySQL;DB_CLOSE_DELAY=-1",
+            userid: 'sa',
+            password: '',
+            src: h2InitScript.absolutePath,
+            classpath: buildscript.configurations.classpath.asPath,
+            print: true,
+            showheaders: false,
+            showtrailers: false,
+            onerror: 'abort'
+        )
+        
+        logger.quiet('✓ H2 database initialized successfully!')
+        logger.lifecycle("Database location: ${h2DbFile.absolutePath}.mv.db")
+    }
+}
+
+task cleanH2Database {
+    description = 'Clean/delete H2 database files'
+    
+    doLast {
+        logger.lifecycle('Cleaning H2 database files...')
+        
+        def dbFiles = fileTree(dir: '.', include: 'icp_database*.db')
+        dbFiles.each { file ->
+            logger.lifecycle("Deleting: ${file.name}")
+            file.delete()
+        }
+        
+        logger.quiet('✓ H2 database files cleaned')
     }
 }
 
@@ -187,7 +251,7 @@ task dev {
     description = 'Start development environment (Docker + app)'
     dependsOn dockerUp
     doLast {
-        println 'Development environment started'
+        logger.lifecycle('Development environment started')
     }
 }
 
@@ -195,7 +259,7 @@ task devDown {
     description = 'Stop development environment'
     dependsOn dockerDown
     doLast {
-        println 'Development environment stopped'
+        logger.lifecycle('Development environment stopped')
     }
 }
 
@@ -203,7 +267,7 @@ task devFull {
     description = 'Start full development environment (app + observability)'
     dependsOn observabilityUp, dockerUp
     doLast {
-        println 'Full development environment started'
+        logger.lifecycle('Full development environment started')
     }
 }
 

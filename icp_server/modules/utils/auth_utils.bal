@@ -499,7 +499,7 @@ public isolated function hasAccessToEnvironment(types:UserContext userContext, s
         return false;
     }
 
-    final types:EnvironmentType environmentType = environment.isProduction ? types:PROD : types:NON_PROD;
+    final types:EnvironmentType environmentType = environment.critical ? types:PROD : types:NON_PROD;
 
     return userContext.roles.some(isolated function(types:RoleInfo role) returns boolean {
         return role.projectId == projectId && role.environmentType == environmentType;
@@ -519,7 +519,7 @@ public isolated function hasAdminAccess(types:UserContext userContext, string pr
         return false;
     }
 
-    final types:EnvironmentType environmentType = environment.isProduction ? types:PROD : types:NON_PROD;
+    final types:EnvironmentType environmentType = environment.critical ? types:PROD : types:NON_PROD;
 
     return userContext.roles.some(isolated function(types:RoleInfo role) returns boolean {
         return role.projectId == projectId &&
@@ -580,7 +580,7 @@ public isolated function getAccessibleEnvironmentIds(types:UserContext userConte
             return [];
         }
         return from types:Environment env in allEnvironments
-            select env.environmentId;
+            select env.id;
     }
 
     // Get all environments and filter by user's access to project and environment types
@@ -592,13 +592,13 @@ public isolated function getAccessibleEnvironmentIds(types:UserContext userConte
 
     string[] environmentIds = [];
     foreach types:Environment env in allEnvironments {
-        final types:EnvironmentType envType = env.isProduction ? types:PROD : types:NON_PROD;
+        final types:EnvironmentType envType = env.critical ? types:PROD : types:NON_PROD;
         boolean hasAccess = userContext.roles.some(isolated function(types:RoleInfo role) returns boolean {
             return role.projectId == projectId && role.environmentType == envType;
         });
 
         if hasAccess {
-            environmentIds.push(env.environmentId);
+            environmentIds.push(env.id);
         }
     }
 
@@ -647,7 +647,7 @@ public isolated function getAdminEnvironmentIdsByType(types:UserContext userCont
             return [];
         }
         return from types:Environment env in allEnvironments
-            select env.environmentId;
+            select env.id;
     }
 
     string[] adminEnvironmentIds = [];
@@ -659,13 +659,13 @@ public isolated function getAdminEnvironmentIdsByType(types:UserContext userCont
 
     // For each environment, check if user has admin access to its type
     foreach types:Environment env in allEnvironments {
-        final types:EnvironmentType envType = env.isProduction ? types:PROD : types:NON_PROD;
+        final types:EnvironmentType envType = env.critical ? types:PROD : types:NON_PROD;
         boolean hasAdminAccess = userContext.roles.some(isolated function(types:RoleInfo role) returns boolean {
             return role.environmentType == envType && role.privilegeLevel == types:ADMIN;
         });
 
         if hasAdminAccess {
-            adminEnvironmentIds.push(env.environmentId);
+            adminEnvironmentIds.push(env.id);
         }
     }
 
@@ -682,7 +682,7 @@ public isolated function getAccessibleEnvironmentIdsByType(types:UserContext use
             return [];
         }
         return from types:Environment env in allEnvironments
-            select env.environmentId;
+            select env.id;
     }
 
     // Determine which environment types the user has access to

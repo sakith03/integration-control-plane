@@ -1175,18 +1175,46 @@ public type Environment record {
     @sql:Column {
         name: "environment_id"
     }
-    string environmentId;
-    string id?; // Alias for environmentId (set in resolver)
+    string id; // Alias for environmentId (set in resolver)
     string name;
     string description?;
 
-    @sql:Column {
-        name: "is_production"
-    }
-    boolean isProduction;
+    // New required fields (from DB)
+    string region?;
 
-    // Extended fields (not in DB, populated in resolver with defaults)
+    @sql:Column {
+        name: "cluster_id"
+    }
+    string clusterId?;
+
+    @sql:Column {
+        name: "choreo_env"
+    }
     string choreoEnv?;
+
+    @sql:Column {
+        name: "external_apim_env_name"
+    }
+    string externalApimEnvName?;
+
+    @sql:Column {
+        name: "internal_apim_env_name"
+    }
+    string internalApimEnvName?;
+
+    @sql:Column {
+        name: "sandbox_apim_env_name"
+    }
+    string sandboxApimEnvName?;
+
+    boolean critical;
+
+    @sql:Column {
+        name: "dns_prefix"
+    }
+    string dnsPrefix?;
+
+    // Extended fields (legacy, not in DB)
     string vhost?;
     string sandboxVhost?;
     string apiEnvName?;
@@ -1195,10 +1223,9 @@ public type Environment record {
     string promoteFrom?;
     string namespace?;
     string dpId?;
-    string templateId?; // Required in schema, will default to empty string
-    boolean critical?;
+    string templateId?;
     boolean isPdp?;
-    boolean scaleToZeroEnabled?; // Required in schema, will default to false
+    boolean scaleToZeroEnabled?;
 
     // Audit Fields (from DB)
     @sql:Column {
@@ -1225,7 +1252,7 @@ public type Environment record {
 public type EnvironmentInput record {
     string name;
     string description?;
-    boolean isProduction;
+    boolean critical;
     string createdBy?;
 };
 
