@@ -112,6 +112,7 @@ CREATE TABLE components (
     project_id CHAR(36) NOT NULL,
     name VARCHAR(150) NOT NULL,
     description TEXT NULL,
+    component_type ENUM('MI', 'BI') NOT NULL DEFAULT 'BI',
     created_by CHAR(36) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by CHAR(36) NULL,
