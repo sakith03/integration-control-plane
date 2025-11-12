@@ -108,6 +108,14 @@ type Resource {
 }
 
 # ============================================
+# RuntimeType Enum - Component Runtime Type
+# ============================================
+enum RuntimeType {
+  MI
+  BI
+}
+
+# ============================================
 # ArtifactState Enum - Artifact Status
 # ============================================
 enum ArtifactState {
@@ -148,7 +156,7 @@ type Component {
 
   # Classification
   componentSubType: String
-  componentType: String
+  componentType: RuntimeType
   labels: String
 
   # System Component Flag
@@ -578,7 +586,7 @@ input ComponentInput {
   orgHandler: String
 
   # Component Classification (optional - can have defaults)
-  componentType: String
+  componentType: RuntimeType
   technology: String
 
   # Repository Integration (optional - for future use)
@@ -607,6 +615,7 @@ input ComponentUpdateInput {
   name: String
   displayName: String
   description: String
+  componentType: RuntimeType
   version: String
   labels: String
   serviceAccessMode: String

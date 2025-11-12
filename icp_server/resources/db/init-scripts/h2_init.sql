@@ -118,6 +118,7 @@ CREATE TABLE components (
     project_id CHAR(36) NOT NULL,
     name VARCHAR(150) NOT NULL,
     description TEXT,
+    component_type VARCHAR(10) NOT NULL DEFAULT 'BI' CHECK (component_type IN ('MI', 'BI')),
     created_by CHAR(36),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by CHAR(36),

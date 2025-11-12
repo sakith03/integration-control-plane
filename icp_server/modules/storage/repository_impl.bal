@@ -2410,8 +2410,9 @@ public isolated function deleteProject(string projectId) returns error? {
 // Create a new component in the components table
 public isolated function createComponent(types:ComponentInput component) returns types:Component|error? {
     string componentId = uuid:createType1AsString();
-    sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, description, created_by) 
-                                          VALUES (${componentId}, ${component.projectId}, ${component.name}, ${component.description}, ${component.createdBy})`;
+    string componentTypeValue = component.componentType is types:RuntimeType ? component.componentType.toString() : "BI";
+    sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, description, component_type, created_by) 
+                                          VALUES (${componentId}, ${component.projectId}, ${component.name}, ${component.description}, ${componentTypeValue}, ${component.createdBy})`;
     var result = dbClient->execute(insertQuery);
     if result is sql:Error {
         return result;
@@ -2445,7 +2446,7 @@ public isolated function getComponents(string? projectId, types:ComponentOptions
     }
 
     sql:ParameterizedQuery selectClause = `SELECT c.component_id, c.project_id, c.name as component_name, c.description as component_description, 
-                                                  c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
+                                                  c.component_type, c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
                                                   c.updated_by as component_updated_by,
                                                   p.org_id as project_org_id, p.name as project_name, p.version as project_version, 
                                                   p.created_date as project_created_date, p.handler as project_handler, p.region as project_region,
@@ -2491,10 +2492,12 @@ public isolated function getComponents(string? projectId, types:ComponentOptions
                 updatedAt: component.component_updated_at,
 
                 // Classification
-                // componentSubType, componentType, labels omitted (optional fields)
+                componentSubType: (),
+                componentType: component.component_type == "MI" ? types:MI : types:BI, // Use actual DB value or default to BI
+                labels: (),
 
                 // System Component Flag
-                // isSystemComponent omitted (optional field, defaults to false)
+                isSystemComponent: false,
 
                 // Nested Objects (empty arrays for now)
                 apiVersions: [],
@@ -2659,10 +2662,11 @@ public isolated function getComponentsByProjectIds(string[] projectIds, types:Co
 }
 
 // Get a specific component by ID
+// GetComponentById function - FIRST
 public isolated function getComponentById(string componentId) returns types:Component|error {
     stream<types:ComponentInDB, sql:Error?> componentStream =
         dbClient->query(`SELECT c.component_id, c.project_id, c.name as component_name, c.description as component_description, 
-                                c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
+                                c.component_type, c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
                                 c.updated_by as component_updated_by,
                                 p.org_id as project_org_id, p.name as project_name, p.version as project_version, 
                                 p.created_date as project_created_date, p.handler as project_handler, p.region as project_region,
@@ -2712,7 +2716,7 @@ public isolated function getComponentById(string componentId) returns types:Comp
 
         // Classification
         componentSubType: (),
-        componentType: "default", // Default component type
+        componentType: component.component_type == "MI" ? types:MI : types:BI, // Use actual DB value or default to BI
         labels: (),
 
         // System Component Flag
@@ -2760,11 +2764,11 @@ public isolated function getComponentById(string componentId) returns types:Comp
     };
 }
 
-// Get a component by project ID and handler (component name)
+// Get a component by project ID and handler (component name) - SECOND
 public isolated function getComponentByProjectAndHandler(string projectId, string handler) returns types:Component?|error {
     stream<types:ComponentInDB, sql:Error?> componentStream =
         dbClient->query(`SELECT c.component_id, c.project_id, c.name as component_name, c.description as component_description,
-                                c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
+                                c.component_type, c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
                                 c.updated_by as component_updated_by,
                                 p.org_id as project_org_id, p.name as project_name, p.version as project_version,
                                 p.created_date as project_created_date, p.handler as project_handler, p.region as project_region,
@@ -2813,7 +2817,7 @@ public isolated function getComponentByProjectAndHandler(string projectId, strin
 
         // Classification
         componentSubType: (),
-        componentType: "default", // Default component type
+        componentType: component.component_type == "MI" ? types:MI : types:BI, // Use actual DB value or default to BI (SECOND)
         labels: (),
 
         // System Component Flag
