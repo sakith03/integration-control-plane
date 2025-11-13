@@ -197,18 +197,6 @@ public type ApiResponse record {
     string[] errors?;
 };
 
-public type DeleteResponse record {
-    string status;
-    string details;
-};
-
-public type DeleteComponentV2Response record {
-    string status; // "SUCCESS" | "FAILED"
-    boolean canDelete;
-    string message;
-    string encodedData;
-};
-
 public type AccessTokenResponse record {|
     string AccessToken;
 |};
@@ -1603,7 +1591,7 @@ public type ProjectHandlerAvailability record {
     string? alternateHandlerCandidate;
 };
 
-// === Component Deployment Types ===
+// === Missing Types for API Functionality ===
 
 public type ComponentDeployment record {
     string environmentId;
@@ -1653,4 +1641,16 @@ public type SourceConfigMigrationStatus record {
     boolean canMigrate;
     string existingFileName;
     string existingFileSchemaVersion;
+};
+
+public type DeleteResponse record {
+    string status;
+    string details;
+};
+
+public type DeleteComponentV2Response record {
+    string status;
+    boolean canDelete;
+    string message;
+    string encodedData;
 };
