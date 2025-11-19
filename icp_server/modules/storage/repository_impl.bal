@@ -1015,7 +1015,6 @@ public isolated function mapToService(types:Service serviceRecord, string runtim
 
 // Periodically mark runtimes as OFFLINE if heartbeat is too old
 public isolated function markOfflineRuntimes() returns error? {
-    log:printDebug("Marking offline runtimes");
 
     // Use database native timestamp functions for reliable comparison
     // TIMESTAMPDIFF and DATE_SUB work in both H2 (in MySQL mode) and MySQL
@@ -1030,7 +1029,7 @@ public isolated function markOfflineRuntimes() returns error? {
 
     int? affectedCount = result.affectedRowCount;
     if affectedCount is int && affectedCount > 0 {
-        log:printInfo(string `Marked ${affectedCount} runtime(s) as OFFLINE`);
+        log:printInfo(string `Successfully marked ${affectedCount} runtime(s) as OFFLINE`);
     }
 }
 

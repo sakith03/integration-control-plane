@@ -13,8 +13,7 @@
 # OPERATIONAL CONFIGURATION
 # =============================================================================
 # Runtime management settings
-heartbeatTimeoutSeconds = 300  # 5 minutes
-schedulerIntervalSeconds = 60  # 1 minute
+schedulerIntervalSeconds = 30  # 30 seconds
 
 # Refresh token cleanup settings
 # refreshTokenCleanupIntervalSeconds = 86400  # 24 hours - clean up expired/revoked tokens
@@ -115,7 +114,7 @@ defaultJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256
 # dbUser = "root"
 # dbPassword = "my-secret-pw"
 dbType = "h2"  # Options: mysql, h2
-
+heartbeatTimeoutSeconds = 30
 
 [[ballerina.log.modules]]
 name = "wso2/icp_server"
@@ -123,7 +122,7 @@ level = "DEBUG"
 
 [ballerina.http.traceLogAdvancedConfig]
 # Enable printing trace logs on the Console. The default value is `false`.
-console = true
+console = false
 
 # =============================================================================
 # OBSERVABILITY CONFIGURATION
