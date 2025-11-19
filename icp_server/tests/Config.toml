@@ -11,7 +11,6 @@ graphqlPort = 9446
 # =============================================================================
 # OPERATIONAL CONFIGURATION
 # =============================================================================
-heartbeatTimeoutSeconds = 300
 schedulerIntervalSeconds = 600
 
 # =============================================================================
@@ -58,6 +57,7 @@ dbName = "icp_database"
 dbUser = "root"
 dbPassword = "my-secret-pw"
 dbType = "mysql"
+heartbeatTimeoutSeconds = 30
 
 [[ballerina.log.modules]]
 name = "wso2/icp_server"

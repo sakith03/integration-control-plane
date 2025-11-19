@@ -23,6 +23,7 @@ type Query {
   components(orgHandler: String!, projectId: String, options: ComponentOptionsInput): [Component!]!
   component(componentId: String, projectId: String, componentHandler: String): Component
   componentDeployment(orgHandler: String!, orgUuid: String!, componentId: String!, versionId: String!, environmentId: String!): ComponentDeployment
+  componentArtifactTypes(componentId: String!): ArtifactTypes!
 }
 
 # ============================================
@@ -693,6 +694,14 @@ type DeleteComponentV2Response {
   canDelete: Boolean!
   message: String!
   encodedData: String!
+}
+
+# ============================================
+# Artifact Types Type
+# ============================================
+type ArtifactTypes {
+  availableTypes: [String!]!
+  componentType: RuntimeType!
 }
 
 # ============================================

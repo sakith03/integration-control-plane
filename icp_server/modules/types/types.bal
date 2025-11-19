@@ -47,7 +47,22 @@ public enum ArtifactState {
 
 public enum ArtifactType {
     SERVICE = "services",
-    LISTENER = "listeners"
+    LISTENER = "listeners",
+    RESTAPI = "RestApi",
+    PROXYSERVICE = "ProxyService",
+    ENDPOINT = "Endpoint",
+    INBOUNDENDPOINT = "InboundEndpoint",
+    SEQUENCE = "Sequence",
+    TASK = "Task",
+    TEMPLATE = "Template",
+    MESSAGESTORE = "MessageStore",
+    MESSAGEPROCESSOR = "MessageProcessor",
+    LOCALENTRY = "LocalEntry",
+    DATASERVICE = "DataService",
+    CARBONAPP = "CarbonApp",
+    DATASOURCE = "DataSource",
+    CONNECTOR = "Connector",
+    REGISTRYRESOURCE = "RegistryResource"
 }
 
 // === Core Domain Types ===
@@ -1668,3 +1683,9 @@ public type DeleteComponentV2Response record {
     string message;
     string encodedData;
 };
+
+// Available artifact types for a component
+public type ArtifactTypeCount record {|
+    ArtifactType artifactType;
+    int artifactCount;
+|};
