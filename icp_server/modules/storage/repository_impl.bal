@@ -3246,3 +3246,180 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
         alternateHandlerCandidate: alternateCandidate
     };
 }
+
+// Get available artifact types for a component based on its runtime type
+// Returns only artifact types that have actual entries in the database
+public isolated function getArtifactTypesForComponent(string componentId, types:RuntimeType componentType) returns types:ArtifactTypes|error {
+    string[] artifactTypes = [];
+
+    // Get all runtimes for this specific component
+    sql:ParameterizedQuery runtimeQuery = `SELECT DISTINCT runtime_id FROM runtimes WHERE component_id = ${componentId}`;
+    stream<record {|string runtime_id;|}, sql:Error?> runtimeStream = dbClient->query(runtimeQuery);
+
+    string[] runtimeIds = [];
+    check from record {|string runtime_id;|} runtime in runtimeStream
+        do {
+            runtimeIds.push(runtime.runtime_id);
+        };
+
+    // If no runtimes found, return empty list
+    if runtimeIds.length() == 0 {
+        return {
+            availableTypes: artifactTypes,
+            componentType: componentType
+        };
+    }
+
+    // Build WHERE IN clause for runtime IDs
+    sql:ParameterizedQuery runtimeInClause = ` WHERE runtime_id IN (`;
+    foreach int i in 0 ..< runtimeIds.length() {
+        if i > 0 {
+            runtimeInClause = sql:queryConcat(runtimeInClause, `, `);
+        }
+        runtimeInClause = sql:queryConcat(runtimeInClause, `${runtimeIds[i]}`);
+    }
+    runtimeInClause = sql:queryConcat(runtimeInClause, `) `);
+
+    // Check for common artifact types (available for all runtime types)
+
+    // Check Services
+    sql:ParameterizedQuery serviceQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_services `, runtimeInClause);
+    int serviceCount = check getCount(serviceQuery);
+    if serviceCount > 0 {
+        artifactTypes.push("Service");
+    }
+
+    // Check Listeners
+    sql:ParameterizedQuery listenerQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_listeners `, runtimeInClause);
+    int listenerCount = check getCount(listenerQuery);
+    if listenerCount > 0 {
+        artifactTypes.push("Listener");
+    }
+
+    // MI-specific artifact types
+    if componentType == types:MI {
+        // Check RestApi
+        sql:ParameterizedQuery apiQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_apis `, runtimeInClause);
+        int apiCount = check getCount(apiQuery);
+        if apiCount > 0 {
+            artifactTypes.push("RestApi");
+        }
+
+        // Check ProxyService
+        sql:ParameterizedQuery proxyQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_proxy_services `, runtimeInClause);
+        int proxyCount = check getCount(proxyQuery);
+        if proxyCount > 0 {
+            artifactTypes.push("ProxyService");
+        }
+
+        // Check Endpoint
+        sql:ParameterizedQuery endpointQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_endpoints `, runtimeInClause);
+        int endpointCount = check getCount(endpointQuery);
+        if endpointCount > 0 {
+            artifactTypes.push("Endpoint");
+        }
+
+        // Check InboundEndpoint
+        sql:ParameterizedQuery inboundQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_inbound_endpoints `, runtimeInClause);
+        int inboundCount = check getCount(inboundQuery);
+        if inboundCount > 0 {
+            artifactTypes.push("InboundEndpoint");
+        }
+
+        // Check Sequence
+        sql:ParameterizedQuery sequenceQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_sequences `, runtimeInClause);
+        int sequenceCount = check getCount(sequenceQuery);
+        if sequenceCount > 0 {
+            artifactTypes.push("Sequence");
+        }
+
+        // Check Task
+        sql:ParameterizedQuery taskQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_tasks `, runtimeInClause);
+        int taskCount = check getCount(taskQuery);
+        if taskCount > 0 {
+            artifactTypes.push("Task");
+        }
+
+        // Check Template
+        sql:ParameterizedQuery templateQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_templates `, runtimeInClause);
+        int templateCount = check getCount(templateQuery);
+        if templateCount > 0 {
+            artifactTypes.push("Template");
+        }
+
+        // Check MessageStore
+        sql:ParameterizedQuery storeQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_message_stores `, runtimeInClause);
+        int storeCount = check getCount(storeQuery);
+        if storeCount > 0 {
+            artifactTypes.push("MessageStore");
+        }
+
+        // Check MessageProcessor
+        sql:ParameterizedQuery processorQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_message_processors `, runtimeInClause);
+        int processorCount = check getCount(processorQuery);
+        if processorCount > 0 {
+            artifactTypes.push("MessageProcessor");
+        }
+
+        // Check LocalEntry
+        sql:ParameterizedQuery entryQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_local_entries `, runtimeInClause);
+        int entryCount = check getCount(entryQuery);
+        if entryCount > 0 {
+            artifactTypes.push("LocalEntry");
+        }
+
+        // Check DataService
+        sql:ParameterizedQuery dataServiceQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_data_services `, runtimeInClause);
+        int dataServiceCount = check getCount(dataServiceQuery);
+        if dataServiceCount > 0 {
+            artifactTypes.push("DataService");
+        }
+
+        // Check CarbonApp
+        sql:ParameterizedQuery carbonAppQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_carbon_apps `, runtimeInClause);
+        int carbonAppCount = check getCount(carbonAppQuery);
+        if carbonAppCount > 0 {
+            artifactTypes.push("CarbonApp");
+        }
+
+        // Check DataSource
+        sql:ParameterizedQuery dataSourceQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_data_sources `, runtimeInClause);
+        int dataSourceCount = check getCount(dataSourceQuery);
+        if dataSourceCount > 0 {
+            artifactTypes.push("DataSource");
+        }
+
+        // Check Connector
+        sql:ParameterizedQuery connectorQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_connectors `, runtimeInClause);
+        int connectorCount = check getCount(connectorQuery);
+        if connectorCount > 0 {
+            artifactTypes.push("Connector");
+        }
+
+        // Check RegistryResource
+        sql:ParameterizedQuery registryQuery = sql:queryConcat(`SELECT COUNT(*) as count FROM runtime_registry_resources `, runtimeInClause);
+        int registryCount = check getCount(registryQuery);
+        if registryCount > 0 {
+            artifactTypes.push("RegistryResource");
+        }
+    }
+
+    log:printInfo(string `Found ${artifactTypes.length()} artifact types with data for component type ${componentType.toString()}`);
+
+    return {
+        availableTypes: artifactTypes,
+        componentType: componentType
+    };
+}
+
+// Helper function to get count from a query
+isolated function getCount(sql:ParameterizedQuery query) returns int|error {
+    stream<record {|int count;|}, sql:Error?> countStream = dbClient->query(query);
+    record {|int count;|}[] results = check from record {|int count;|} count in countStream
+        select count;
+
+    if results.length() > 0 {
+        return results[0].count;
+    }
+    return 0;
+}

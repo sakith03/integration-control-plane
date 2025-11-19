@@ -798,4 +798,28 @@ service /graphql on graphqlListener {
         check storage:updateComponent(targetComponentId, targetName, targetDisplayName, targetDescription, userContext.userId);
         return check storage:getComponentById(targetComponentId);
     }
+
+    // Get available artifact types for a component
+    isolated resource function get componentArtifactTypes(graphql:Context context, string componentId) returns types:ArtifactTypes|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+
+        types:UserContext userContext = check utils:extractUserContext(authHeader);
+
+        // Get component to check access and type
+        types:Component? component = check storage:getComponentById(componentId);
+        if component is () {
+            return error("Component not found");
+        }
+
+        // Verify user has access to the component's project
+        if !utils:hasAccessToProject(userContext, component.projectId) {
+            return error("Access denied to component");
+        }
+
+        // Return available artifact types based on component (only those with actual data)
+        return check storage:getArtifactTypesForComponent(componentId, component.componentType);
+    }
 }
