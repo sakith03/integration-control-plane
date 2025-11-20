@@ -301,10 +301,13 @@ public isolated function getComponentDeployment(string componentId, string envir
 }
 
 // Get artifact types for a component
-public isolated function getArtifactTypesForComponent(string componentId, types:RuntimeType componentType) returns types:ArtifactTypeCount[]|error {
+public isolated function getArtifactTypesForComponent(string componentId, types:RuntimeType componentType, string? environmentId = ()) returns types:ArtifactTypeCount[]|error {
     types:ArtifactTypeCount[] artifactTypes = [];
 
     sql:ParameterizedQuery runtimeQuery = `SELECT DISTINCT runtime_id FROM runtimes WHERE component_id = ${componentId}`;
+    if environmentId is string {
+        runtimeQuery = sql:queryConcat(runtimeQuery, ` AND environment_id = ${environmentId}`);
+    }
     stream<record {|string runtime_id;|}, sql:Error?> runtimeStream = dbClient->query(runtimeQuery);
 
     string[] runtimeIds = [];
