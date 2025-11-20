@@ -800,7 +800,7 @@ service /graphql on graphqlListener {
     }
 
     // Get available artifact types for a component
-    isolated resource function get componentArtifactTypes(graphql:Context context, string componentId) returns types:ArtifactTypeCount[]|error {
+    isolated resource function get componentArtifactTypes(graphql:Context context, string componentId, string? environmentId = ()) returns types:ArtifactTypeCount[]|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
             return error("Authorization header missing in request");
@@ -820,6 +820,6 @@ service /graphql on graphqlListener {
         }
 
         // Return available artifact types based on component (only those with actual data)
-        return check storage:getArtifactTypesForComponent(componentId, component.componentType);
+        return check storage:getArtifactTypesForComponent(componentId, component.componentType, environmentId);
     }
 }
