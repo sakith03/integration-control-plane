@@ -112,7 +112,7 @@ public type Artifacts record {
     DataSource[] dataSources = [];
     Connector[] connectors = [];
     RegistryResource[] registryResources = [];
-    SystemInfo[] systemInfo = [];
+    SystemInfo? systemInfo = ();
 };
 
 public type Node record {
@@ -235,6 +235,12 @@ public type RuntimeDBRecord record {
     string platform_home?;
     string os_name?;
     string os_version?;
+    string carbon_home?;
+    string java_vendor?;
+    string java_version?;
+    string memory?;
+    string os_arch?;
+    string server_name?;
     time:Utc registration_time?;
     time:Utc last_heartbeat?;
 };
@@ -664,15 +670,23 @@ public type RegistryResource record {
     string state = "ENABLED"; // "ENABLED", "DISABLED"
 };
 
+public type Memory record {
+    int totalMemory;
+    int freeMemory;
+    int maxMemory;
+    int usedMemory;
+};
+
 public type SystemInfo record {
-    @sql:Column {
-        name: "info_key"
-    }
-    string key;
-    @sql:Column {
-        name: "info_value"
-    }
-    string value;
+    string serverName?;
+    string version?;
+    string carbonHome?;
+    string javaVersion?;
+    string javaVendor?;
+    string osName?;
+    string osVersion?;
+    string osArch?;
+    Memory memory?;
 };
 
 // === Project & Component Types ===
