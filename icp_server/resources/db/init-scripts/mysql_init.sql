@@ -194,6 +194,15 @@ CREATE TABLE runtimes (
     platform_home VARCHAR(255) NULL,
     os_name VARCHAR(50) NULL,
     os_version VARCHAR(50) NULL,
+    carbon_home VARCHAR(500) NULL,
+    java_vendor VARCHAR(100) NULL,
+    java_version VARCHAR(50) NULL,
+    total_memory BIGINT NULL,
+    free_memory BIGINT NULL,
+    max_memory BIGINT NULL,
+    used_memory BIGINT NULL,
+    os_arch VARCHAR(50) NULL,
+    server_name VARCHAR(200) NULL,
     registration_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     last_heartbeat TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -668,20 +677,6 @@ CREATE TABLE runtime_registry_resources (
     INDEX idx_resource_name (resource_name),
     INDEX idx_resource_type (resource_type),
     INDEX idx_state (state)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-
--- System Info (MI)
-CREATE TABLE runtime_system_info (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    runtime_id CHAR(36) NOT NULL,
-    info_key VARCHAR(200) NOT NULL,
-    info_value TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_system_info_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    UNIQUE KEY uk_runtime_system_info (runtime_id, info_key),
-    INDEX idx_runtime_id (runtime_id),
-    INDEX idx_info_key (info_key)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- ============================================================================

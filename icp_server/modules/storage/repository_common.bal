@@ -37,33 +37,6 @@ isolated function getDisplayNameById(string? userId) returns string? {
     return userId;
 }
 
-// Helper function to convert systemInfo (json) to SystemInfo array
-public isolated function convertSystemInfoToArray(json systemInfo) returns types:SystemInfo[] {
-    types:SystemInfo[] result = [];
-
-    // If systemInfo is already an array, cast and return it
-    if systemInfo is json[] {
-        foreach json item in systemInfo {
-            if item is map<json> {
-                string key = item["key"] is string ? <string>item["key"] : "";
-                string value = item["value"] is string ? <string>item["value"] : "";
-                result.push({key, value});
-            }
-        }
-        return result;
-    }
-
-    // If systemInfo is an object, convert each key-value pair
-    if systemInfo is map<json> {
-        foreach [string, json] [key, value] in systemInfo.entries() {
-            string valueStr = value.toString();
-            result.push({key, value: valueStr});
-        }
-    }
-
-    return result;
-}
-
 // Helper function to get count from a query
 isolated function getCount(sql:ParameterizedQuery query) returns int|error {
     stream<record {|int count;|}, sql:Error?> countStream = dbClient->query(query);
@@ -141,8 +114,6 @@ isolated function countTotalArtifacts(types:Artifacts artifacts) returns int {
     totalArtifacts += (<types:Connector[]>artifacts.connectors).length();
 
     totalArtifacts += (<types:RegistryResource[]>artifacts.registryResources).length();
-
-    totalArtifacts += (<types:SystemInfo[]>artifacts.systemInfo).length();
-
+    
     return totalArtifacts;
 }

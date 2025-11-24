@@ -201,6 +201,15 @@ CREATE TABLE runtimes (
     platform_home VARCHAR(255),
     os_name VARCHAR(50),
     os_version VARCHAR(50),
+    carbon_home VARCHAR(500),
+    java_vendor VARCHAR(100),
+    java_version VARCHAR(50),
+    total_memory BIGINT,
+    free_memory BIGINT,
+    max_memory BIGINT,
+    used_memory BIGINT,
+    os_arch VARCHAR(50),
+    server_name VARCHAR(200),
     registration_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_heartbeat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -642,22 +651,6 @@ CREATE INDEX idx_runtime_registry_resources_resource_name ON runtime_registry_re
 CREATE INDEX idx_runtime_registry_resources_resource_type ON runtime_registry_resources (resource_type);
 
 CREATE INDEX idx_runtime_registry_resources_state ON runtime_registry_resources (state);
-
--- System Info (MI)
-CREATE TABLE runtime_system_info (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    runtime_id CHAR(36) NOT NULL,
-    info_key VARCHAR(200) NOT NULL,
-    info_value TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_system_info_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_system_info UNIQUE (runtime_id, info_key)
-);
-
-CREATE INDEX idx_runtime_system_info_runtime_id ON runtime_system_info (runtime_id);
-
-CREATE INDEX idx_runtime_system_info_info_key ON runtime_system_info (info_key);
 
 -- ============================================================================
 -- CONTROL COMMANDS

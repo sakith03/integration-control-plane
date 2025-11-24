@@ -392,12 +392,18 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             runtime_id, name, runtime_type, status, version,
             environment_id, project_id, component_id,
             platform_name, platform_version, platform_home,
-            os_name, os_version
+            os_name, os_version,
+            carbon_home, java_vendor, java_version, 
+            total_memory, free_memory, max_memory, used_memory,
+            os_arch, server_name
         ) VALUES (
             ${heartbeat.runtime}, ${heartbeat.runtime}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
             ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
-            ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.ballerinaHome},
-            ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion}
+            ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.platformHome},
+            ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion},
+            ${heartbeat.nodeInfo.carbonHome}, ${heartbeat.nodeInfo.javaVendor}, ${heartbeat.nodeInfo.javaVersion}, 
+            ${heartbeat.nodeInfo.totalMemory}, ${heartbeat.nodeInfo.freeMemory}, ${heartbeat.nodeInfo.maxMemory}, ${heartbeat.nodeInfo.usedMemory},
+            ${heartbeat.nodeInfo.osArch}, ${heartbeat.nodeInfo.platformName}
         )
         ON DUPLICATE KEY UPDATE
             name = VALUES(name),
@@ -412,6 +418,15 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             platform_home = VALUES(platform_home),
             os_name = VALUES(os_name),
             os_version = VALUES(os_version),
+            carbon_home = VALUES(carbon_home),
+            java_vendor = VALUES(java_vendor),
+            java_version = VALUES(java_version),
+            total_memory = VALUES(total_memory),
+            free_memory = VALUES(free_memory),
+            max_memory = VALUES(max_memory),
+            used_memory = VALUES(used_memory),
+            os_arch = VALUES(os_arch),
+            server_name = VALUES(server_name),
             last_heartbeat = CURRENT_TIMESTAMP
     `);
 
@@ -489,7 +504,6 @@ isolated function deleteExistingArtifacts(string runtimeId) returns error? {
     _ = check dbClient->execute(`DELETE FROM runtime_data_sources WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM runtime_connectors WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM runtime_registry_resources WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_system_info WHERE runtime_id = ${runtimeId}`);
 }
 
 // Insert MI artifacts
@@ -670,16 +684,6 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             ) VALUES (
                 ${heartbeat.runtime}, ${registryResource.name}, ${registryResource.path},
                 ${registryResource.'type}, ${registryResource.state}
-            )
-        `);
-    }
-
-    foreach types:SystemInfo info in heartbeat.artifacts.systemInfo {
-        _ = check dbClient->execute(`
-            INSERT INTO runtime_system_info (
-                runtime_id, info_key, info_value
-            ) VALUES (
-                ${heartbeat.runtime}, ${info.key}, ${info.value}
             )
         `);
     }

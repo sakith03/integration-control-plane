@@ -112,7 +112,6 @@ public type Artifacts record {
     DataSource[] dataSources = [];
     Connector[] connectors = [];
     RegistryResource[] registryResources = [];
-    SystemInfo[] systemInfo = [];
 };
 
 public type Node record {
@@ -122,7 +121,14 @@ public type Node record {
     string ballerinaHome?;
     string osName?;
     string osVersion?;
+    string osArch?;
     string javaVersion?;
+    string javaVendor?;
+    string carbonHome?;
+    int totalMemory?;
+    int freeMemory?;
+    int maxMemory?;
+    int usedMemory?;
 };
 
 // Heartbeat that includes all runtime information for registration/updates
@@ -235,6 +241,15 @@ public type RuntimeDBRecord record {
     string platform_home?;
     string os_name?;
     string os_version?;
+    string carbon_home?;
+    string java_vendor?;
+    string java_version?;
+    int total_memory?;
+    int free_memory?;
+    int max_memory?;
+    int used_memory?;
+    string os_arch?;
+    string server_name?;
     time:Utc registration_time?;
     time:Utc last_heartbeat?;
 };
@@ -662,17 +677,6 @@ public type RegistryResource record {
         name: "registryresource_state"
     }
     string state = "ENABLED"; // "ENABLED", "DISABLED"
-};
-
-public type SystemInfo record {
-    @sql:Column {
-        name: "info_key"
-    }
-    string key;
-    @sql:Column {
-        name: "info_value"
-    }
-    string value;
 };
 
 // === Project & Component Types ===

@@ -42,6 +42,7 @@ public isolated function getRuntimes(string? status, string? runtimeType, string
     }
     sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
                  platform_name, platform_version, platform_home, os_name, os_version, 
+                 carbon_home, java_vendor, java_version, total_memory, free_memory, max_memory, used_memory, os_arch, server_name,
                  registration_time, last_heartbeat FROM runtimes `;
     sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC `;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
@@ -65,6 +66,7 @@ public isolated function getRuntimesByAccessibleEnvironments(types:UserContext u
         stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(`
             SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
                    platform_name, platform_version, platform_home, os_name, os_version, 
+                   carbon_home, java_vendor, java_version, total_memory, free_memory, max_memory, used_memory, os_arch, server_name,
                    registration_time, last_heartbeat FROM runtimes 
             ORDER BY registration_time DESC
         `);
@@ -122,6 +124,7 @@ public isolated function getRuntimesByAccessibleEnvironments(types:UserContext u
     // Build the complete query
     sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
                  platform_name, platform_version, platform_home, os_name, os_version, 
+                 carbon_home, java_vendor, java_version, total_memory, free_memory, max_memory, used_memory, os_arch, server_name,
                  registration_time, last_heartbeat FROM runtimes `;
     sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC`;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, orderByClause);
@@ -141,8 +144,9 @@ public isolated function getRuntimesByAccessibleEnvironments(types:UserContext u
 // Get a specific runtime by ID
 public isolated function getRuntimeById(string runtimeId) returns types:Runtime?|error {
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(`
-        SELECT runtime_id, runtime_type, status, environment, version,
+        SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version,
                platform_name, platform_version, platform_home, os_name, os_version, 
+               carbon_home, java_vendor, java_version, total_memory, free_memory, max_memory, used_memory, os_arch, server_name,
                registration_time, last_heartbeat 
         FROM runtimes 
         WHERE runtime_id = ${runtimeId}
@@ -562,23 +566,6 @@ public isolated function getRegistryResourcesForRuntime(string runtimeId) return
     return resourceList;
 }
 
-// Get system info for a specific runtime
-public isolated function getSystemInfoForRuntime(string runtimeId) returns types:SystemInfo[]|error {
-    types:SystemInfo[] infoList = [];
-    stream<types:SystemInfo, sql:Error?> infoStream = dbClient->query(`
-        SELECT info_key, info_value
-        FROM runtime_system_info 
-        WHERE runtime_id = ${runtimeId}
-    `);
-
-    check from types:SystemInfo infoRecord in infoStream
-        do {
-            infoList.push(infoRecord);
-        };
-
-    return infoList;
-}
-
 // Helper function to map database record to Runtime type
 public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) returns types:Runtime|error {
     // Get services for this runtime
@@ -603,7 +590,6 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
     types:DataSource[] sourceList = [];
     types:Connector[] connectorList = [];
     types:RegistryResource[] resourceList = [];
-    types:SystemInfo[] infoList = [];
 
     // Get MI artifacts only for MI runtime types
     if runtimeRecord.runtime_type == "MI" {
@@ -622,7 +608,6 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
         sourceList = check getDataSourcesForRuntime(runtimeRecord.runtime_id);
         connectorList = check getConnectorsForRuntime(runtimeRecord.runtime_id);
         resourceList = check getRegistryResourcesForRuntime(runtimeRecord.runtime_id);
-        infoList = check getSystemInfoForRuntime(runtimeRecord.runtime_id);
     }
 
     // Convert time values to string format
@@ -669,8 +654,7 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
             carbonApps: appList,
             dataSources: sourceList,
             connectors: connectorList,
-            registryResources: resourceList,
-            systemInfo: infoList
+            registryResources: resourceList
         }
     };
 }
