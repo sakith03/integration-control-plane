@@ -29,7 +29,7 @@ import ballerina/uuid;
 // Organization: All queries default to org_uuid=1 for single-tenant mode
 // ============================================================================
 
-const int DEFAULT_ORG_ID = 1;
+public const int DEFAULT_ORG_ID = 1;
 
 // ============================================================================
 // 3.2 Group Management Functions
