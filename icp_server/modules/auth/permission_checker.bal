@@ -30,6 +30,34 @@ import ballerina/log;
 // ============================================================================
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+// Build an AccessScope from GraphQL context parameters
+// This standardizes scope creation across all GraphQL endpoints
+public isolated function buildScopeFromContext(
+    string? projectId = (),
+    string? integrationId = (),
+    string? envId = ()
+) returns types:AccessScope {
+    types:AccessScope scope = {orgUuid: storage:DEFAULT_ORG_ID};
+    
+    if projectId is string {
+        scope.projectUuid = projectId;
+    }
+    
+    if integrationId is string {
+        scope.integrationUuid = integrationId;
+    }
+    
+    if envId is string {
+        scope.envUuid = envId;
+    }
+    
+    return scope;
+}
+
+// ============================================================================
 // Core Permission Checking
 // ============================================================================
 

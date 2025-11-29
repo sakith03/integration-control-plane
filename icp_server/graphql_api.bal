@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import icp_server.auth;
 import icp_server.storage;
 import icp_server.types;
 import icp_server.utils;
@@ -93,37 +94,78 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        // Extract user context for RBAC
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
-        // If specific projectId and environmentId are provided, verify access
-        if projectId is string && environmentId is string {
-            if !utils:hasAccessToEnvironment(userContext, projectId, environmentId) {
-                return error("Access denied to environment");
+        // Build scope based on provided filters
+        types:AccessScope scope = auth:buildScopeFromContext(projectId, componentId, environmentId);
+
+        // Check base permission to view integrations
+        if !check auth:hasPermission(userContext.userId, "integration_mgt:view", scope) {
+            return error("Access denied: insufficient permissions to view runtimes");
+        }
+
+        // If specific componentId (integration) is provided, check access and return filtered
+        if componentId is string {
+            boolean hasAccess = check storage:hasAccessToIntegration(userContext.userId, componentId);
+            if !hasAccess {
+                return []; // No access to this specific integration
             }
             return check storage:getRuntimes(status, runtimeType, environmentId, projectId, componentId);
         }
 
-        // If only projectId is provided, filter by accessible environments in that project
+        // If projectId is provided, filter by accessible integrations in that project
         if projectId is string {
-            if !utils:hasAccessToProject(userContext, projectId) {
-                return error("Access denied to project");
+            boolean hasProjectAccess = check storage:hasAccessToProject(userContext.userId, projectId);
+            if !hasProjectAccess {
+                return []; // No access to this project
             }
-            // Get accessible environment IDs for this project
-            string[] accessibleEnvIds = utils:getAccessibleEnvironmentIds(userContext, projectId);
 
-            // Get runtimes for each accessible environment and aggregate
+            // Get all accessible integrations for this project
+            types:UserIntegrationAccess[] accessibleIntegrations = 
+                check storage:getUserAccessibleIntegrations(userContext.userId, projectId, environmentId);
+
+            // If no accessible integrations in this project, return empty
+            if accessibleIntegrations.length() == 0 {
+                return [];
+            }
+
+            // Fetch runtimes for each accessible integration
             types:Runtime[] allRuntimes = [];
-            foreach string envId in accessibleEnvIds {
-                types:Runtime[] envRuntimes = check storage:getRuntimes(status, runtimeType, envId, projectId, componentId);
-                allRuntimes.push(...envRuntimes);
+            foreach types:UserIntegrationAccess integration in accessibleIntegrations {
+                types:Runtime[] integrationRuntimes = check storage:getRuntimes(
+                    status, 
+                    runtimeType, 
+                    environmentId, 
+                    projectId, 
+                    integration.integrationUuid
+                );
+                allRuntimes.push(...integrationRuntimes);
             }
             return allRuntimes;
         }
 
-        // No specific filters - return runtimes for all accessible environments
-        // Use optimized batch query
-        return check storage:getRuntimesByAccessibleEnvironments(userContext);
+        // No specific filters - return runtimes for all accessible integrations
+        types:UserIntegrationAccess[] accessibleIntegrations = 
+            check storage:getUserAccessibleIntegrations(userContext.userId, (), environmentId);
+
+        if accessibleIntegrations.length() == 0 {
+            return [];
+        }
+
+        // Fetch runtimes for each accessible integration
+        types:Runtime[] allRuntimes = [];
+        foreach types:UserIntegrationAccess integration in accessibleIntegrations {
+            types:Runtime[] integrationRuntimes = check storage:getRuntimes(
+                status, 
+                runtimeType, 
+                environmentId, 
+                (), // no project filter since we're querying across projects
+                integration.integrationUuid
+            );
+            allRuntimes.push(...integrationRuntimes);
+        }
+        return allRuntimes;
     }
 
     // Get a specific runtime by ID
@@ -133,19 +175,26 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        // Extract user context for RBAC
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
-        // First, fetch the runtime to get its project and environment
+        // Fetch the runtime to get its context
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
 
         if runtime is () {
             return (); // Runtime not found
         }
 
-        // Verify user has access to the runtime's project and environment
-        if !utils:hasAccessToEnvironment(userContext, runtime.component.projectId, runtime.environment.id) {
-            return error("Access denied to runtime");
+        // Build scope from runtime's context
+        types:AccessScope scope = auth:buildScopeFromContext(
+            runtime.component.projectId,
+            runtime.component.id,
+            runtime.environment.id
+        );
+
+        // Check permission to view this integration
+        if !check auth:hasPermission(userContext.userId, "integration_mgt:view", scope) {
+            return (); // No access - return 404 (same as not found)
         }
 
         return runtime;
@@ -165,8 +214,8 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        // Extract user context for RBAC
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
         // Get component to verify access
         types:Component? component = check storage:getComponentById(componentId);
@@ -174,9 +223,16 @@ service /graphql on graphqlListener {
             return (); // Integration not found
         }
 
-        // Verify user has access to the component's project and environment
-        if !utils:hasAccessToEnvironment(userContext, component.projectId, environmentId) {
-            return error("Access denied to component deployment");
+        // Build scope with project, integration, and environment
+        types:AccessScope scope = auth:buildScopeFromContext(
+            component.projectId,
+            componentId,
+            environmentId
+        );
+
+        // Check permission to view this integration deployment
+        if !check auth:hasPermission(userContext.userId, "integration_mgt:view", scope) {
+            return (); // No access - return 404 (same as not found)
         }
 
         // Get deployment information from runtimes table
@@ -578,19 +634,26 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        // Extract user context for RBAC
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
-        // First, fetch the runtime to get its project and environment
+        // Fetch the runtime to get its context
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
 
         if runtime is () {
             return error("Runtime not found");
         }
 
-        // Verify user has admin access to the runtime's project and environment
-        if !utils:hasAdminAccess(userContext, runtime.component.projectId, runtime.environment.id) {
-            return error("Admin access required to delete runtime");
+        // Build scope from runtime's context
+        types:AccessScope scope = auth:buildScopeFromContext(
+            runtime.component.projectId,
+            runtime.component.id,
+            runtime.environment.id
+        );
+
+        // Check permission to delete this integration's runtime (mutation = explicit error)
+        if !check auth:hasPermission(userContext.userId, "integration_mgt:delete", scope) {
+            return error("Access denied: insufficient permissions to delete runtime");
         }
 
         check storage:deleteRuntime(runtimeId);
