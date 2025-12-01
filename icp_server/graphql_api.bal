@@ -1033,11 +1033,15 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
-        // Check if user is admin in the project (in any environment)
-        if !utils:isAdminInAnyEnvironment(userContext, component.projectId) {
-            return error("Admin access required in project to create components");
+        // Build scope at project level (creating integration in a project)
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId);
+
+        // Check if user has permission to manage integrations in this project
+        if !check auth:hasPermission(userContext.userId, "integration_mgt:manage", scope) {
+            return error("Insufficient permissions to create component in this project");
         }
 
         // Validate component name format (3-64 characters, alphanumeric, hyphens, underscores)
@@ -1068,23 +1072,23 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        // Extract user context for RBAC
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
-        // If projectId is provided, verify access to that specific project
-        if projectId is string {
-            if !utils:hasAccessToProject(userContext, projectId) {
-                return error("Access denied to project");
-            }
-            return check storage:getComponents(projectId, options);
+        // Get accessible integrations (with optional project filter)
+        // This returns integrations where user has ANY role assignment (permission-agnostic)
+        types:UserIntegrationAccess[] accessibleIntegrations = 
+            check storage:getUserAccessibleIntegrations(userContext.userId, projectId);
+
+        // Extract integration IDs
+        string[] integrationIds = accessibleIntegrations.map(i => i.integrationUuid);
+
+        // Return empty if no access
+        if integrationIds.length() == 0 {
+            return [];
         }
 
-        // If no projectId filter, return components for all accessible projects
-        // Get all accessible project IDs
-        string[] accessibleProjectIds = utils:getAccessibleProjectIds(userContext);
-
-        // Use optimized batch query with WHERE IN clause
-        return check storage:getComponentsByProjectIds(accessibleProjectIds, options);
+        return check storage:getComponentsByIds(integrationIds);
     }
 
     // Get a specific component by ID or by projectId + componentHandler
@@ -1094,8 +1098,8 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        // Extract user context for RBAC
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
         types:Component? component = ();
 
@@ -1112,9 +1116,14 @@ service /graphql on graphqlListener {
             return (); // Integration not found
         }
 
-        // Verify user has access to the component's parent project
-        if !utils:hasAccessToProject(userContext, component.projectId) {
-            return error("Access denied to component");
+        // Build scope with project and integration context
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = component.id);
+
+        // Check if user has permission to view this integration
+        // Users with edit or manage permissions should also be able to view
+        if !check auth:hasAnyPermission(userContext.userId, 
+            ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return (); // Return null for no access (404 pattern for queries)
         }
 
         return component;
@@ -1127,7 +1136,8 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
         // Get component to check project access
         types:Component? component = check storage:getComponentById(componentId);
@@ -1135,18 +1145,22 @@ service /graphql on graphqlListener {
             return error("Integration not found");
         }
 
-        // Check if user is admin in the project (in any environment)
-        if !utils:isAdminInAnyEnvironment(userContext, component.projectId) {
-            return error("Admin access required in project to delete components");
+        // Build scope with project and integration context
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId);
+
+        // Check if user has permission to manage (delete requires manage)
+        if !check auth:hasPermission(userContext.userId, "integration_mgt:manage", scope) {
+            return error("Insufficient permissions to delete this component");
         }
 
         // Get all environments where this component has runtimes
         string[] environmentsWithRuntimes = check storage:getEnvironmentIdsWithRuntimes(componentId);
 
-        // Check if user is admin in ALL environments where the component has runtimes
+        // Check if user has permission in ALL environments where the component has runtimes
         foreach string envId in environmentsWithRuntimes {
-            if !utils:hasAdminAccess(userContext, component.projectId, envId) {
-                return error(string `Cannot delete component: it has runtimes in environment ${envId} where you don't have admin access`);
+            types:AccessScope envScope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = envId);
+            if !check auth:hasPermission(userContext.userId, "integration_mgt:manage", envScope) {
+                return error(string `Cannot delete component: it has runtimes in environment ${envId} where you don't have manage permission`);
             }
         }
 
@@ -1166,7 +1180,8 @@ service /graphql on graphqlListener {
             };
         }
 
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
         // 1. Check if component exists and belongs to the specified project
         types:Component? component = check storage:getComponentById(componentId);
@@ -1189,12 +1204,14 @@ service /graphql on graphqlListener {
             };
         }
 
-        // 2. Check if user has admin access to the project
-        if !utils:isAdminInAnyEnvironment(userContext, component.projectId) {
+        // 2. Build scope and check if user has permission to manage this integration
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId);
+        
+        if !check auth:hasPermission(userContext.userId, "integration_mgt:manage", scope) {
             return {
                 status: "FAILED",
                 canDelete: false,
-                message: "Admin access required in project to delete components",
+                message: "Insufficient permissions to delete this component",
                 encodedData: ""
             };
         }
@@ -1203,13 +1220,14 @@ service /graphql on graphqlListener {
         string[] environmentsWithRuntimes = check storage:getEnvironmentIdsWithRuntimes(componentId);
 
         if environmentsWithRuntimes.length() > 0 {
-            // Check if user is admin in ALL environments where the component has runtimes
+            // Check if user has manage permission in ALL environments where the component has runtimes
             foreach string envId in environmentsWithRuntimes {
-                if !utils:hasAdminAccess(userContext, component.projectId, envId) {
+                types:AccessScope envScope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = envId);
+                if !check auth:hasPermission(userContext.userId, "integration_mgt:manage", envScope) {
                     return {
                         status: "FAILED",
                         canDelete: false,
-                        message: string `Cannot delete component: it has runtimes in environment ${envId} where you don't have admin access`,
+                        message: string `Cannot delete component: it has runtimes in environment ${envId} where you don't have manage permission`,
                         encodedData: ""
                     };
                 }
@@ -1249,7 +1267,8 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
         // Extract values from ComponentUpdateInput
         string targetComponentId = component.id;
@@ -1263,9 +1282,13 @@ service /graphql on graphqlListener {
             return error("Integration not found");
         }
 
-        // Check if user is admin in the project (in any environment)
-        if !utils:isAdminInAnyEnvironment(userContext, existingComponent.projectId) {
-            return error("Admin access required in project to update components");
+        // Build scope with project and integration context
+        types:AccessScope scope = auth:buildScopeFromContext(existingComponent.projectId, integrationId = targetComponentId);
+
+        // Check if user has permission to edit this integration (edit or manage)
+        if !check auth:hasAnyPermission(userContext.userId, 
+            ["integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to update this component");
         }
 
         // Call the existing backend method to maintain consistency
@@ -1280,7 +1303,8 @@ service /graphql on graphqlListener {
             return error("Authorization header missing in request");
         }
 
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        // Extract user context V2 for RBAC
+        types:UserContextV2 userContext = check utils:extractUserContextV2(authHeader);
 
         // Get component to check access and type
         types:Component? component = check storage:getComponentById(componentId);
@@ -1288,9 +1312,14 @@ service /graphql on graphqlListener {
             return error("Integration not found");
         }
 
-        // Verify user has access to the component's project
-        if !utils:hasAccessToProject(userContext, component.projectId) {
-            return error("Access denied to component");
+        // Build scope with project and integration context (and optional environment)
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
+
+        // Check if user has permission to view this integration
+        // Users with edit or manage permissions should also be able to view artifacts
+        if !check auth:hasAnyPermission(userContext.userId, 
+            ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to view component artifacts");
         }
 
         // Return available artifact types based on component (only those with actual data)

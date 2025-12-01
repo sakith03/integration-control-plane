@@ -417,7 +417,8 @@ INSERT INTO roles_v2 (role_id, role_name, org_id, description) VALUES
 (UUID(), 'Super Admin', 1, 'Full access to all resources and permissions'),
 (UUID(), 'Admin', 1, 'Administrative access to projects and integrations'),
 (UUID(), 'Developer', 1, 'Development access with limited permissions'),
-(UUID(), 'Project Admin', 1, 'Administrative access to a specific project');
+(UUID(), 'Project Admin', 1, 'Administrative access to a specific project'),
+(UUID(), 'Viewer', 1, 'Read-only access with view permissions only');
 
 -- Insert permissions for all domains
 INSERT INTO permissions (permission_id, permission_name, permission_domain, resource_type, action, description) VALUES
@@ -487,6 +488,19 @@ WHERE permission_name IN (
     'project_mgt:manage',
     'integration_mgt:manage',
     'user_mgt:update_group_roles'
+);
+
+-- Map Viewer to view-only permissions
+INSERT INTO role_permission_mapping (role_id, permission_id)
+SELECT 
+    (SELECT role_id FROM roles_v2 WHERE role_name = 'Viewer'),
+    permission_id
+FROM permissions
+WHERE permission_name IN (
+    'integration_mgt:view',
+    'project_mgt:view',
+    'observability_mgt:view_logs',
+    'observability_mgt:view_insights'
 );
 
 -- Insert default admin user (required for group assignments)
