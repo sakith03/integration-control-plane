@@ -190,7 +190,7 @@ function testCreateProjectGroupAssignment() returns error? {
     test:assertFalse(response.errors is json, "Creator should have access to created project");
 
     json data = check response.data;
-    json? project = check data.project;
+    json|error project = data.project;
     test:assertTrue(project is json, "Creator should see the created project");
 }
 

@@ -295,8 +295,11 @@ function testDeleteEnvironmentNonProd() returns error? {
     io:println("testDeleteEnvironmentNonProd Create Response: ", createResponsePayload);
 
     json createData = check createResponsePayload.data;
-    json envResult = check createData.createEnvironment;
+    json|error envResult = createData.createEnvironment;
     test:assertTrue(envResult is json, "Should create environment");
+    if envResult is error {
+        return;
+    }
 
     json envIdJson = check envResult.id;
     string envId = envIdJson.toString();
@@ -351,8 +354,11 @@ function testUpdateEnvironmentProductionStatus() returns error? {
     io:println("testUpdateEnvironmentProductionStatus Create Response: ", createResponsePayload);
 
     json createData = check createResponsePayload.data;
-    json envResult = check createData.createEnvironment;
+    json|error envResult = createData.createEnvironment;
     test:assertTrue(envResult is json, "Should create environment");
+    if envResult is error {
+        return;
+    }
 
     json envIdJson = check envResult.id;
     string envId = envIdJson.toString();
@@ -427,8 +433,11 @@ function testUpdateEnvironmentProductionStatusDenied() returns error? {
     io:println("testUpdateEnvironmentProductionStatusDenied Create Response: ", createResponsePayload);
 
     json createData = check createResponsePayload.data;
-    json envResult = check createData.createEnvironment;
+    json|error envResult = createData.createEnvironment;
     test:assertTrue(envResult is json, "Should create environment");
+    if envResult is error {
+        return;
+    }
 
     json envIdJson = check envResult.id;
     string envId = envIdJson.toString();

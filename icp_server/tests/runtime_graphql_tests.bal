@@ -94,14 +94,9 @@ function generateV2Token(string userId, string username, string[] permissions) r
 // Helper to execute GraphQL query
 function executeGraphQL(string query, string token, json? variables = ()) returns json|error {
     json payload = {
-        query: query
+        query: query,
+        variables: variables
     };
-    if variables is json {
-        payload = {
-            query: query,
-            variables: variables
-        };
-    }
 
     http:Response response = check graphqlClient->post("/", payload, headers = {
         "Authorization": string `Bearer ${token}`
@@ -210,7 +205,7 @@ function testGetRuntimeById() returns error? {
 
     // Verify runtime returned
     json data = check response.data;
-    json? runtime = check data.runtime;
+    json|error runtime = data.runtime;
     test:assertTrue(runtime is json, "Should return runtime object");
 
     if runtime is json {
