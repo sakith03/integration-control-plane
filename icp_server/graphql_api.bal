@@ -616,7 +616,6 @@ service /graphql on graphqlListener {
         );
 
         // Check permission to delete this integration's runtime (mutation = explicit error)
-        // TODO check if correct permission name is used
         if !check auth:hasPermission(userContext.userId, auth:PERMISSION_INTEGRATION_MANAGE, scope) {
             return error("Access denied: insufficient permissions to delete runtime");
         }
@@ -641,10 +640,7 @@ service /graphql on graphqlListener {
             }
         } else {
             // Non-production environment requires manage_nonprod or manage permission
-            // TODO Replace with hasAnyPermission call
-            boolean canManageNonProd = check auth:hasPermission(userContext.userId, auth:PERMISSION_ENVIRONMENT_MANAGE_NONPROD, scope);
-            boolean canManageFull = check auth:hasPermission(userContext.userId, auth:PERMISSION_ENVIRONMENT_MANAGE, scope);
-            if !canManageNonProd && !canManageFull {
+            if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_ENVIRONMENT_MANAGE_NONPROD, auth:PERMISSION_ENVIRONMENT_MANAGE], scope) {
                 return error("Access denied: insufficient permissions to create environments");
             }
         }
@@ -811,9 +807,10 @@ service /graphql on graphqlListener {
     isolated remote function createProject(graphql:Context context, types:ProjectInput project) returns types:Project|error? {
         types:UserContextV2 userContext = check extractUserContext(context);
 
+        // Build org-level scope for permission check
+        types:AccessScope scope = {orgUuid: storage:DEFAULT_ORG_ID};
         // Check permission at org level - requires project_mgt:manage
-        boolean canManage = check auth:canManageProject(userContext.userId);
-        if !canManage {
+        if !check auth:hasPermission(userContext.userId, auth:PERMISSION_PROJECT_MANAGE, scope) {
             return error("Insufficient permissions to create projects");
         }
 
@@ -901,9 +898,10 @@ service /graphql on graphqlListener {
     isolated remote function deleteProject(graphql:Context context, int orgId, string projectId) returns types:DeleteResponse|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Check permission at project level - requires project_mgt:manage (higher bar than edit)
-        boolean canManage = check auth:canManageProject(userContext.userId, projectId);
-        if !canManage {
+        // Build org-level scope for permission check
+        types:AccessScope scope = {orgUuid: storage:DEFAULT_ORG_ID};
+        // Check permission at project level - requires project_mgt:manage 
+        if !check auth:hasPermission(userContext.userId, auth:PERMISSION_PROJECT_MANAGE, scope)  {
             return error("Insufficient permissions to delete project");
         }
 
@@ -928,10 +926,10 @@ service /graphql on graphqlListener {
     isolated remote function updateProject(graphql:Context context, types:ProjectUpdateInput project) returns types:Project|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
+        // Build org-level scope for permission check
+        types:AccessScope scope = {orgUuid: storage:DEFAULT_ORG_ID};
         // Check permission at project level - requires project_mgt:edit or project_mgt:manage
-        // TODO Replace with hasAnyPermission call
-        boolean canEdit = check auth:canEditProject(userContext.userId, project.id);
-        if !canEdit {
+        if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_PROJECT_EDIT, auth:PERMISSION_PROJECT_MANAGE], scope) {
             return error("Insufficient permissions to update project");
         }
 

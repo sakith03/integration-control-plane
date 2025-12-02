@@ -348,16 +348,11 @@ service /auth on httpListener {
             }
         ]
     }
-    isolated resource function post 'renew\-token(@http:Header {name: http:AUTH_HEADER} string? authHeader) returns http:Ok|http:Unauthorized|http:InternalServerError {
+    isolated resource function post 'renew\-token(http:Request req) returns http:Ok|http:Unauthorized|http:InternalServerError {
         log:printInfo("Token renewal requested");
 
-        if authHeader is () {
-            log:printError("Authorization header missing in token renewal request");
-            return utils:createUnauthorizedError("Authorization header required");
-        }
-
         // Extract user context from current token (V2)
-        types:UserContextV2|error userContext = auth:extractUserContextV2(authHeader);
+        types:UserContextV2|error userContext = extractUserContextFromRequest(req);
         if userContext is error {
             log:printError("Failed to extract user context for token renewal", userContext);
             return utils:createUnauthorizedError("Invalid authorization token");
@@ -539,16 +534,11 @@ service /auth on httpListener {
             }
         ]
     }
-    isolated resource function post 'revoke\-token(@http:Header {name: http:AUTH_HEADER} string? authHeader, types:RevokeTokenRequest request) returns http:Ok|http:Unauthorized|http:BadRequest|http:InternalServerError {
+    isolated resource function post 'revoke\-token(http:Request req, types:RevokeTokenRequest request) returns http:Ok|http:Unauthorized|http:BadRequest|http:InternalServerError {
         log:printInfo("Token revocation requested");
 
-        if authHeader is () {
-            log:printError("Authorization header missing in revoke token request");
-            return utils:createUnauthorizedError("Authorization header required");
-        }
-
         // Extract user context from current JWT
-        types:UserContextV2|error userContext = auth:extractUserContextV2(authHeader);
+        types:UserContextV2|error userContext = extractUserContextFromRequest(req);
         if userContext is error {
             log:printError("Failed to extract user context for token revocation", userContext);
             return utils:createUnauthorizedError("Invalid authorization token");
@@ -994,15 +984,9 @@ service /auth on httpListener {
         log:printInfo("Assigning roles to group", orgHandle = orgHandle, groupId = groupId, roleCount = input.roleIds.length());
 
         // Extract user context for granular permission checks
-        string|http:HeaderNotFoundError authHeader = req.getHeader("Authorization");
-        if authHeader is http:HeaderNotFoundError {
-            return utils:createUnauthorizedError("Authorization header not found");
-        }
-        
-        string token = authHeader.substring(7); // Remove "Bearer " prefix
-        types:UserContextV2|error userContext = auth:extractUserContextV2(token);
+        types:UserContextV2|error userContext = extractUserContextFromRequest(req);
         if userContext is error {
-            log:printError("Failed to extract user context", userContext);
+            log:printError("Failed to extract user context for token revocation", userContext);
             return utils:createUnauthorizedError("Invalid or missing authentication token");
         }
 
@@ -1040,63 +1024,36 @@ service /auth on httpListener {
 
         // Granular permission checks based on scope level
         // Check user has appropriate permissions at the specified scope
-        
+        types:AccessScope scope = {orgUuid: storage:DEFAULT_ORG_ID};
         if input.integrationUuid is string {
             // Integration-level scope - most restrictive
             string integrationUuid = <string>input.integrationUuid;
-            string projectUuid = <string>input.projectUuid; // Already validated above
-            
-            boolean|error canAssign = auth:canAssignRolesAtIntegrationScope(userContext.userId, integrationUuid, projectUuid);
-            if canAssign is error {
-                log:printError("Error checking integration scope permissions", canAssign, userId = userContext.userId);
-                return utils:createInternalServerError("Error checking permissions");
-            }
-            
-            if !canAssign {
-                log:printWarn("User lacks permission to assign roles at integration scope", 
-                    userId = userContext.userId, integrationUuid = integrationUuid);
-                return <http:Forbidden>{
-                    body: {
-                        message: "You do not have permission to assign roles at this integration scope"
-                    }
-                };
-            }
+            string projectUuid = <string>input.projectUuid;
+            scope.projectUuid = projectUuid;
+            scope.integrationUuid = integrationUuid;
         } else if input.projectUuid is string {
             // Project-level scope
             string projectUuid = <string>input.projectUuid;
-            
-            boolean|error canAssign = auth:canAssignRolesAtProjectScope(userContext.userId, projectUuid);
-            if canAssign is error {
-                log:printError("Error checking project scope permissions", canAssign, userId = userContext.userId);
-                return utils:createInternalServerError("Error checking permissions");
-            }
-            
-            if !canAssign {
-                log:printWarn("User lacks permission to assign roles at project scope", 
-                    userId = userContext.userId, projectUuid = projectUuid);
-                return <http:Forbidden>{
-                    body: {
-                        message: "You do not have permission to assign roles at this project scope"
-                    }
-                };
-            }
-        } else {
-            // Org-level scope - already validated by @http:ResourceConfig
-            // Additional check for consistency
-            boolean|error canAssign = auth:canAssignRolesAtOrgScope(userContext.userId);
-            if canAssign is error {
-                log:printError("Error checking org scope permissions", canAssign, userId = userContext.userId);
-                return utils:createInternalServerError("Error checking permissions");
-            }
-            
-            if !canAssign {
-                log:printWarn("User lacks permission to assign roles at org scope", userId = userContext.userId);
-                return <http:Forbidden>{
-                    body: {
-                        message: "You do not have permission to assign roles at organization scope"
-                    }
-                };
-            }
+            scope.projectUuid = projectUuid;
+        } 
+
+        boolean|error canAssign = auth:hasAnyPermission(userContext.userId, 
+            [auth:PERMISSION_USER_MANAGE_GROUPS, auth:PERMISSION_USER_UPDATE_GROUP_ROLES, auth:PERMISSION_USER_MANAGE_USERS], 
+            scope
+        );
+        if canAssign is error {
+            log:printError("Error checking project scope permissions", canAssign, userId = userContext.userId);
+            return utils:createInternalServerError("Error checking permissions");
+        }
+        
+        if !canAssign {
+            log:printWarn("User lacks permission to assign roles at this scope", 
+                userId = userContext.userId, projectUuid = input.projectUuid ?: "N/A", integrationUuid = input.integrationUuid ?: "N/A");
+            return <http:Forbidden>{
+                body: {
+                    message: "You do not have permission to assign roles at this scope"
+                }
+            };
         }
 
         // Assign each role to the group with the specified scope
@@ -1165,21 +1122,15 @@ service /auth on httpListener {
         }
     }
     resource function delete orgs/[string orgHandle]/groups/[string groupId]/roles/[int mappingId](http:Request req)
-            returns http:Ok|http:NotFound|http:Forbidden|http:InternalServerError|error {
+            returns http:Ok|http:NotFound|http:Forbidden|http:InternalServerError|http:Unauthorized|error {
         
         log:printInfo("Removing role from group", orgHandle = orgHandle, groupId = groupId, mappingId = mappingId);
 
-        // Extract user context from JWT token
-        string|http:HeaderNotFoundError authHeader = req.getHeader("Authorization");
-        if authHeader is http:HeaderNotFoundError {
-            log:printError("Authorization header not found");
-            return utils:createInternalServerError("Authorization header not found");
-        }
-
-        types:UserContextV2|error userContext = auth:extractUserContextV2(authHeader);
+        // Extract user context for granular permission checks
+        types:UserContextV2|error userContext = extractUserContextFromRequest(req);
         if userContext is error {
-            log:printError("Failed to extract user context", userContext);
-            return utils:createInternalServerError("Failed to extract user context");
+            log:printError("Failed to extract user context for token revocation", userContext);
+            return utils:createUnauthorizedError("Invalid or missing authentication token");
         }
 
         // Verify group exists
@@ -1496,21 +1447,15 @@ service /auth on httpListener {
         }
     }
     resource function delete orgs/[string orgHandle]/users/[string userId](http:Request req)
-            returns http:NoContent|http:BadRequest|http:Forbidden|http:NotFound|http:InternalServerError|error {
+            returns http:NoContent|http:Unauthorized|http:Forbidden|http:NotFound|http:InternalServerError|error {
         
         log:printInfo("Deleting user", orgHandle = orgHandle, userId = userId);
 
-        // Extract user context from JWT token
-        string|http:HeaderNotFoundError authHeader = req.getHeader("Authorization");
-        if authHeader is http:HeaderNotFoundError {
-            log:printError("Authorization header not found");
-            return utils:createInternalServerError("Authorization header not found");
-        }
-
-        types:UserContextV2|error userContext = auth:extractUserContextV2(authHeader);
+        // Extract user context for granular permission checks
+        types:UserContextV2|error userContext = extractUserContextFromRequest(req);
         if userContext is error {
-            log:printError("Failed to extract user context", userContext);
-            return utils:createInternalServerError("Failed to extract user context");
+            log:printError("Failed to extract user context for token revocation", userContext);
+            return utils:createUnauthorizedError("Invalid or missing authentication token");
         }
 
         // Delete user with safety checks (cannot delete self or system admin)
@@ -1897,5 +1842,21 @@ service /auth on httpListener {
             }
         };
     }
+}
+
+isolated function extractUserContextFromRequest(http:Request req) returns types:UserContextV2|error {
+    string|http:HeaderNotFoundError authHeader = req.getHeader("Authorization");
+    if authHeader is http:HeaderNotFoundError {
+        log:printError("Authorization header not found");
+        return error("Authorization header not found");
+    }
+
+    types:UserContextV2|error userContext = auth:extractUserContextV2(authHeader);
+    if userContext is error {
+        log:printError("Failed to extract user context", userContext);
+        return error("Failed to extract user context");
+    }
+
+    return userContext;
 }
 
