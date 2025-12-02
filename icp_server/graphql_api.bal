@@ -94,11 +94,11 @@ service /graphql on graphqlListener {
         // Step 1: Get projectId if not provided (infer from componentId)
         string actualProjectId = projectId ?: "";
         if actualProjectId == "" {
-            types:Component? component = check storage:getComponentById(componentId);
-            if component is () {
+            string|error projectIdResult = storage:getProjectIdByComponentId(componentId);
+            if projectIdResult is error {
                 return []; // Component not found
             }
-            actualProjectId = component.projectId;
+            actualProjectId = projectIdResult;
         }
 
         // Step 2: If environmentId is specified, check access to that specific environment
@@ -181,15 +181,15 @@ service /graphql on graphqlListener {
     ) returns types:ComponentDeployment?|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return (); // Integration not found
+        // Get project ID for the component (lightweight query for access control)
+        string|error projectIdResult = storage:getProjectIdByComponentId(componentId);
+        if projectIdResult is error {
+            return (); // Component not found
         }
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = auth:buildScopeFromContext(
-            component.projectId,
+            projectIdResult,
             componentId,
             environmentId
         );
@@ -236,17 +236,13 @@ service /graphql on graphqlListener {
     isolated resource function get servicesByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:Service[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        // TODO have a simpler db function for getting a component's project ID only
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -291,16 +287,13 @@ service /graphql on graphqlListener {
     isolated resource function get listenersByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:Listener[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -318,16 +311,13 @@ service /graphql on graphqlListener {
     isolated resource function get restApisByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:RestApi[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -344,16 +334,13 @@ service /graphql on graphqlListener {
     isolated resource function get carbonAppsByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:CarbonApp[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -370,16 +357,13 @@ service /graphql on graphqlListener {
     isolated resource function get inboundEndpointsByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:InboundEndpoint[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -396,16 +380,13 @@ service /graphql on graphqlListener {
     isolated resource function get endpointsByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:Endpoint[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -422,16 +403,13 @@ service /graphql on graphqlListener {
     isolated resource function get sequencesByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:Sequence[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -448,16 +426,13 @@ service /graphql on graphqlListener {
     isolated resource function get proxyServicesByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:ProxyService[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -474,16 +449,13 @@ service /graphql on graphqlListener {
     isolated resource function get tasksByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:Task[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -500,16 +472,13 @@ service /graphql on graphqlListener {
     isolated resource function get templatesByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:Template[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -526,16 +495,13 @@ service /graphql on graphqlListener {
     isolated resource function get messageStoresByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:MessageStore[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -552,16 +518,13 @@ service /graphql on graphqlListener {
     isolated resource function get messageProcessorsByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:MessageProcessor[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -578,16 +541,13 @@ service /graphql on graphqlListener {
     isolated resource function get localEntriesByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:LocalEntry[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -604,16 +564,13 @@ service /graphql on graphqlListener {
     isolated resource function get dataServicesByEnvironmentAndComponent(graphql:Context context, string environmentId, string componentId) returns types:DataService[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Get component to verify access
-        types:Component? component = check storage:getComponentById(componentId);
-        if component is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(componentId);
 
         // Build scope with project, integration, and environment
         types:AccessScope scope = {
             orgUuid: 1,
-            projectUuid: component.projectId,
+            projectUuid: projectId,
             integrationUuid: componentId,
             envUuid: environmentId
         };
@@ -1148,14 +1105,11 @@ service /graphql on graphqlListener {
         string? targetDisplayName = component.displayName;
         string? targetDescription = component.description;
 
-        // Get component to check project access
-        types:Component? existingComponent = check storage:getComponentById(targetComponentId);
-        if existingComponent is () {
-            return error("Integration not found");
-        }
+        // Get project ID for the component (lightweight query for access control)
+        string projectId = check storage:getProjectIdByComponentId(targetComponentId);
 
         // Build scope with project and integration context
-        types:AccessScope scope = auth:buildScopeFromContext(existingComponent.projectId, integrationId = targetComponentId);
+        types:AccessScope scope = auth:buildScopeFromContext(projectId, integrationId = targetComponentId);
 
         // Check if user has permission to edit this integration (edit or manage)
         if !check auth:hasAnyPermission(userContext.userId, 

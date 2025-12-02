@@ -177,6 +177,22 @@ public isolated function getComponentsByIds(string[] componentIds) returns types
     return components;
 }
 
+// Get project ID for a given component ID (lightweight query for access control)
+public isolated function getProjectIdByComponentId(string componentId) returns string|error {
+    stream<record {|string project_id;|}, sql:Error?> resultStream = 
+        dbClient->query(`SELECT project_id FROM components WHERE component_id = ${componentId}`);
+
+    record {|string project_id;|}[] results = 
+        check from record {|string project_id;|} result in resultStream
+        select result;
+
+    if results.length() == 0 {
+        return error(string `Component with id ${componentId} not found`);
+    }
+
+    return results[0].project_id;
+}
+
 // Get a specific component by ID
 public isolated function getComponentById(string componentId) returns types:Component|error {
     stream<types:ComponentInDB, sql:Error?> componentStream =
