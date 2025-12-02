@@ -226,7 +226,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to runtime services");
+            log:printWarn("Attempt to access runtime services without permission", userId = userContext.userId, runtimeId = runtimeId);
+            return [];
         }
 
         return check storage:getServicesForRuntime(runtimeId);
@@ -248,9 +249,9 @@ service /graphql on graphqlListener {
         };
 
         // Verify user has view, edit, or manage permission
-        // TODO use constants for permission names
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component services");
+            log:printWarn("Attempt to access component services without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getServicesByEnvironmentAndComponent(environmentId, componentId);
@@ -277,7 +278,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to runtime listeners");
+            log:printWarn("Attempt to access listeners without permission", userId = userContext.userId, runtimeId = runtimeId);
+            return [];
         }
 
         return check storage:getListenersForRuntime(runtimeId);
@@ -300,8 +302,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            // TODO add audit log and return empty list
-            return error("Access denied to component listeners");
+            log:printWarn("Attempt to access listeners without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getListenersByEnvironmentAndComponent(environmentId, componentId);
@@ -324,7 +326,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component REST APIs");
+            log:printWarn("Attempt to access component REST APIs without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getRestApisByEnvironmentAndComponent(environmentId, componentId);
@@ -347,7 +350,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component Carbon Apps");
+            log:printWarn("Attempt to access component Carbon Apps without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getCarbonAppsByEnvironmentAndComponent(environmentId, componentId);
@@ -370,7 +374,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component inbound endpoints");
+            log:printWarn("Attempt to access component inbound endpoints without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getInboundEndpointsByEnvironmentAndComponent(environmentId, componentId);
@@ -393,7 +398,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component endpoints");
+            log:printWarn("Attempt to access component endpoints without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getEndpointsByEnvironmentAndComponent(environmentId, componentId);
@@ -416,7 +422,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component sequences");
+            log:printWarn("Attempt to access component sequences without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getSequencesByEnvironmentAndComponent(environmentId, componentId);
@@ -439,7 +446,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component proxy services");
+            log:printWarn("Attempt to access component proxy services without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getProxyServicesByEnvironmentAndComponent(environmentId, componentId);
@@ -462,7 +470,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component tasks");
+            log:printWarn("Attempt to access component tasks without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getTasksByEnvironmentAndComponent(environmentId, componentId);
@@ -485,7 +494,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component templates");
+            log:printWarn("Attempt to access component templates without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getTemplatesByEnvironmentAndComponent(environmentId, componentId);
@@ -508,7 +518,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component message stores");
+            log:printWarn("Attempt to access component message stores without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getMessageStoresByEnvironmentAndComponent(environmentId, componentId);
@@ -531,7 +542,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component message processors");
+            log:printWarn("Attempt to access component message processors without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getMessageProcessorsByEnvironmentAndComponent(environmentId, componentId);
@@ -554,7 +566,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component local entries");
+            log:printWarn("Attempt to access component local entries without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getLocalEntriesByEnvironmentAndComponent(environmentId, componentId);
@@ -577,7 +590,8 @@ service /graphql on graphqlListener {
 
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Access denied to component data services");
+            log:printWarn("Attempt to access component data services without permission", userId = userContext.userId, environmentId = environmentId, componentId = componentId);
+            return [];
         }
 
         return check storage:getDataServicesByEnvironmentAndComponent(environmentId, componentId);
@@ -655,7 +669,8 @@ service /graphql on graphqlListener {
 
         // Check if user has any access at all
         if accessibleEnvs.length() == 0 {
-            return error("Access denied: no role mappings found for user");
+            log:printWarn("Attempt to access environments without role mappings", userId = userContext.userId);
+            return [];
         }
 
         // Build environment ID list from access mappings:
@@ -837,6 +852,7 @@ service /graphql on graphqlListener {
         auth:ProjectAccessInfo accessInfo = check auth:resolveProjectAccess(userContext.userId, projectId);
         
         if !accessInfo.hasAccess {
+            log:printWarn("Attempt to access project without permission", userId = userContext.userId, projectId = projectId);
             return (); // No access - return null (404 pattern for queries)
         }
 
@@ -1007,6 +1023,7 @@ service /graphql on graphqlListener {
         // Users with edit or manage permissions should also be able to view
         if !check auth:hasAnyPermission(userContext.userId, 
             [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
+            log:printWarn("Attempt to access component without permission", userId = userContext.userId, componentId = component.id);
             return (); // Return null for no access (404 pattern for queries)
         }
 
@@ -1139,7 +1156,8 @@ service /graphql on graphqlListener {
         // Users with edit or manage permissions should also be able to view artifacts
         if !check auth:hasAnyPermission(userContext.userId, 
             [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            return error("Insufficient permissions to view component artifacts");
+            log:printWarn("Attempt to access component artifact types without permission", userId = userContext.userId, componentId = componentId, environmentId = environmentId);
+            return [];
         }
 
         // Return available artifact types based on component (only those with actual data)
