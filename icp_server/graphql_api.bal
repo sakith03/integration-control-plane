@@ -869,16 +869,13 @@ service /graphql on graphqlListener {
 
     // Check project creation eligibility for an organization
     isolated resource function get projectCreationEligibility(graphql:Context context, int orgId, string orgHandler) returns types:ProjectCreationEligibility|error {
-        // Note: This endpoint might not require authentication depending on business requirements
-        // For now, we'll allow it without authentication to match the example
-        // value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        // if authHeader !is string {
-        //     return error("Authorization header missing in request");
-        // }
-
         // Call storage layer to check eligibility
-        // TODO check the correct permission
-        return check storage:checkProjectCreationEligibility(orgId, orgHandler);
+        types:UserContextV2 userContext = check extractUserContext(context);
+        types:AccessScope scope = {orgUuid: orgId};
+        boolean isEligible = check auth:hasPermission(userContext.userId, auth:PERMISSION_PROJECT_MANAGE, scope);
+        return {
+            isProjectCreationAllowed: isEligible
+        };
     }
 
     // Check project handler availability for an organization
