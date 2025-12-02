@@ -291,3 +291,23 @@ public isolated function deleteEnvironment(string environmentId) returns error? 
     log:printInfo(string `Successfully deleted environment ${environmentId}`);
     return ();
 }
+
+// Get all environment IDs where a component has runtimes
+public isolated function getEnvironmentIdsWithRuntimes(string componentId) returns string[]|error {
+    log:printDebug(string `Fetching environment IDs where component ${componentId} has runtimes`);
+
+    stream<record {|string environment_Id;|}, sql:Error?> envStream = dbClient->query(
+        `SELECT DISTINCT environment_id 
+         FROM runtimes 
+         WHERE component_id = ${componentId}`
+        );
+
+    string[] environmentIds = [];
+    check from record {|string environment_Id;|} envRecord in envStream
+        do {
+            environmentIds.push(envRecord.environment_Id);
+        };
+
+    log:printInfo(string `Component ${componentId} has runtimes in ${environmentIds.length()} environments`);
+    return environmentIds;
+}

@@ -101,7 +101,7 @@ service /auth on httpListener {
             if userDetails is sql:NoRowsError {
                 // New user
                 log:printInfo(string `User ${username} authenticated but not found in users table, creating user record`);
-                error? createResult = storage:createUser(userId, username, displayName);
+                json|error? createResult = storage:createUserV2(userId, username, displayName, []);
                 if createResult is error {
                     log:printError("Error creating user in database", createResult, username = username);
                     return utils:createInternalServerError("Error creating user record");
@@ -244,7 +244,7 @@ service /auth on httpListener {
                         userId = userInfo.userId,
                         username = userInfo.username);
 
-                error? createResult = storage:createUser(userInfo.userId, userInfo.username, userInfo.displayName);
+                json|error? createResult = storage:createUserV2(userInfo.userId, userInfo.username, userInfo.displayName, []);
                 if createResult is error {
                     log:printError("Error creating OIDC user in database", createResult,
                             username = userInfo.username);

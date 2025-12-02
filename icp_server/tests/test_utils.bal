@@ -53,13 +53,13 @@ function initializeTestTokens() returns error? {
         [
             {
                 projectId: "project-1",
-                environmentType: types:PROD,
-                privilegeLevel: types:ADMIN
+                environmentType: "prod",
+                privilegeLevel: "admin"
             },
             {
                 projectId: "project-1",
-                environmentType: types:NON_PROD,
-                privilegeLevel: types:ADMIN
+                environmentType: "non-prod",
+                privilegeLevel: "admin"
             }
         ],
         isSuperAdmin = true,
@@ -74,8 +74,8 @@ function initializeTestTokens() returns error? {
         [
             {
                 projectId: "project-1",
-                environmentType: types:PROD,
-                privilegeLevel: types:DEVELOPER
+                environmentType: "prod",
+                privilegeLevel: "developer"
             }
         ],
         isSuperAdmin = false,
@@ -90,8 +90,8 @@ function initializeTestTokens() returns error? {
         [
             {
                 projectId: "project-1",
-                environmentType: types:PROD,
-                privilegeLevel: types:ADMIN
+                environmentType: "prod",
+                privilegeLevel: "admin"
             }
         ],
         isSuperAdmin = false,
@@ -100,6 +100,7 @@ function initializeTestTokens() returns error? {
 }
 
 // Generate a test JWT token with custom claims
+// TODO Remove and replace with a new token creation function
 public function generateTestToken(
     string userId,
     string username,

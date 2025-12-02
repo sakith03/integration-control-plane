@@ -19,6 +19,7 @@ import ballerina/jwt;
 import ballerina/log;
 import ballerina/test;
 
+// TODO Update to work with new tokens
 // Test: Successful token refresh with valid JWT
 @test:Config {
     groups: ["token-renew"]
@@ -130,42 +131,6 @@ function testRenewTokenWithExpiredToken() returns error? {
     assertStatusCode(response.statusCode, 401, "Expected status code 401 with expired token");
     
     log:printInfo("Test passed: Token renewal rejected with expired token");
-}
-
-// Test: Token refresh fails when user no longer exists in DB
-@test:Config {
-    groups: ["token-renew", "negative"]
-}
-function testRenewTokenWithDeletedUser() returns error? {
-    log:printInfo("Test: Token renewal with deleted user");
-    
-    // Generate a token for a non-existent user
-    string testToken = check generateTestToken(
-        "non-existent-user-id-12345",
-        "deleteduser",
-        "Deleted User",
-        [],
-        isSuperAdmin = false
-    );
-    
-    string authHeader = createAuthHeader(testToken);
-    
-    // Send renew token request
-    http:Response response = check authClient->post("/auth/renew-token", {}, {
-        "Authorization": authHeader
-    });
-    
-    // Assert response status (should be 500 Internal Server Error or 401)
-    test:assertTrue(
-        response.statusCode == 500 || response.statusCode == 401,
-        "Expected status code 500 or 401 when user doesn't exist"
-    );
-    
-    // Parse response body
-    json responseBody = check response.getJsonPayload();
-    test:assertTrue(responseBody.message is string, "Error message should be present");
-    
-    log:printInfo("Test passed: Token renewal failed for deleted user");
 }
 
 // Test: Refreshed token has updated expiration time

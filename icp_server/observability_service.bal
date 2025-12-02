@@ -168,11 +168,11 @@ isolated function buildBaseQuery(types:LogEntryRequest logRequest, types:UserCon
             }
         }
         
-        // Convert environment IDs to names for filtering
+        // Convert environment IDs to names for filtering (batch query optimization)
         string[] accessibleEnvironments = [];
-        foreach string envId in accessibleEnvironmentIds {
-            types:Environment env = check storage:getEnvironmentById(envId);
-            accessibleEnvironments.push(env.name);
+        if accessibleEnvironmentIds.length() > 0 {
+            types:Environment[] environments = check storage:getEnvironmentsByIds(accessibleEnvironmentIds);
+            accessibleEnvironments = environments.map(env => env.name);
         }
 
         // Only add filter if user has limited access

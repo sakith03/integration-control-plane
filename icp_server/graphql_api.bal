@@ -121,19 +121,15 @@ service /graphql on graphqlListener {
                 return [];
             }
 
-            // Fetch runtimes for each accessible integration
-            types:Runtime[] allRuntimes = [];
-            foreach types:UserIntegrationAccess integration in accessibleIntegrations {
-                types:Runtime[] integrationRuntimes = check storage:getRuntimes(
-                    status, 
-                    runtimeType, 
-                    environmentId, 
-                    projectId, 
-                    integration.integrationUuid
-                );
-                allRuntimes.push(...integrationRuntimes);
-            }
-            return allRuntimes;
+            // Extract integration IDs and fetch all runtimes in a single batch query
+            string[] integrationIds = accessibleIntegrations.map(i => i.integrationUuid);
+            return check storage:getRuntimesByIntegrationIds(
+                integrationIds,
+                status,
+                runtimeType,
+                environmentId,
+                projectId
+            );
         }
 
         // No specific filters - return runtimes for all accessible integrations
@@ -144,19 +140,15 @@ service /graphql on graphqlListener {
             return [];
         }
 
-        // Fetch runtimes for each accessible integration
-        types:Runtime[] allRuntimes = [];
-        foreach types:UserIntegrationAccess integration in accessibleIntegrations {
-            types:Runtime[] integrationRuntimes = check storage:getRuntimes(
-                status, 
-                runtimeType, 
-                environmentId, 
-                (), // no project filter since we're querying across projects
-                integration.integrationUuid
-            );
-            allRuntimes.push(...integrationRuntimes);
-        }
-        return allRuntimes;
+        // Extract integration IDs and fetch all runtimes in a single batch query
+        string[] integrationIds = accessibleIntegrations.map(i => i.integrationUuid);
+        return check storage:getRuntimesByIntegrationIds(
+            integrationIds,
+            status,
+            runtimeType,
+            environmentId,
+            () // no project filter since we're querying across projects
+        );
     }
 
     // Get a specific runtime by ID
@@ -1428,7 +1420,7 @@ service /graphql on graphqlListener {
         }
 
         // Extract user context for RBAC
-        types:UserContext userContext = check utils:extractUserContext(authHeader);
+        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
 
         // Get component to verify access
         types:Component? component = check storage:getComponentById(componentId);
@@ -1436,23 +1428,15 @@ service /graphql on graphqlListener {
             return error("Integration not found");
         }
 
-        // Verify user has access to the component's project
-        if !utils:hasAccessToProject(userContext, component.projectId) {
-            return error("Access denied to component");
+        // Verify user has the permisions
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
+        if !check auth:hasAnyPermission(userContext.userId, 
+            ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to view component artifacts");
         }
 
-        // Get runtimes for this component (optionally filtered by environment)
-        types:Runtime[] runtimes;
-        if environmentId is string {
-            // Verify environment access
-            if !utils:hasAccessToEnvironment(userContext, component.projectId, environmentId) {
-                return error("Access denied to environment");
-            }
-            runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
-        } else {
-            // Get runtimes from any environment the user has access to
-            runtimes = check storage:getRuntimes((), (), (), component.projectId, componentId);
-        }
+        // Get runtimes for this component (optionally filtered by environment if environmentId !is ())
+        types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
 
         if runtimes.length() == 0 {
             return error("No runtimes found for this component");
