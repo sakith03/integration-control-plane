@@ -23,4 +23,4 @@ Monitor, troubleshoot and control integration deployments
   `cd` to the <ICP_HOME>/bin.
   Run dashboard.sh (Linux/macOS) or dashboard.bat (Windows).
 
-- In a web browser, navigate to the displayed URL. i.e: https:/localhost:9743/login.
+- In a web browser, navigate to the displayed URL. i.e: https://localhost:9743/login.
