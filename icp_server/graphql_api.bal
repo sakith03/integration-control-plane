@@ -1280,8 +1280,9 @@ service /graphql on graphqlListener {
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 artifactPath = artifactPath,
-                accept = "application/json",
-                http:Response|error artifactResponse = mgmtClient->get(artifactPath, {
+                accept = "application/json"
+        );
+        http:Response|error artifactResponse = mgmtClient->get(artifactPath, {
                 "Authorization": string `Bearer ${hmacToken}`,
                 "Accept": "application/json"
                 });

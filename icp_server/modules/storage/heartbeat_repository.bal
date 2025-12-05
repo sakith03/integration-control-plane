@@ -391,13 +391,13 @@ isolated function validateResourcesConsistency(types:Resource[] referenceResourc
 // Upsert runtime record
 isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error {
     // Use default values if management hostname and port are not provided
-    string managementHostname = heartbeat.managementHostname ?: "localhost";
-    string managementPort = heartbeat.managementPort ?: "9164";
+    string runtimeHostname = heartbeat.runtimeHostname ?: "";
+    string runtimePort = heartbeat.runtimePort ?: "";
 
     sql:ExecutionResult result = check dbClient->execute(`
         INSERT INTO runtimes (
             runtime_id, name, runtime_type, status, version,
-            management_hostname, management_port,
+            runtime_hostname, runtime_port,
             environment_id, project_id, component_id,
             platform_name, platform_version, platform_home,
             os_name, os_version,
@@ -406,7 +406,7 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             os_arch, server_name
         ) VALUES (
             ${heartbeat.runtime}, ${heartbeat.runtime}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
-            ${managementHostname}, ${managementPort},
+            ${runtimeHostname}, ${runtimePort},
             ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
             ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.platformHome},
             ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion},
@@ -419,8 +419,8 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             runtime_type = VALUES(runtime_type),
             status = VALUES(status),
             version = VALUES(version),
-            management_hostname = VALUES(management_hostname),
-            management_port = VALUES(management_port),
+            runtime_hostname = VALUES(runtime_hostname),
+            runtime_port = VALUES(runtime_port),
             environment_id = VALUES(environment_id),
             project_id = VALUES(project_id),
             component_id = VALUES(component_id),

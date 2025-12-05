@@ -140,8 +140,8 @@ public type Heartbeat record {|
     string project;
     string component;
     string version?;
-    string managementHostname?; // MI management API hostname
-    string managementPort?; // MI management API port
+    string runtimeHostname?; // MI management API hostname
+    string runtimePort?; // MI management API port
     Node nodeInfo;
     Artifacts artifacts;
     string runtimeHash;
@@ -238,8 +238,8 @@ public type RuntimeDBRecord record {
     string project_id;
     string component_id;
     string version?;
-    string management_hostname?;
-    string management_port?;
+    string runtime_hostname?;
+    string runtime_port?;
     string platform_name?;
     string platform_version?;
     string platform_home?;
@@ -274,12 +274,12 @@ public type Runtime record {
     string version?;
 
     @sql:Column {
-        name: "management_hostname"
+        name: "runtime_hostname"
     }
     string managementHostname?;
 
     @sql:Column {
-        name: "management_port"
+        name: "runtime_port"
     }
     string managementPort?;
 
