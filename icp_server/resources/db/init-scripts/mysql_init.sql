@@ -1,6 +1,13 @@
+-- ============================================================================
+-- ICP Server MySQL Database Schema (Full Rewrite, MySQL 8.0+)
+-- ============================================================================
 
+DROP DATABASE IF EXISTS icp_database;
 
 CREATE DATABASE icp_database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE icp_database;
+
 -- ============================================================================
 -- ORGANIZATIONS
 -- ============================================================================
