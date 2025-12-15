@@ -1314,6 +1314,164 @@ service /graphql on graphqlListener {
                 sourceLength = artifactConfig.configuration.length());
         return artifactConfig.configuration;
     }
+
+    // Get Local Entry value from a runtime's management API via ICP internal API
+    isolated resource function get localEntryValueByComponent(
+            graphql:Context context,
+            string componentId,
+            string entryName,
+            string? environmentId = (),
+            string? runtimeId = ()
+    ) returns string|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+
+        // Extract user context for RBAC
+        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+
+        // Get component to verify access
+        types:Component? component = check storage:getComponentById(componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        // Verify user has the permissions
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
+        if !check auth:hasAnyPermission(userContext.userId, 
+            ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to view component artifacts");
+        }
+
+        // Get runtimes for this component (optionally filtered by environment if environmentId !is ())
+        types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
+
+        if runtimes.length() == 0 {
+            return error("No runtimes found for this component");
+        }
+
+        // Select runtime: if runtimeId provided, use matching runtime; otherwise first available
+        types:Runtime runtime = runtimes[0];
+        if runtimeId is string {
+            boolean found = false;
+            foreach types:Runtime r in runtimes {
+                if r.runtimeId == runtimeId {
+                    runtime = r;
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return error(string `Runtime ${runtimeId} not found for component ${componentId}${environmentId is string ? string ` in environment ${environmentId}` : ""}`);
+            }
+        }
+
+        // Check if management endpoint is configured
+        string? managementHost = runtime.managementHostname;
+        string? managementPort = runtime.managementPort;
+
+        if managementHost is () {
+            return error("Management hostname not configured for this runtime");
+        }
+
+        // Build management API base URL
+        string baseUrl = string `https://${managementHost}`;
+        if managementPort is string {
+            baseUrl = string `${baseUrl}:${managementPort}`;
+        }
+
+        log:printInfo("Fetching local entry from runtime management API",
+                runtimeId = runtime.runtimeId,
+                managementUrl = baseUrl,
+                entryName = entryName);
+
+        // Create management API client (toggle insecure TLS via configuration)
+        http:Client|error mgmtClient = artifactsApiAllowInsecureTLS
+            ? new (baseUrl, {secureSocket: {enable: false}})
+            : new (baseUrl);
+        if mgmtClient is error {
+            log:printError("Failed to create management API client", mgmtClient);
+            return error("Failed to create management API client");
+        }
+
+        // Generate an HMAC JWT (same mechanism as heartbeat) to call the ICP internal API
+        string hmacToken = check issueRuntimeHmacToken();
+
+        // Fetch local entry via ICP Internal API (/icp/artifacts/local-entry)
+        string artifactPath = string `${ICP_ARTIFACTS_PATH}/local-entry?name=${entryName}`;
+        log:printDebug("Sending ICP internal API local entry request",
+                runtimeId = runtime.runtimeId,
+                managementUrl = baseUrl,
+                artifactPath = artifactPath,
+                accept = "application/json"
+        );
+        http:Response|error leResponse = mgmtClient->get(artifactPath, {
+                "Authorization": string `Bearer ${hmacToken}`,
+                "Accept": "application/json"
+                });
+
+        if leResponse is error {
+            log:printError("Failed to fetch local entry from management API", leResponse);
+            return error("Failed to fetch local entry from management API");
+        }
+
+        if leResponse.statusCode != http:STATUS_OK {
+            string|error errPayload = leResponse.getTextPayload();
+            if errPayload is error {
+                log:printError("ICP internal API local entry fetch returned non-OK status",
+                        status = leResponse.statusCode.toString(),
+                        runtimeId = runtime.runtimeId,
+                        entryName = entryName);
+                return error(string `ICP internal API local entry fetch failed with status ${leResponse.statusCode}`);
+            }
+            log:printError("ICP internal API local entry fetch returned non-OK status",
+                    status = leResponse.statusCode.toString(),
+                    runtimeId = runtime.runtimeId,
+                    entryName = entryName,
+                    response = errPayload);
+            return error(string `ICP internal API local entry fetch failed with status ${leResponse.statusCode}: ${errPayload}`);
+        }
+
+        // Attempt to parse JSON and extract `value` field; fallback to text body
+        string? result = ();
+        json|error payload = leResponse.getJsonPayload();
+        if payload is json {
+            if payload is map<json> {
+                json v = payload["value"];
+                if v is string {
+                    result = v;
+                } else if v is () {
+                    // No `value` field; if body has `configuration` like other artifacts, use it
+                    json cfg = payload["configuration"];
+                    if cfg is string {
+                        result = cfg;
+                    }
+                } else {
+                    // Convert complex JSON to string
+                    result = v.toString();
+                }
+            } else if payload is string {
+                result = payload;
+            }
+        }
+
+        if result is () {
+            // Fallback to raw text payload
+            string|error text = leResponse.getTextPayload();
+            if text is error {
+                log:printError("Failed to parse local entry response", text);
+                return error("Failed to parse local entry response");
+            }
+            result = text;
+        }
+
+        log:printInfo("Successfully fetched local entry value",
+                runtimeId = runtime.runtimeId,
+                entryName = entryName,
+                valueLength = (<string>result).length());
+        return <string>result;
+    }
 }
 
 isolated function extractUserContext(graphql:Context context) returns types:UserContextV2|error {
