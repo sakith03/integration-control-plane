@@ -525,6 +525,7 @@ isolated function deleteExistingArtifacts(string runtimeId) returns error? {
     _ = check dbClient->execute(`DELETE FROM runtime_api_resources WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM runtime_apis WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM runtime_proxy_services WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM runtime_proxy_service_endpoints WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM runtime_endpoints WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM runtime_inbound_endpoints WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM runtime_sequences WHERE runtime_id = ${runtimeId}`);
@@ -567,15 +568,26 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
     }
 
     foreach types:ProxyService proxy in <types:ProxyService[]>heartbeat.artifacts.proxyServices {
-        string? transportsJson = proxy.transports is string[] ? (<string[]>proxy.transports).toJsonString() : ();
         _ = check dbClient->execute(`
             INSERT INTO runtime_proxy_services (
-                runtime_id, proxy_name, transports, state
+                runtime_id, proxy_name, state
             ) VALUES (
-                ${heartbeat.runtime}, ${proxy.name},
-                ${transportsJson}, ${proxy.state}
+                ${heartbeat.runtime}, ${proxy.name}, ${proxy.state}
             )
         `);
+
+        // Persist endpoints if present
+        if proxy.endpoints is string[] {
+            foreach string ep in <string[]>proxy.endpoints {
+                _ = check dbClient->execute(`
+                    INSERT INTO runtime_proxy_service_endpoints (
+                        runtime_id, proxy_name, endpoint_url
+                    ) VALUES (
+                        ${heartbeat.runtime}, ${proxy.name}, ${ep}
+                    )
+                `);
+            }
+        }
     }
 
     foreach types:Endpoint endpoint in <types:Endpoint[]>heartbeat.artifacts.endpoints {

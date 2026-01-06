@@ -345,10 +345,7 @@ public type ListenerRecordInDB record {
 // Database record types for MI artifacts
 public type ProxyServiceRecordInDB record {
     string proxy_name;
-    string proxy_package;
-    string base_path;
     string state;
-    string transports = "";
 };
 
 public type EndpointRecordInDB record {
@@ -516,11 +513,11 @@ public type ProxyService record {
         name: "proxy_name"
     }
     string name;
-    string[] transports?;
     @sql:Column {
         name: "proxy_state"
     }
     string state = "ENABLED"; // "ENABLED", "DISABLED"
+    string[] endpoints?;
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -712,6 +709,8 @@ public type Connector record {
         name: "connector_state"
     }
     string state = "ENABLED"; // "ENABLED", "DISABLED"
+    string[] runtimeIds?;
+    ArtifactRuntimeInfo[]? runtimes?;
 };
 
 public type RegistryResource record {
@@ -1712,3 +1711,9 @@ public type Parameter record {|
     string key;
     string value;
 |};
+
+public type LocalEntryValue record {|
+    string name;
+    string value;
+|};
+

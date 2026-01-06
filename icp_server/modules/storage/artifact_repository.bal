@@ -461,6 +461,7 @@ public isolated function getSequencesByEnvironmentAndComponent(string environmen
 public isolated function getProxyServicesByEnvironmentAndComponent(string environmentId, string componentId) returns types:ProxyService[]|error {
     types:ProxyService[] proxyList = [];
     map<string[]> proxyRuntimeMap = {};
+    map<int> proxyIndexMap = {};
 
     // Get all runtime IDs for this environment and component
     string[] runtimeIds = check getRuntimeIdsByEnvironmentAndComponent(environmentId, componentId);
@@ -478,10 +479,29 @@ public isolated function getProxyServicesByEnvironmentAndComponent(string enviro
             string[] existing = proxyRuntimeMap[key] ?: [];
             if existing.length() == 0 {
                 proxyRuntimeMap[key] = [runtimeId];
+                proxyIndexMap[key] = proxyList.length();
                 proxyList.push(proxy);
             } else {
                 existing.push(runtimeId);
                 proxyRuntimeMap[key] = existing;
+                // Merge endpoints across runtimes
+                int idx = -1;
+                int? idxOpt = proxyIndexMap[key];
+                if idxOpt is int {
+                    idx = idxOpt;
+                }
+                if idx >= 0 {
+                    types:ProxyService existingProxy = proxyList[idx];
+                    string[] existingEndpoints = existingProxy.endpoints ?: [];
+                    string[] newEndpoints = proxy.endpoints ?: [];
+                    // Union
+                    map<boolean> seen = {};
+                    string[] merged = [];
+                    foreach string ep in existingEndpoints { if !seen.hasKey(ep) { seen[ep] = true; merged.push(ep); } }
+                    foreach string ep in newEndpoints { if !seen.hasKey(ep) { seen[ep] = true; merged.push(ep); } }
+                    existingProxy.endpoints = merged;
+                    proxyList[idx] = existingProxy;
+                }
             }
         }
     }
@@ -918,8 +938,22 @@ public isolated function getConnectorsByEnvironmentAndComponent(string environme
         }
     }
 
-    // Note: Connector type does not currently expose runtimeIds/runtimes
-    // like other artifacts, so we return the unique connector list only.
+    // Build status map once
+    map<string> statusMapConn = check getRuntimeStatusMap(runtimeIds);
+
+    foreach int i in 0..<(connectorList.length()) {
+        types:Connector conn = connectorList[i];
+        string key = string `${conn.name}|${conn.'package}|${conn.version ?: ""}`;
+        string[] rids = connectorRuntimeMap[key] ?: [];
+        conn.runtimeIds = rids;
+        types:ArtifactRuntimeInfo[] infos = [];
+        foreach string rid in rids {
+            string st = statusMapConn[rid] ?: "UNKNOWN";
+            infos.push({runtimeId: rid, status: st});
+        }
+        conn.runtimes = infos;
+        connectorList[i] = conn;
+    }
 
     return connectorList;
 }
