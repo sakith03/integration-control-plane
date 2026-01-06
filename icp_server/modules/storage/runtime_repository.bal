@@ -254,6 +254,20 @@ isolated function getApiResourcesForRuntime(string runtimeId, string apiName) re
 // Get proxy services for a specific runtime
 public isolated function getProxyServicesForRuntime(string runtimeId) returns types:ProxyService[]|error {
     types:ProxyService[] proxyList = [];
+    // Load endpoints for all proxies in this runtime
+    map<string[]> endpointMap = {};
+    stream<record {| string proxy_name; string endpoint_url; |}, sql:Error?> epStream = dbClient->query(`
+        SELECT proxy_name, endpoint_url
+        FROM runtime_proxy_service_endpoints
+        WHERE runtime_id = ${runtimeId}
+    `);
+    check from record {| string proxy_name; string endpoint_url; |} ep in epStream
+        do {
+            string[] existing = endpointMap[ep.proxy_name] ?: [];
+            existing.push(ep.endpoint_url);
+            endpointMap[ep.proxy_name] = existing;
+        };
+
     stream<types:ProxyServiceRecordInDB, sql:Error?> proxyStream = dbClient->query(`
         SELECT proxy_name, state 
         FROM runtime_proxy_services 
@@ -266,6 +280,8 @@ public isolated function getProxyServicesForRuntime(string runtimeId) returns ty
                 name: proxyRecord.proxy_name,
                 state: proxyRecord.state
             };
+            string[] eps = endpointMap[proxyRecord.proxy_name] ?: [];
+            proxy.endpoints = eps;
             proxyList.push(proxy);
         };
 

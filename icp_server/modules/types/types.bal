@@ -513,11 +513,11 @@ public type ProxyService record {
         name: "proxy_name"
     }
     string name;
-    string[] transports?;
     @sql:Column {
         name: "proxy_state"
     }
     string state = "ENABLED"; // "ENABLED", "DISABLED"
+    string[] endpoints?;
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -709,6 +709,8 @@ public type Connector record {
         name: "connector_state"
     }
     string state = "ENABLED"; // "ENABLED", "DISABLED"
+    string[] runtimeIds?;
+    ArtifactRuntimeInfo[]? runtimes?;
 };
 
 public type RegistryResource record {

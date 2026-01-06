@@ -704,6 +704,24 @@ CREATE TABLE runtime_proxy_services (
     INDEX idx_state (state)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
+-- Proxy Service Endpoints (MI)
+CREATE TABLE runtime_proxy_service_endpoints (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    runtime_id VARCHAR(100) NOT NULL,
+    proxy_name VARCHAR(200) NOT NULL,
+    endpoint_url VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_runtime_proxy_service_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
+    UNIQUE KEY uk_runtime_proxy_service_endpoint (
+        runtime_id,
+        proxy_name,
+        endpoint_url
+    ),
+    INDEX idx_runtime_proxy_service_endpoints_runtime_id (runtime_id),
+    INDEX idx_runtime_proxy_service_endpoints_proxy_name (proxy_name)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
 -- Endpoints (MI)
 CREATE TABLE runtime_endpoints (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

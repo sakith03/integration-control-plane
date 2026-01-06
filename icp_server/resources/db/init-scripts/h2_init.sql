@@ -846,6 +846,25 @@ CREATE INDEX idx_runtime_proxy_services_proxy_name ON runtime_proxy_services (pr
 
 CREATE INDEX idx_runtime_proxy_services_state ON runtime_proxy_services (state);
 
+-- Proxy Service Endpoints (MI)
+CREATE TABLE runtime_proxy_service_endpoints (
+    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    runtime_id VARCHAR(100) NOT NULL,
+    proxy_name VARCHAR(200) NOT NULL,
+    endpoint_url VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_runtime_proxy_service_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
+    CONSTRAINT uk_runtime_proxy_service_endpoint UNIQUE (
+        runtime_id,
+        proxy_name,
+        endpoint_url
+    )
+);
+
+CREATE INDEX idx_runtime_proxy_service_endpoints_runtime_id ON runtime_proxy_service_endpoints (runtime_id);
+CREATE INDEX idx_runtime_proxy_service_endpoints_proxy_name ON runtime_proxy_service_endpoints (proxy_name);
+
 -- Endpoints (MI)
 CREATE TABLE runtime_endpoints (
     id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
