@@ -1111,15 +1111,13 @@ CREATE TABLE runtime_registry_resources (
     resource_type VARCHAR(100),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (runtime_id, resource_name, resource_type),
+    PRIMARY KEY (runtime_id, resource_name),
     CONSTRAINT fk_runtime_registry_resources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_registry_resources_runtime_id ON runtime_registry_resources (runtime_id);
 
 CREATE INDEX idx_runtime_registry_resources_resource_name ON runtime_registry_resources (resource_name);
-CREATE INDEX idx_runtime_registry_resources_resource_type ON runtime_registry_resources (resource_type);
-
 
 -- ============================================================================
 -- CONTROL COMMANDS

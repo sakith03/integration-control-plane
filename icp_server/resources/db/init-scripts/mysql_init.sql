@@ -976,11 +976,10 @@ CREATE TABLE runtime_registry_resources (
     resource_type VARCHAR(100) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (runtime_id, resource_name, resource_type),
+    PRIMARY KEY (runtime_id, resource_name),
     CONSTRAINT fk_runtime_registry_resources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
     INDEX idx_runtime_id (runtime_id),
-    INDEX idx_resource_name (resource_name),
-    INDEX idx_resource_type (resource_type)
+    INDEX idx_resource_name (resource_name)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- ============================================================================
