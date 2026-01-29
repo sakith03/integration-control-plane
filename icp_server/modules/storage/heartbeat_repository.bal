@@ -20,6 +20,7 @@ import ballerina/cache;
 import ballerina/log;
 import ballerina/sql;
 import ballerina/time;
+import ballerina/uuid;
 
 // Runtime hash cache for delta heartbeat optimization
 final cache:Cache hashCache = new (capacity = 1000, evictionFactor = 0.2);
@@ -51,16 +52,28 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
             if validationResult is error {
                 log:printWarn(string `Component consistency validation failed for runtime ${heartbeat.runtime}`, validationResult);
             }
-
-            // Process intended states and generate control commands if needed (only for new registrations)
-            check processIntendedStates(heartbeat.runtime, heartbeat.component, heartbeat.artifacts, pendingCommands);
         }
 
-        // Retrieve any other pending control commands
-        types:ControlCommand[] existingCommands = check sendPendingBIControlCommands(heartbeat.runtime);
-        foreach types:ControlCommand cmd in existingCommands {
-            pendingCommands.push(cmd);
+        // Get component type for this runtime
+        string? componentType = check getComponentTypeByRuntimeId(heartbeat.runtime);
+
+        // Process intended states and retrieve pending control commands based on component type
+        if isNewRegistration {
+            check processIntendedStates(heartbeat.runtime, heartbeat.component, heartbeat.artifacts, componentType);
         }
+        
+        if componentType == "BI" {
+            // Retrieve pending BI control commands (works for both new and existing runtimes)
+            types:ControlCommand[] existingCommands = check sendPendingBIControlCommands(heartbeat.runtime);
+            foreach types:ControlCommand cmd in existingCommands {
+                pendingCommands.push(cmd);
+            }
+        } else if componentType == "MI" {
+            // Retrieve and mark MI control commands as sent
+            // MI commands are handled via management API, not returned in heartbeat response
+            _ = check sendPendingMIControlCommands(heartbeat.runtime);
+        }
+        // For other component types or if runtime not found, pendingCommands remains empty
 
         // Create audit log entry
         string action = isNewRegistration ? "REGISTER" : "HEARTBEAT";
@@ -169,7 +182,9 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
         if componentType == "BI" {
             pendingCommands = check sendPendingBIControlCommands(deltaHeartbeat.runtime);
         } else if componentType == "MI" {
-            pendingCommands = check sendPendingMIControlCommands(deltaHeartbeat.runtime);
+            // Retrieve and send MI control commands
+            // MI commands are handled via management API, not returned in heartbeat response
+            _ = check sendPendingMIControlCommands(deltaHeartbeat.runtime);
         }
         // For other component types or if runtime not found, pendingCommands remains empty
 
@@ -395,50 +410,52 @@ isolated function validateResourcesConsistency(types:Resource[] referenceResourc
     return ();
 }
 
-// Process intended states and add control commands to pending commands
-isolated function processIntendedStates(
-        string runtimeId,
-        string componentId,
-        types:Artifacts artifacts,
-        types:ControlCommand[] pendingCommands
-) returns error? {
-    // Check intended states and generate control commands if needed
-    types:ControlCommand[]|error intendedStateCommands = checkBIIntendedStatesAndGenerateCommands(
-        runtimeId,
-        componentId,
-        artifacts
-    );
-    
-    if intendedStateCommands is types:ControlCommand[] && intendedStateCommands.length() > 0 {
-        log:printInfo(string `Generated ${intendedStateCommands.length()} control commands from intended states for runtime ${runtimeId}`);
-        // Add intended state commands to pending commands
-        foreach types:ControlCommand cmd in intendedStateCommands {
-            pendingCommands.push(cmd);
+// Process intended states and insert control commands to DB
+isolated function processIntendedStates(string runtimeId, string componentId, types:Artifacts artifacts, string? componentType) returns error? {
+    if componentType == "BI" {
+        // Check BI intended states and insert control commands to DB
+        int|error commandCount = checkBIIntendedStatesAndInsertCommands(
+                runtimeId,
+                componentId,
+                artifacts
+        );
+
+        if commandCount is int && commandCount > 0 {
+            log:printInfo(string `Inserted ${commandCount} BI control commands from intended states for runtime ${runtimeId}`);
+        } else if commandCount is error {
+            return commandCount;
         }
-    } else if intendedStateCommands is error {
-        return intendedStateCommands;
+    } else if componentType == "MI" {
+        // Check MI intended states and insert control commands to DB
+        int|error commandCount = checkMIIntendedStatesAndInsertCommands(
+                runtimeId,
+                componentId,
+                artifacts
+        );
+
+        if commandCount is int && commandCount > 0 {
+            log:printInfo(string `Inserted ${commandCount} MI control commands from intended states for runtime ${runtimeId}`);
+        } else if commandCount is error {
+            return commandCount;
+        }
     }
 }
 
-// Check BI artifact intended states and generate control commands if needed
-isolated function checkBIIntendedStatesAndGenerateCommands(
-        string runtimeId,
-        string componentId,
-        types:Artifacts artifacts
-) returns types:ControlCommand[]|error {
-    types:ControlCommand[] commands = [];
+// Check BI artifact intended states and insert control commands to DB
+isolated function checkBIIntendedStatesAndInsertCommands(string runtimeId, string componentId, types:Artifacts artifacts) returns int|error {
+    int commandCount = 0;
 
     // Get intended states for this component
     map<string>|error intendedStates = getBIIntendedStatesForComponent(componentId);
-    
+
     if intendedStates is error {
         log:printWarn(string `Failed to retrieve intended states for component ${componentId}`, intendedStates);
-        return commands;
+        return commandCount;
     }
 
     if intendedStates.length() == 0 {
         // No intended states configured, nothing to sync
-        return commands;
+        return commandCount;
     }
 
     // Check services against intended states
@@ -461,20 +478,12 @@ isolated function checkBIIntendedStatesAndGenerateCommands(
             }
 
             if needsCommand && actionToIssue is types:ControlAction {
-                // Insert control command
+                // Insert control command to DB
                 string|error commandId = insertControlCommand(runtimeId, artifactName, actionToIssue);
-                
+
                 if commandId is string {
-                    types:ControlCommand cmd = {
-                        commandId: commandId,
-                        runtimeId: runtimeId,
-                        targetArtifact: {name: artifactName},
-                        action: actionToIssue,
-                        issuedAt: time:utcNow(),
-                        status: types:PENDING
-                    };
-                    commands.push(cmd);
-                    log:printInfo(string `Generated BI control command for service ${artifactName}: ${intendedAction} (current: ${currentState})`);
+                    commandCount += 1;
+                    log:printInfo(string `Inserted BI control command for service ${artifactName}: ${intendedAction} (current: ${currentState})`);
                 }
             }
         }
@@ -500,26 +509,175 @@ isolated function checkBIIntendedStatesAndGenerateCommands(
             }
 
             if needsCommand && actionToIssue is types:ControlAction {
-                // Insert control command
+                // Insert control command to DB
                 string|error commandId = insertControlCommand(runtimeId, artifactName, actionToIssue);
-                
+
                 if commandId is string {
-                    types:ControlCommand cmd = {
-                        commandId: commandId,
-                        runtimeId: runtimeId,
-                        targetArtifact: {name: artifactName},
-                        action: actionToIssue,
-                        issuedAt: time:utcNow(),
-                        status: types:PENDING
-                    };
-                    commands.push(cmd);
-                    log:printInfo(string `Generated BI control command for listener ${artifactName}: ${intendedAction} (current: ${currentState})`);
+                    commandCount += 1;
+                    log:printInfo(string `Inserted BI control command for listener ${artifactName}: ${intendedAction} (current: ${currentState})`);
                 }
             }
         }
     }
 
-    return commands;
+    return commandCount;
+}
+
+// Check MI artifact intended states and insert control commands to DB
+isolated function checkMIIntendedStatesAndInsertCommands(
+        string runtimeId,
+        string componentId,
+        types:Artifacts artifacts
+) returns int|error {
+    int commandCount = 0;
+
+    // Get intended states for this component
+    map<string>|error intendedStates = getMIIntendedStatesForComponent(componentId);
+
+    if intendedStates is error {
+        log:printWarn(string `Failed to retrieve MI intended states for component ${componentId}`, intendedStates);
+        return commandCount;
+    }
+
+    if intendedStates.length() == 0 {
+        // No intended states configured, nothing to sync
+        return commandCount;
+    }
+
+    // Fetch all artifact IDs for this runtime in a single optimized query
+    map<string> artifactIds = check getAllArtifactIdsForRuntime(runtimeId);
+
+    // Check APIs against intended states
+    foreach types:RestApi api in <types:RestApi[]>artifacts.apis {
+        string? artifactId = artifactIds[api.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, api.name, "API", api.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check proxy services against intended states
+    foreach types:ProxyService proxy in <types:ProxyService[]>artifacts.proxyServices {
+        string? artifactId = artifactIds[proxy.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, proxy.name, "Proxy Service", proxy.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check endpoints against intended states
+    foreach types:Endpoint endpoint in <types:Endpoint[]>artifacts.endpoints {
+        string? artifactId = artifactIds[endpoint.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, endpoint.name, "Endpoint", endpoint.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check inbound endpoints against intended states
+    foreach types:InboundEndpoint inbound in <types:InboundEndpoint[]>artifacts.inboundEndpoints {
+        string? artifactId = artifactIds[inbound.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, inbound.name, "Inbound Endpoint", inbound.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check sequences against intended states
+    foreach types:Sequence sequence in <types:Sequence[]>artifacts.sequences {
+        string? artifactId = artifactIds[sequence.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, sequence.name, "Sequence", sequence.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check tasks against intended states
+    foreach types:Task task in <types:Task[]>artifacts.tasks {
+        string? artifactId = artifactIds[task.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, task.name, "Task", task.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check message processors against intended states
+    foreach types:MessageProcessor processor in <types:MessageProcessor[]>artifacts.messageProcessors {
+        string? artifactId = artifactIds[processor.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, processor.name, "Message Processor", processor.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check local entries against intended states
+    foreach types:LocalEntry entry in <types:LocalEntry[]>artifacts.localEntries {
+        string? artifactId = artifactIds[entry.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, entry.name, "Local Entry", entry.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check data services against intended states
+    foreach types:DataService dataService in <types:DataService[]>artifacts.dataServices {
+        string? artifactId = artifactIds[dataService.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, dataService.name, "Data Service", dataService.state, intendedAction, commandCount);
+        }
+    }
+
+    // Check connectors against intended states
+    foreach types:Connector connector in <types:Connector[]>artifacts.connectors {
+        string? artifactId = artifactIds[connector.name];
+        if artifactId is string && intendedStates.hasKey(artifactId) {
+            string intendedAction = intendedStates.get(artifactId);
+            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, connector.name, "Connector", connector.state, intendedAction, commandCount);
+        }
+    }
+
+    return commandCount;
+}
+
+// Helper function to process MI control command
+isolated function processMIControlCommand(
+        string runtimeId,
+        string componentId,
+        string artifactId,
+        string artifactName,
+        string artifactType,
+        string currentState,
+        string intendedAction,
+        int currentCommandCount
+) returns int|error {
+    int commandCount = currentCommandCount;
+    
+    // Determine if command is needed
+    boolean needsCommand = false;
+    types:MIControlAction? actionToIssue = ();
+
+    if intendedAction == "STOP" && currentState == "ENABLED" {
+        needsCommand = true;
+        actionToIssue = types:ARTIFACT_DISABLE;
+    } else if intendedAction == "START" && currentState == "DISABLED" {
+        needsCommand = true;
+        actionToIssue = types:ARTIFACT_ENABLE;
+    }
+
+    if needsCommand && actionToIssue is types:MIControlAction {
+        // Insert MI control command to DB
+        error? insertResult = insertMIControlCommand(runtimeId, componentId, artifactId, actionToIssue);
+
+        if insertResult is () {
+            commandCount += 1;
+            log:printInfo(string `Inserted MI control command for ${artifactType} ${artifactName} (artifact_id: ${artifactId}): ${intendedAction} (current: ${currentState})`);
+        } else {
+            log:printWarn(string `Failed to insert MI control command for ${artifactType} ${artifactName}`, insertResult);
+        }
+    }
+    
+    return commandCount;
 }
 
 // Upsert runtime record
@@ -714,26 +872,27 @@ isolated function deleteExistingArtifacts(string runtimeId) returns error? {
 // Insert MI artifacts
 isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
     foreach types:RestApi api in <types:RestApi[]>heartbeat.artifacts.apis {
+        string artifactId = uuid:createType4AsString();
         if dbType == MSSQL {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_apis AS target
-                USING (VALUES (${heartbeat.runtime}, ${api.name}, ${api.url}, ${api.context}, 
+                USING (VALUES (${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url}, ${api.context}, 
                        ${api.version}, ${api.state}, ${api.tracing})) 
-                       AS source (runtime_id, api_name, url, context, version, state, tracing)
+                       AS source (runtime_id, api_name, artifact_id, url, context, version, state, tracing)
                 ON (target.runtime_id = source.runtime_id AND target.api_name = source.api_name)
                 WHEN MATCHED THEN
                     UPDATE SET url = source.url, context = source.context, version = source.version,
                                state = source.state, tracing = source.tracing, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, api_name, url, context, version, state, tracing)
-                    VALUES (source.runtime_id, source.api_name, source.url, source.context, source.version, source.state, source.tracing);
+                    INSERT (runtime_id, api_name, artifact_id, url, context, version, state, tracing)
+                    VALUES (source.runtime_id, source.api_name, source.artifact_id, source.url, source.context, source.version, source.state, source.tracing);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_apis (
-                    runtime_id, api_name, url, context, version, state, tracing
+                    runtime_id, api_name, artifact_id, url, context, version, state, tracing
                 ) VALUES (
-                    ${heartbeat.runtime}, ${api.name}, ${api.url},
+                    ${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url},
                     ${api.context}, ${api.version}, ${api.state}, ${api.tracing}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -779,24 +938,25 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
     }
 
     foreach types:ProxyService proxy in <types:ProxyService[]>heartbeat.artifacts.proxyServices {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_proxy_services AS target
-                USING (VALUES (${heartbeat.runtime}, ${proxy.name}, ${proxy.state}, ${proxy.tracing}))
-                       AS source (runtime_id, proxy_name, state, tracing)
+                USING (VALUES (${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}))
+                       AS source (runtime_id, proxy_name, artifact_id, state, tracing)
                 ON (target.runtime_id = source.runtime_id AND target.proxy_name = source.proxy_name)
                 WHEN MATCHED THEN
                     UPDATE SET state = source.state, tracing = source.tracing, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, proxy_name, state, tracing)
-                    VALUES (source.runtime_id, source.proxy_name, source.state, source.tracing);
+                    INSERT (runtime_id, proxy_name, artifact_id, state, tracing)
+                    VALUES (source.runtime_id, source.proxy_name, source.artifact_id, source.state, source.tracing);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_proxy_services (
-                    runtime_id, proxy_name, state, tracing
+                    runtime_id, proxy_name, artifact_id, state, tracing
                 ) VALUES (
-                    ${heartbeat.runtime}, ${proxy.name}, ${proxy.state}, ${proxy.tracing}
+                    ${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}
                 )
                 ON DUPLICATE KEY UPDATE
                     state = VALUES(state),
@@ -836,24 +996,25 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
     }
 
     foreach types:Endpoint endpoint in <types:Endpoint[]>heartbeat.artifacts.endpoints {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_endpoints AS target
-                USING (VALUES (${heartbeat.runtime}, ${endpoint.name}, ${endpoint.'type}, ${endpoint.state}, ${endpoint.tracing}))
-                       AS source (runtime_id, endpoint_name, endpoint_type, state, tracing)
+                USING (VALUES (${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type}, ${endpoint.state}, ${endpoint.tracing}))
+                       AS source (runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing)
                 ON (target.runtime_id = source.runtime_id AND target.endpoint_name = source.endpoint_name)
                 WHEN MATCHED THEN
                     UPDATE SET endpoint_type = source.endpoint_type, state = source.state, tracing = source.tracing, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, endpoint_name, endpoint_type, state, tracing)
-                    VALUES (source.runtime_id, source.endpoint_name, source.endpoint_type, source.state, source.tracing);
+                    INSERT (runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing)
+                    VALUES (source.runtime_id, source.endpoint_name, source.artifact_id, source.endpoint_type, source.state, source.tracing);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_endpoints (
-                    runtime_id, endpoint_name, endpoint_type, state, tracing
+                    runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing
                 ) VALUES (
-                    ${heartbeat.runtime}, ${endpoint.name}, ${endpoint.'type},
+                    ${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
                     ${endpoint.state}, ${endpoint.tracing}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -900,24 +1061,25 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
 // Insert additional MI artifacts
 isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns error? {
     foreach types:InboundEndpoint inbound in <types:InboundEndpoint[]>heartbeat.artifacts.inboundEndpoints {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_inbound_endpoints AS target
-                USING (VALUES (${heartbeat.runtime}, ${inbound.name}, ${inbound.protocol}, ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}))
-                       AS source (runtime_id, inbound_name, protocol, sequence, state, [statistics], on_error, tracing)
+                USING (VALUES (${heartbeat.runtime}, ${inbound.name}, ${artifactId}, ${inbound.protocol}, ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}))
+                       AS source (runtime_id, inbound_name, artifact_id, protocol, sequence, state, [statistics], on_error, tracing)
                 ON (target.runtime_id = source.runtime_id AND target.inbound_name = source.inbound_name)
                 WHEN MATCHED THEN
                     UPDATE SET protocol = source.protocol, sequence = source.sequence, state = source.state, [statistics] = source.[statistics], on_error = source.on_error, tracing = source.tracing, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, inbound_name, protocol, sequence, state, [statistics], on_error, tracing)
-                    VALUES (source.runtime_id, source.inbound_name, source.protocol, source.sequence, source.state, source.[statistics], source.on_error, source.tracing);
+                    INSERT (runtime_id, inbound_name, artifact_id, protocol, sequence, state, [statistics], on_error, tracing)
+                    VALUES (source.runtime_id, source.inbound_name, source.artifact_id, source.protocol, source.sequence, source.state, source.[statistics], source.on_error, source.tracing);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_inbound_endpoints (
-                    runtime_id, inbound_name, protocol, sequence, state, statistics, on_error, tracing
+                    runtime_id, inbound_name, artifact_id, protocol, sequence, state, statistics, on_error, tracing
                 ) VALUES (
-                    ${heartbeat.runtime}, ${inbound.name}, ${inbound.protocol},
+                    ${heartbeat.runtime}, ${inbound.name}, ${artifactId}, ${inbound.protocol},
                     ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -933,24 +1095,25 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     }
 
     foreach types:Sequence sequence in <types:Sequence[]>heartbeat.artifacts.sequences {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_sequences AS target
-                USING (VALUES (${heartbeat.runtime}, ${sequence.name}, ${sequence.'type}, ${sequence.container}, ${sequence.state}, ${sequence.tracing}))
-                       AS source (runtime_id, sequence_name, sequence_type, container, state, tracing)
+                USING (VALUES (${heartbeat.runtime}, ${sequence.name}, ${artifactId}, ${sequence.'type}, ${sequence.container}, ${sequence.state}, ${sequence.tracing}))
+                       AS source (runtime_id, sequence_name, artifact_id, sequence_type, container, state, tracing)
                 ON (target.runtime_id = source.runtime_id AND target.sequence_name = source.sequence_name)
                 WHEN MATCHED THEN
                     UPDATE SET sequence_type = source.sequence_type, container = source.container, state = source.state, tracing = source.tracing, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, sequence_name, sequence_type, container, state, tracing)
-                    VALUES (source.runtime_id, source.sequence_name, source.sequence_type, source.container, source.state, source.tracing);
+                    INSERT (runtime_id, sequence_name, artifact_id, sequence_type, container, state, tracing)
+                    VALUES (source.runtime_id, source.sequence_name, source.artifact_id, source.sequence_type, source.container, source.state, source.tracing);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_sequences (
-                    runtime_id, sequence_name, sequence_type, container, state, tracing
+                    runtime_id, sequence_name, artifact_id, sequence_type, container, state, tracing
                 ) VALUES (
-                    ${heartbeat.runtime}, ${sequence.name}, ${sequence.'type},
+                    ${heartbeat.runtime}, ${sequence.name}, ${artifactId}, ${sequence.'type},
                     ${sequence.container}, ${sequence.state}, ${sequence.tracing}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -964,24 +1127,25 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     }
 
     foreach types:Task task in <types:Task[]>heartbeat.artifacts.tasks {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_tasks AS target
-                USING (VALUES (${heartbeat.runtime}, ${task.name}, ${task.'class}, ${task.group}, ${task.state}))
-                       AS source (runtime_id, task_name, task_class, task_group, state)
+                USING (VALUES (${heartbeat.runtime}, ${task.name}, ${artifactId}, ${task.'class}, ${task.group}, ${task.state}))
+                       AS source (runtime_id, task_name, artifact_id, task_class, task_group, state)
                 ON (target.runtime_id = source.runtime_id AND target.task_name = source.task_name)
                 WHEN MATCHED THEN
                     UPDATE SET task_class = source.task_class, task_group = source.task_group, state = source.state, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, task_name, task_class, task_group, state)
-                    VALUES (source.runtime_id, source.task_name, source.task_class, source.task_group, source.state);
+                    INSERT (runtime_id, task_name, artifact_id, task_class, task_group, state)
+                    VALUES (source.runtime_id, source.task_name, source.artifact_id, source.task_class, source.task_group, source.state);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_tasks (
-                    runtime_id, task_name, task_class, task_group, state
+                    runtime_id, task_name, artifact_id, task_class, task_group, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${task.name}, ${task.'class},
+                    ${heartbeat.runtime}, ${task.name}, ${artifactId}, ${task.'class},
                     ${task.group}, ${task.state}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1049,24 +1213,25 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     }
 
     foreach types:MessageProcessor processor in <types:MessageProcessor[]>heartbeat.artifacts.messageProcessors {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_message_processors AS target
-                USING (VALUES (${heartbeat.runtime}, ${processor.name}, ${processor.'type}, ${processor.'class}, ${processor.state}))
-                       AS source (runtime_id, processor_name, processor_type, processor_class, state)
+                USING (VALUES (${heartbeat.runtime}, ${processor.name}, ${artifactId}, ${processor.'type}, ${processor.'class}, ${processor.state}))
+                       AS source (runtime_id, processor_name, artifact_id, processor_type, processor_class, state)
                 ON (target.runtime_id = source.runtime_id AND target.processor_name = source.processor_name)
                 WHEN MATCHED THEN
                     UPDATE SET processor_type = source.processor_type, processor_class = source.processor_class, state = source.state, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, processor_name, processor_type, processor_class, state)
-                    VALUES (source.runtime_id, source.processor_name, source.processor_type, source.processor_class, source.state);
+                    INSERT (runtime_id, processor_name, artifact_id, processor_type, processor_class, state)
+                    VALUES (source.runtime_id, source.processor_name, source.artifact_id, source.processor_type, source.processor_class, source.state);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_message_processors (
-                    runtime_id, processor_name, processor_type, processor_class, state
+                    runtime_id, processor_name, artifact_id, processor_type, processor_class, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${processor.name}, ${processor.'type},
+                    ${heartbeat.runtime}, ${processor.name}, ${artifactId}, ${processor.'type},
                     ${processor.'class}, ${processor.state}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1079,24 +1244,25 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     }
 
     foreach types:LocalEntry entry in <types:LocalEntry[]>heartbeat.artifacts.localEntries {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_local_entries AS target
-                USING (VALUES (${heartbeat.runtime}, ${entry.name}, ${entry.'type}, ${entry.value}, ${entry.state}))
-                       AS source (runtime_id, entry_name, entry_type, entry_value, state)
+                USING (VALUES (${heartbeat.runtime}, ${entry.name}, ${artifactId}, ${entry.'type}, ${entry.value}, ${entry.state}))
+                       AS source (runtime_id, entry_name, artifact_id, entry_type, entry_value, state)
                 ON (target.runtime_id = source.runtime_id AND target.entry_name = source.entry_name)
                 WHEN MATCHED THEN
                     UPDATE SET entry_type = source.entry_type, entry_value = source.entry_value, state = source.state, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, entry_name, entry_type, entry_value, state)
-                    VALUES (source.runtime_id, source.entry_name, source.entry_type, source.entry_value, source.state);
+                    INSERT (runtime_id, entry_name, artifact_id, entry_type, entry_value, state)
+                    VALUES (source.runtime_id, source.entry_name, source.artifact_id, source.entry_type, source.entry_value, source.state);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_local_entries (
-                    runtime_id, entry_name, entry_type, entry_value, state
+                    runtime_id, entry_name, artifact_id, entry_type, entry_value, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${entry.name}, ${entry.'type},
+                    ${heartbeat.runtime}, ${entry.name}, ${artifactId}, ${entry.'type},
                     ${entry.value}, ${entry.state}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1109,24 +1275,25 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     }
 
     foreach types:DataService dataService in <types:DataService[]>heartbeat.artifacts.dataServices {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_data_services AS target
-                USING (VALUES (${heartbeat.runtime}, ${dataService.name}, ${dataService.description}, ${dataService.wsdl}, ${dataService.state}))
-                       AS source (runtime_id, service_name, description, wsdl, state)
+                USING (VALUES (${heartbeat.runtime}, ${dataService.name}, ${artifactId}, ${dataService.description}, ${dataService.wsdl}, ${dataService.state}))
+                       AS source (runtime_id, service_name, artifact_id, description, wsdl, state)
                 ON (target.runtime_id = source.runtime_id AND target.service_name = source.service_name)
                 WHEN MATCHED THEN
                     UPDATE SET description = source.description, wsdl = source.wsdl, state = source.state, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, service_name, description, wsdl, state)
-                    VALUES (source.runtime_id, source.service_name, source.description, source.wsdl, source.state);
+                    INSERT (runtime_id, service_name, artifact_id, description, wsdl, state)
+                    VALUES (source.runtime_id, source.service_name, source.artifact_id, source.description, source.wsdl, source.state);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_data_services (
-                    runtime_id, service_name, description, wsdl, state
+                    runtime_id, service_name, artifact_id, description, wsdl, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${dataService.name}, ${dataService.description},
+                    ${heartbeat.runtime}, ${dataService.name}, ${artifactId}, ${dataService.description},
                     ${dataService.wsdl}, ${dataService.state}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1203,24 +1370,25 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     }
 
     foreach types:Connector connector in <types:Connector[]>heartbeat.artifacts.connectors {
+        string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO runtime_connectors AS target
-                USING (VALUES (${heartbeat.runtime}, ${connector.name}, ${connector.package}, ${connector.version}, ${connector.state}))
-                       AS source (runtime_id, connector_name, package, version, state)
+                USING (VALUES (${heartbeat.runtime}, ${connector.name}, ${artifactId}, ${connector.package}, ${connector.version}, ${connector.state}))
+                       AS source (runtime_id, connector_name, artifact_id, package, version, state)
                 ON (target.runtime_id = source.runtime_id AND target.connector_name = source.connector_name)
                 WHEN MATCHED THEN
                     UPDATE SET version = source.version, state = source.state, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, connector_name, package, version, state)
-                    VALUES (source.runtime_id, source.connector_name, source.package, source.version, source.state);
+                    INSERT (runtime_id, connector_name, artifact_id, package, version, state)
+                    VALUES (source.runtime_id, source.connector_name, source.artifact_id, source.package, source.version, source.state);
             `);
         } else {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_connectors (
-                    runtime_id, connector_name, package, version, state
+                    runtime_id, connector_name, artifact_id, package, version, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${connector.name}, ${connector.package},
+                    ${heartbeat.runtime}, ${connector.name}, ${artifactId}, ${connector.package},
                     ${connector.version}, ${connector.state}
                 )
                 ON DUPLICATE KEY UPDATE
