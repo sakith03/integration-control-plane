@@ -212,12 +212,7 @@ public isolated function insertControlCommand(
     return commandId;
 }
 // Upsert BI artifact intended state for a component
-public isolated function upsertBIArtifactIntendedState(
-        string componentId,
-        string targetArtifact,
-        string action,
-        string? issuedBy = ()
-) returns error? {
+public isolated function upsertBIArtifactIntendedState(string componentId, string targetArtifact, string action, string? issuedBy = ()) returns error? {
     if dbType == MSSQL {
         _ = check dbClient->execute(`
             MERGE INTO bi_artifact_intended_state AS target
