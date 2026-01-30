@@ -562,12 +562,9 @@ CREATE TABLE runtime_services (
     service_package VARCHAR(200) NOT NULL,
     base_path VARCHAR(500) NULL,
     state ENUM(
-        'ENABLED',
-        'DISABLED',
-        'STARTING',
-        'STOPPING',
-        'FAILED'
-    ) NOT NULL DEFAULT 'ENABLED',
+        'enabled',
+        'disabled'
+    ) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (runtime_id, service_name, service_package),
@@ -580,7 +577,7 @@ CREATE TABLE runtime_services (
 
 -- Resources inside a service (HTTP resources etc.)
 CREATE TABLE service_resources (
-  runtime_id    CHAR(36) NOT NULL,
+  runtime_id    VARCHAR(100) NOT NULL,
   service_name  VARCHAR(100) NOT NULL,
   resource_url  VARCHAR(1000) NOT NULL,
   methods       JSON NOT NULL,  -- Array of HTTP methods
@@ -611,12 +608,9 @@ CREATE TABLE runtime_listeners (
     listener_host VARCHAR(100),
     listener_port INT,
     state ENUM(
-        'ENABLED',
-        'DISABLED',
-        'STARTING',
-        'STOPPING',
-        'FAILED'
-    ) NOT NULL DEFAULT 'ENABLED',
+        'enabled',
+        'disabled'
+    ) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (runtime_id, listener_name),
@@ -640,12 +634,9 @@ CREATE TABLE runtime_apis (
     context VARCHAR(500) NOT NULL,
     version VARCHAR(50) NULL,
     state ENUM(
-        'ENABLED',
-        'DISABLED',
-        'STARTING',
-        'STOPPING',
-        'FAILED'
-    ) NOT NULL DEFAULT 'ENABLED',
+        'enabled',
+        'disabled'
+    ) NOT NULL DEFAULT 'enabled',
     tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -678,12 +669,9 @@ CREATE TABLE runtime_proxy_services (
     proxy_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     state ENUM(
-        'ENABLED',
-        'DISABLED',
-        'STARTING',
-        'STOPPING',
-        'FAILED'
-    ) NOT NULL DEFAULT 'ENABLED',
+        'enabled',
+        'disabled'
+    ) NOT NULL DEFAULT 'enabled',
     tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -715,12 +703,9 @@ CREATE TABLE runtime_endpoints (
     artifact_id CHAR(36) NOT NULL UNIQUE,
     endpoint_type VARCHAR(100) NOT NULL,
     state ENUM(
-        'ENABLED',
-        'DISABLED',
-        'STARTING',
-        'STOPPING',
-        'FAILED'
-    ) NOT NULL DEFAULT 'ENABLED',
+        'enabled',
+        'disabled'
+    ) NOT NULL DEFAULT 'enabled',
     tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -900,7 +885,7 @@ CREATE TABLE runtime_data_services (
     state ENUM(
         'enabled',
         'disabled'
-    ) NOT NULL DEFAULT 'ENABLED',
+    ) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (runtime_id, service_name),
