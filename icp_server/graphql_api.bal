@@ -21,7 +21,6 @@ import icp_server.types;
 import ballerina/data.jsondata;
 import ballerina/graphql;
 import ballerina/http;
-import ballerina/jwt;
 import ballerina/lang.value;
 import ballerina/log;
 
@@ -57,17 +56,6 @@ isolated function selectRuntime(types:Runtime[] runtimes, string componentId, st
     return runtime;
 }
 
-isolated function buildManagementBaseUrl(string? managementHost, string? managementPort) returns string|error {
-    if managementHost is () {
-        return error("Management hostname not configured for this runtime");
-    }
-    string baseUrl = string `https://${<string>managementHost}`;
-    if managementPort is string {
-        baseUrl = string `${baseUrl}:${managementPort}`;
-    }
-    return baseUrl;
-}
-
 isolated function contextInit(http:RequestContext reqCtx, http:Request request) returns graphql:Context {
     string|error authorization = request.getHeader("Authorization");
     graphql:Context context = new;
@@ -76,131 +64,6 @@ isolated function contextInit(http:RequestContext reqCtx, http:Request request) 
     }
 
     return context;
-}
-
-// Helper: generate HMAC JWT used to call ICP internal APIs
-isolated function issueRuntimeHmacToken() returns string|error {
-    jwt:IssuerConfig issConfig = {
-        username: "icp-artifact-fetcher",
-        issuer: jwtIssuer,
-        expTime: <decimal>defaultTokenExpiryTime,
-        audience: jwtAudience,
-        signatureConfig: {algorithm: jwt:HS256, config: defaultRuntimeJwtHMACSecret}
-    };
-    issConfig.customClaims["scope"] = "runtime_agent";
-
-    string|jwt:Error hmacToken = jwt:issue(issConfig);
-    if hmacToken is jwt:Error {
-        log:printError("Failed to generate HMAC JWT for internal ICP API", hmacToken);
-        return error("Failed to generate authentication token");
-    }
-    return hmacToken;
-}
-
-// Helper: send artifact status change request to a runtime
-public isolated function sendArtifactStatusChange(types:Runtime runtime, string artifactType, string artifactName, string status) returns error? {
-    string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
-    
-    http:Client|error mgmtClient = artifactsApiAllowInsecureTLS
-        ? new (baseUrl, {secureSocket: {enable: false}})
-        : new (baseUrl);
-    
-    if mgmtClient is error {
-        log:printError("Failed to create management API client for runtime", runtimeId = runtime.runtimeId, 'error = mgmtClient);
-        return error("Failed to create management API client");
-    }
-
-    string hmacToken = check issueRuntimeHmacToken();
-    
-    json payload = {
-        "type": artifactType,
-        "name": artifactName,
-        "status": status
-    };
-
-    string artifactPath = string `${ICP_ARTIFACTS_PATH}/status`;
-    log:printDebug("Sending artifact status change request",
-        runtimeId = runtime.runtimeId,
-        url = string `${baseUrl}${artifactPath}`,
-        artifactType = artifactType,
-        artifactName = artifactName,
-        status = status);
-
-    http:Response|error resp = mgmtClient->post(artifactPath, payload, {
-        "Authorization": string `Bearer ${hmacToken}`,
-        "Content-Type": "application/json"
-    });
-
-    if resp is error {
-        log:printError("HTTP request failed for artifact status change", runtimeId = runtime.runtimeId, 'error = resp);
-        return error(string `HTTP request failed: ${resp.message()}`);
-    }
-
-    if resp.statusCode != http:STATUS_OK && resp.statusCode != http:STATUS_ACCEPTED {
-        string|error errPayload = resp.getTextPayload();
-        string errMsg = errPayload is string ? errPayload : "Unknown error";
-        log:printError("Artifact status change failed",
-            runtimeId = runtime.runtimeId,
-            statusCode = resp.statusCode,
-            response = errMsg);
-        return error(string `Status change failed with status ${resp.statusCode}: ${errMsg}`);
-    }
-
-    log:printDebug("Artifact status changed successfully on runtime", runtimeId = runtime.runtimeId);
-    return;
-}
-
-// Helper function to send artifact tracing change to a runtime
-public isolated function sendArtifactTracingChange(types:Runtime runtime, string artifactType, string artifactName, string trace) returns error? {
-    string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
-    
-    http:Client|error mgmtClient = artifactsApiAllowInsecureTLS
-        ? new (baseUrl, {secureSocket: {enable: false}})
-        : new (baseUrl);
-    
-    if mgmtClient is error {
-        log:printError("Failed to create management API client for runtime", runtimeId = runtime.runtimeId, 'error = mgmtClient);
-        return error("Failed to create management API client");
-    }
-
-    string hmacToken = check issueRuntimeHmacToken();
-    
-    json payload = {
-        "type": artifactType,
-        "name": artifactName,
-        "trace": trace
-    };
-
-    string artifactPath = string `${ICP_ARTIFACTS_PATH}/tracing`;
-    log:printDebug("Sending artifact tracing change request",
-        runtimeId = runtime.runtimeId,
-        url = string `${baseUrl}${artifactPath}`,
-        artifactType = artifactType,
-        artifactName = artifactName,
-        trace = trace);
-
-    http:Response|error resp = mgmtClient->post(artifactPath, payload, {
-        "Authorization": string `Bearer ${hmacToken}`,
-        "Content-Type": "application/json"
-    });
-
-    if resp is error {
-        log:printError("HTTP request failed for artifact tracing change", runtimeId = runtime.runtimeId, 'error = resp);
-        return error(string `HTTP request failed: ${resp.message()}`);
-    }
-
-    if resp.statusCode != http:STATUS_OK && resp.statusCode != http:STATUS_ACCEPTED {
-        string|error errPayload = resp.getTextPayload();
-        string errMsg = errPayload is string ? errPayload : "Unknown error";
-        log:printError("Artifact tracing change failed",
-            runtimeId = runtime.runtimeId,
-            statusCode = resp.statusCode,
-            response = errMsg);
-        return error(string `Tracing change failed with status ${resp.statusCode}: ${errMsg}`);
-    }
-
-    log:printDebug("Artifact tracing changed successfully on runtime", runtimeId = runtime.runtimeId);
-    return;
 }
 
 // GraphQL service for runtime details
@@ -1448,54 +1311,107 @@ service /graphql on graphqlListener {
             return error("Insufficient permissions to change artifact status");
         }
 
-        types:Runtime[] runtimes = check storage:getRuntimes("RUNNING", "MI", (), component.projectId, input.componentId);
+        // Get all MI runtimes for this component
+        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);
 
         if runtimes.length() == 0 {
-            log:printWarn("No online MI runtimes found for component", componentId = input.componentId);
+            log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
                 status: "failed",
-                message: "No online MI runtimes found for this component",
+                message: "No MI runtimes found for this component",
                 successCount: 0,
                 failedCount: 0,
                 details: []
             };
         }
 
-        log:printInfo("Changing artifact status across MI runtimes",
+        // Get artifact_id from artifact name and type
+        string? artifactId = check storage:getArtifactIdByNameAndType(input.componentId, input.artifactName, input.artifactType);
+        
+        if artifactId is () {
+            log:printWarn("Artifact not found in component", 
+                componentId = input.componentId, 
+                artifactName = input.artifactName, 
+                artifactType = input.artifactType);
+            return {
+                status: "failed",
+                message: string `Artifact '${input.artifactName}' of type '${input.artifactType}' not found in this component`,
+                successCount: 0,
+                failedCount: 0,
+                details: []
+            };
+        }
+
+        log:printInfo("Creating MI control commands for artifact status change",
             componentId = input.componentId,
             artifactType = input.artifactType,
             artifactName = input.artifactName,
+            artifactId = artifactId,
             status = input.status,
             runtimeCount = runtimes.length());
+
+        // Determine the action based on status
+        types:MIControlAction action = input.status == "active" ? types:ARTIFACT_ENABLE : types:ARTIFACT_DISABLE;
+
+        // Update intended state for this artifact in the component
+        string actionStr = action;
+        error? stateResult = storage:upsertMIArtifactIntendedState(
+            input.componentId,
+            artifactId,
+            actionStr,
+            userContext.userId
+        );
+        
+        if stateResult is error {
+            log:printWarn("Failed to update MI artifact intended state",
+                componentId = input.componentId,
+                artifactId = artifactId,
+                artifactName = input.artifactName,
+                errorMessage = stateResult.message());
+        } else {
+            log:printInfo("Updated MI artifact intended state",
+                componentId = input.componentId,
+                artifactId = artifactId,
+                artifactName = input.artifactName,
+                action = actionStr);
+        }
 
         int successCount = 0;
         int failedCount = 0;
         string[] details = [];
 
+        // Insert MI control command for each runtime
         foreach types:Runtime runtime in runtimes {
-            error? result = sendArtifactStatusChange(runtime, input.artifactType, input.artifactName, input.status);
+            error? result = storage:insertMIControlCommand(
+                runtime.runtimeId, 
+                input.componentId, 
+                artifactId, 
+                action, 
+                userContext.userId
+            );
+            
             if result is error {
                 failedCount += 1;
                 string detail = string `Runtime ${runtime.runtimeId}: FAILED - ${result.message()}`;
                 details.push(detail);
-                log:printError("Failed to change artifact status on runtime",
+                log:printError("Failed to insert MI control command for runtime",
                     runtimeId = runtime.runtimeId,
                     artifactName = input.artifactName,
                     errorMessage = result.message());
-            } else {                                                                                               
+            } else {
                 successCount += 1;
-                string detail = string `Runtime ${runtime.runtimeId}: SUCCESS`;
+                string detail = string `Runtime ${runtime.runtimeId}: Command queued`;
                 details.push(detail);
-                log:printDebug("Successfully changed artifact status on runtime",
+                log:printDebug("MI control command queued for runtime",
                     runtimeId = runtime.runtimeId,
                     artifactName = input.artifactName);
             }
         }
 
         string overallStatus = successCount > 0 ? "success" : "failed";
-        string message = string `Artifact status changed on ${successCount} out of ${runtimes.length()} runtime(s)`;
+        string message = string `Artifact status change queued for ${successCount} out of ${runtimes.length()} runtime(s)`;
 
-        log:printInfo("Artifact status change completed",
+        log:printInfo("Artifact status change commands queued",
             componentId = input.componentId,
             artifactName = input.artifactName,
             successCount = successCount,
@@ -1528,54 +1444,107 @@ service /graphql on graphqlListener {
             return error("Insufficient permissions to change artifact tracing");
         }
 
-        types:Runtime[] runtimes = check storage:getRuntimes("RUNNING", "MI", (), component.projectId, input.componentId);
+        // Get all MI runtimes for this component
+        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);
 
         if runtimes.length() == 0 {
-            log:printWarn("No online MI runtimes found for component", componentId = input.componentId);
+            log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
                 status: "failed",
-                message: "No online MI runtimes found for this component",
+                message: "No MI runtimes found for this component",
                 successCount: 0,
                 failedCount: 0,
                 details: []
             };
         }
 
-        log:printInfo("Changing artifact tracing across MI runtimes",
+        // Get artifact_id from artifact name and type
+        string? artifactId = check storage:getArtifactIdByNameAndType(input.componentId, input.artifactName, input.artifactType);
+        
+        if artifactId is () {
+            log:printWarn("Artifact not found in component", 
+                componentId = input.componentId, 
+                artifactName = input.artifactName, 
+                artifactType = input.artifactType);
+            return {
+                status: "failed",
+                message: string `Artifact '${input.artifactName}' of type '${input.artifactType}' not found in this component`,
+                successCount: 0,
+                failedCount: 0,
+                details: []
+            };
+        }
+
+        log:printInfo("Creating MI control commands for artifact tracing change",
             componentId = input.componentId,
             artifactType = input.artifactType,
             artifactName = input.artifactName,
+            artifactId = artifactId,
             trace = input.trace,
             runtimeCount = runtimes.length());
+
+        // Determine the action based on trace
+        types:MIControlAction action = input.trace == "enable" ? types:ARTIFACT_ENABLE_TRACING : types:ARTIFACT_DISABLE_TRACING;
+
+        // Update intended state for this artifact in the component
+        string actionStr = action;
+        error? stateResult = storage:upsertMIArtifactIntendedState(
+            input.componentId,
+            artifactId,
+            actionStr,
+            userContext.userId
+        );
+        
+        if stateResult is error {
+            log:printWarn("Failed to update MI artifact intended state",
+                componentId = input.componentId,
+                artifactId = artifactId,
+                artifactName = input.artifactName,
+                errorMessage = stateResult.message());
+        } else {
+            log:printInfo("Updated MI artifact intended state",
+                componentId = input.componentId,
+                artifactId = artifactId,
+                artifactName = input.artifactName,
+                action = actionStr);
+        }
 
         int successCount = 0;
         int failedCount = 0;
         string[] details = [];
 
+        // Insert MI control command for each runtime
         foreach types:Runtime runtime in runtimes {
-            error? result = sendArtifactTracingChange(runtime, input.artifactType, input.artifactName, input.trace);
+            error? result = storage:insertMIControlCommand(
+                runtime.runtimeId, 
+                input.componentId, 
+                artifactId, 
+                action, 
+                userContext.userId
+            );
+            
             if result is error {
                 failedCount += 1;
                 string detail = string `Runtime ${runtime.runtimeId}: FAILED - ${result.message()}`;
                 details.push(detail);
-                log:printError("Failed to change artifact tracing on runtime",
+                log:printError("Failed to insert MI control command for runtime",
                     runtimeId = runtime.runtimeId,
                     artifactName = input.artifactName,
                     errorMessage = result.message());
             } else {
                 successCount += 1;
-                string detail = string `Runtime ${runtime.runtimeId}: SUCCESS`;
+                string detail = string `Runtime ${runtime.runtimeId}: Command queued`;
                 details.push(detail);
-                log:printDebug("Successfully changed artifact tracing on runtime",
+                log:printDebug("MI control command queued for runtime",
                     runtimeId = runtime.runtimeId,
                     artifactName = input.artifactName);
             }
         }
 
         string overallStatus = successCount > 0 ? "success" : "failed";
-        string message = string `Artifact tracing changed on ${successCount} out of ${runtimes.length()} runtime(s)`;
+        string message = string `Artifact tracing change queued for ${successCount} out of ${runtimes.length()} runtime(s)`;
 
-        log:printInfo("Artifact tracing change completed",
+        log:printInfo("Artifact tracing change commands queued",
             componentId = input.componentId,
             artifactName = input.artifactName,
             successCount = successCount,
@@ -1649,7 +1618,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching artifact from runtime management API",
                 runtimeId = runtime.runtimeId,
@@ -1666,7 +1635,7 @@ service /graphql on graphqlListener {
             return error("Failed to create management API client");
         }
         // Generate an HMAC JWT (same mechanism as heartbeat) to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         // Fetch artifact source via ICP Internal API (/icp/artifacts)
         string artifactPath = string `${ICP_ARTIFACTS_PATH}?type=${artifactType}&name=${artifactName}`;
@@ -1758,7 +1727,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         // Normalize artifact type
         string t = artifactType.toLowerAscii();
@@ -1790,7 +1759,7 @@ service /graphql on graphqlListener {
         }
 
         // Generate an HMAC JWT to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         http:Response|error wsdlResponse = mgmtClient->get(artifactPath, {
             "Authorization": string `Bearer ${hmacToken}`,
@@ -1873,7 +1842,7 @@ service /graphql on graphqlListener {
         }
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching local entry from runtime management API",
                 runtimeId = runtime.runtimeId,
@@ -1890,7 +1859,7 @@ service /graphql on graphqlListener {
         }
 
         // Generate an HMAC JWT (same mechanism as heartbeat) to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         // Fetch local entry via ICP Internal API (/icp/artifacts/local-entry)
         string artifactPath = string `${ICP_ARTIFACTS_PATH}/local-entry?name=${entryName}`;
@@ -1964,7 +1933,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching inbound endpoint parameters from management API",
                 runtimeId = runtime.runtimeId,
@@ -1979,7 +1948,7 @@ service /graphql on graphqlListener {
             return error("Failed to create management API client");
         }
 
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
         string artifactPath = string `${ICP_ARTIFACTS_PATH}/inbound/parameters?name=${inboundName}`;
         log:printDebug("Sending ICP internal API inbound parameters request",
                 runtimeId = runtime.runtimeId,
@@ -2094,7 +2063,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching artifact parameters from management API",
                 runtimeId = runtime.runtimeId,
@@ -2112,7 +2081,7 @@ service /graphql on graphqlListener {
         }
 
         // Generate an HMAC JWT (same mechanism as heartbeat) to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         // Fetch parameters via ICP Internal API (/icp/artifacts/parameters)
         string artifactPath = string `${ICP_ARTIFACTS_PATH}/parameters?type=${artifactType}&name=${artifactName}`;

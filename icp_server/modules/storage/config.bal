@@ -33,3 +33,14 @@ configurable int heartbeatTimeoutSeconds = 30;
 
 // Deployment type
 configurable types:DeploymentType deploymentType = "VM";
+
+// Artifacts API configuration
+configurable boolean artifactsApiAllowInsecureTLS = true;
+
+// Runtime auth configuration (runtime and server communication)
+configurable string jwtIssuer = "icp-runtime-jwt-issuer";
+configurable string|string[] jwtAudience = "icp-server";
+configurable string publicCertFile = "./resources/keys/public.cert";
+configurable decimal jwtClockSkewSeconds = 10;
+configurable int defaultTokenExpiryTime = 3600; // 1 hour (in seconds)
+configurable string defaultRuntimeJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
