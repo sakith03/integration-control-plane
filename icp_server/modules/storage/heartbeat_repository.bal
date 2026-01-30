@@ -1025,9 +1025,9 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_proxy_services (
-                    runtime_id, proxy_name, state, tracing
+                    runtime_id, proxy_name, artifact_id, state, tracing
                 ) VALUES (
-                    ${heartbeat.runtime}, ${proxy.name}, ${proxy.state}, ${proxy.tracing}
+                    ${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}
                 )
                 ON CONFLICT (runtime_id, proxy_name) DO UPDATE SET
                     state = EXCLUDED.state,
@@ -1105,9 +1105,9 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
                 INSERT INTO runtime_endpoints (
-                    runtime_id, endpoint_name, endpoint_type, state, tracing
+                    runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing
                 ) VALUES (
-                    ${heartbeat.runtime}, ${endpoint.name}, ${endpoint.'type},
+                    ${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
                     ${endpoint.state}, ${endpoint.tracing}
                 )
                 ON CONFLICT (runtime_id, endpoint_name) DO UPDATE SET
