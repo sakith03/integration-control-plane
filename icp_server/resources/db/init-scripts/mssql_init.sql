@@ -1813,7 +1813,8 @@ GO
 CREATE TABLE mi_runtime_control_commands (
     runtime_id VARCHAR(100) NOT NULL,
     component_id CHAR(36) NOT NULL,
-    artifact_id CHAR(36) NOT NULL,
+    artifact_name NVARCHAR(200) NOT NULL,
+    artifact_type NVARCHAR(100) NOT NULL,
     action NVARCHAR (50) NOT NULL, -- enable_artifact, disable_artifact, enable_tracing, disable_tracing
     status NVARCHAR (20) NOT NULL DEFAULT 'pending' CHECK (
         status IN (
@@ -1833,13 +1834,14 @@ CREATE TABLE mi_runtime_control_commands (
     issued_by CHAR(36) NULL,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE (),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE (),
-    PRIMARY KEY (runtime_id, component_id, artifact_id),
+    PRIMARY KEY (runtime_id, component_id, artifact_name, artifact_type),
     CONSTRAINT fk_mi_runtime_control_cmd_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
     CONSTRAINT fk_mi_runtime_control_cmd_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
     CONSTRAINT fk_mi_runtime_control_cmd_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
     INDEX idx_runtime_id (runtime_id),
     INDEX idx_component_id (component_id),
-    INDEX idx_artifact_id (artifact_id),
+    INDEX idx_artifact_name (artifact_name),
+    INDEX idx_artifact_type (artifact_type),
     INDEX idx_status (status),
     INDEX idx_issued_at (issued_at),
     INDEX idx_action (action),
@@ -1878,34 +1880,65 @@ BEGIN
 END;
 GO
 
-CREATE TABLE mi_artifact_intended_state (
+CREATE TABLE mi_artifact_intended_status (
     component_id CHAR(36) NOT NULL,
-    artifact_id CHAR(36) NOT NULL,
-    action NVARCHAR (50) NOT NULL,
-    issued_at DATETIME2 (6) NOT NULL DEFAULT SYSDATETIME (),
-    issued_by CHAR(36) NULL,
-    created_at DATETIME2 NOT NULL DEFAULT GETDATE (),
-    updated_at DATETIME2 NOT NULL DEFAULT GETDATE (),
-    PRIMARY KEY (component_id, artifact_id),
-    CONSTRAINT fk_mi_artifact_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
-    CONSTRAINT fk_mi_artifact_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
-    INDEX idx_component_id (component_id),
-    INDEX idx_artifact_id (artifact_id),
-    INDEX idx_action (action),
-    INDEX idx_issued_by (issued_by)
+    artifact_name NVARCHAR(200) NOT NULL,
+    artifact_type NVARCHAR(100) NOT NULL,
+    action NVARCHAR(50) NOT NULL,
+    issued_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    issued_by CHAR(36),
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_status_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_status_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    INDEX idx_mi_artifact_intended_status_component_id (component_id),
+    INDEX idx_mi_artifact_intended_status_artifact (artifact_name, artifact_type),
+    INDEX idx_mi_artifact_intended_status_issued_by (issued_by)
 );
 GO
 
-CREATE TRIGGER trg_mi_artifact_intended_state_updated_at
-ON mi_artifact_intended_state
+CREATE TRIGGER trg_mi_artifact_intended_status_updated_at
+ON mi_artifact_intended_status
 AFTER UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE mi_artifact_intended_state
+    UPDATE mi_artifact_intended_status
     SET updated_at = GETDATE()
-    FROM mi_artifact_intended_state mas
-    INNER JOIN inserted i ON mas.component_id = i.component_id AND mas.artifact_id = i.artifact_id;
+    FROM mi_artifact_intended_status mas
+    INNER JOIN inserted i ON mas.component_id = i.component_id AND mas.artifact_name = i.artifact_name AND mas.artifact_type = i.artifact_type;
+END;
+GO
+
+CREATE TABLE mi_artifact_intended_tracing (
+    component_id CHAR(36) NOT NULL,
+    artifact_name NVARCHAR(200) NOT NULL,
+    artifact_type NVARCHAR(100) NOT NULL,
+    action NVARCHAR(50) NOT NULL,
+    issued_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    issued_by CHAR(36),
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_tracing_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_tracing_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    INDEX idx_mi_artifact_intended_tracing_component_id (component_id),
+    INDEX idx_mi_artifact_intended_tracing_artifact (artifact_name, artifact_type),
+    INDEX idx_mi_artifact_intended_tracing_issued_by (issued_by)
+);
+GO
+
+CREATE TRIGGER trg_mi_artifact_intended_tracing_updated_at
+ON mi_artifact_intended_tracing
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE mi_artifact_intended_tracing
+    SET updated_at = GETDATE()
+    FROM mi_artifact_intended_tracing mat
+    INNER JOIN inserted i ON mat.component_id = i.component_id AND mat.artifact_name = i.artifact_name AND mat.artifact_type = i.artifact_type;
 END;
 GO
 
