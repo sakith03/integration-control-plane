@@ -921,6 +921,62 @@ service /auth on httpListener {
         };
     }
 
+    // GET /auth/orgs/{orgHandle}/groups/{groupId}/users - Get users in a group
+    @http:ResourceConfig {
+        auth: [
+            {
+                jwtValidatorConfig: {
+                    issuer: frontendJwtIssuer,
+                    audience: frontendJwtAudience,
+                    signatureConfig: {
+                        secret: defaultJwtHMACSecret
+                    }
+                },
+                scopes: [auth:PERMISSION_USER_MANAGE_GROUPS, auth:PERMISSION_USER_MANAGE_USERS]
+            }
+        ]
+    }
+    isolated resource function get orgs/[string orgHandle]/groups/[string groupId]/users() returns http:Ok|http:BadRequest|http:NotFound|http:Unauthorized|http:InternalServerError {
+        log:printInfo("Fetching users for group", orgHandle = orgHandle, groupId = groupId);
+
+        // Verify group exists
+        types:Group|error existingGroup = storage:getGroupById(groupId);
+        if existingGroup is error {
+            log:printError("Group not found", existingGroup, groupId = groupId);
+            return <http:NotFound>{
+                body: {
+                    message: "Group not found"
+                }
+            };
+        }
+
+        // Get user IDs in the group
+        string[]|error userIds = storage:getGroupUsers(groupId);
+        if userIds is error {
+            log:printError("Error fetching group users", userIds, groupId = groupId);
+            return utils:createInternalServerError("Failed to fetch group users");
+        }
+
+        // Fetch details for each user
+        types:User[] users = [];
+        foreach string userId in userIds {
+            types:User|error user = storage:getUserDetailsById(userId);
+            if user is types:User {
+                users.push(user);
+            } else {
+                log:printWarn(string `Failed to fetch details for user ${userId}`, user);
+            }
+        }
+
+        log:printInfo(string `Successfully fetched ${users.length()} users for group ${groupId}`);
+        return <http:Ok>{
+            body: {
+                users: users,
+                count: users.length()
+            }
+        };
+    }
+
     // DELETE /auth/orgs/{orgHandle}/groups/{groupId}/users/{userId} - Remove user from group
     @http:ResourceConfig {
         auth: [
