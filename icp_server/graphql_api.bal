@@ -93,13 +93,15 @@ service /graphql on graphqlListener {
 
     // ----------- Runtime Resources
     // Get all runtimes with optional filtering
-    // Note: componentId is required (always provided by frontend)
-    isolated resource function get runtimes(graphql:Context context, string? status, string? runtimeType, string? environmentId, string? projectId, string componentId) returns types:Runtime[]|error {
+    // componentId is now optional - if not provided, returns all runtimes in the project
+    isolated resource function get runtimes(graphql:Context context, string? status, string? runtimeType, string? environmentId, string? projectId, string? componentId) returns types:Runtime[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Step 1: Get projectId if not provided (infer from componentId)
+        // Step 1: Determine the actual projectId
         string actualProjectId = projectId ?: "";
-        if actualProjectId == "" {
+
+        // If componentId is provided and projectId is not, infer projectId from componentId
+        if componentId is string && actualProjectId == "" {
             string|error projectIdResult = storage:getProjectIdByComponentId(componentId);
             if projectIdResult is error {
                 return []; // Component not found
@@ -107,15 +109,20 @@ service /graphql on graphqlListener {
             actualProjectId = projectIdResult;
         }
 
+        // If projectId is still empty, we cannot proceed
+        if actualProjectId == "" {
+            return error("Either projectId or componentId must be provided");
+        }
+
         // Step 2: If environmentId is specified, check access to that specific environment
         if environmentId is string {
-            // Build scope with project, integration, and environment
+            // Build scope with project, optional integration, and environment
             types:AccessScope scope = auth:buildScopeFromContext(actualProjectId, integrationId = componentId, envId = environmentId);
 
-            // Check if user has permission to view this integration in this environment
+            // Check if user has permission to view this integration/project in this environment
             if !check auth:hasAnyPermission(userContext.userId,
                     [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-                return []; // No access to this integration in this environment
+                return []; // No access to this integration/project in this environment
             }
 
             // Fetch runtimes for the specified environment
@@ -755,12 +762,12 @@ service /graphql on graphqlListener {
             if commandIds.length() == 1 {
                 string actionStr = input.action.toString();
                 error? stateResult = storage:upsertBIArtifactIntendedState(
-                    runtime.component.id,
-                    input.listenerName,
-                    actionStr,
-                    userContext.userId
+                        runtime.component.id,
+                        input.listenerName,
+                        actionStr,
+                        userContext.userId
                 );
-                
+
                 if stateResult is error {
                     log:printWarn(string `Failed to update intended state for listener ${input.listenerName} in component ${runtime.component.id}`, stateResult);
                 } else {
@@ -1306,8 +1313,8 @@ service /graphql on graphqlListener {
 
         if !check auth:hasAnyPermission(userContext.userId,
                 [auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            log:printWarn("Attempt to change artifact status without permission", 
-                userId = userContext.userId, componentId = input.componentId, artifactName = input.artifactName);
+            log:printWarn("Attempt to change artifact status without permission",
+                    userId = userContext.userId, componentId = input.componentId, artifactName = input.artifactName);
             return error("Insufficient permissions to change artifact status");
         }
 
@@ -1327,12 +1334,12 @@ service /graphql on graphqlListener {
 
         // Get artifact_id from artifact name and type
         string? artifactId = check storage:getArtifactIdByNameAndType(input.componentId, input.artifactName, input.artifactType);
-        
+
         if artifactId is () {
-            log:printWarn("Artifact not found in component", 
-                componentId = input.componentId, 
-                artifactName = input.artifactName, 
-                artifactType = input.artifactType);
+            log:printWarn("Artifact not found in component",
+                    componentId = input.componentId,
+                    artifactName = input.artifactName,
+                    artifactType = input.artifactType);
             return {
                 status: "failed",
                 message: string `Artifact '${input.artifactName}' of type '${input.artifactType}' not found in this component`,
@@ -1343,12 +1350,12 @@ service /graphql on graphqlListener {
         }
 
         log:printInfo("Creating MI control commands for artifact status change",
-            componentId = input.componentId,
-            artifactType = input.artifactType,
-            artifactName = input.artifactName,
-            artifactId = artifactId,
-            status = input.status,
-            runtimeCount = runtimes.length());
+                componentId = input.componentId,
+                artifactType = input.artifactType,
+                artifactName = input.artifactName,
+                artifactId = artifactId,
+                status = input.status,
+                runtimeCount = runtimes.length());
 
         // Determine the action based on status
         types:MIControlAction action = input.status == "active" ? types:ARTIFACT_ENABLE : types:ARTIFACT_DISABLE;
@@ -1356,24 +1363,24 @@ service /graphql on graphqlListener {
         // Update intended state for this artifact in the component
         string actionStr = action;
         error? stateResult = storage:upsertMIArtifactIntendedState(
-            input.componentId,
-            artifactId,
-            actionStr,
-            userContext.userId
+                input.componentId,
+                artifactId,
+                actionStr,
+                userContext.userId
         );
-        
+
         if stateResult is error {
             log:printWarn("Failed to update MI artifact intended state",
-                componentId = input.componentId,
-                artifactId = artifactId,
-                artifactName = input.artifactName,
-                errorMessage = stateResult.message());
+                    componentId = input.componentId,
+                    artifactId = artifactId,
+                    artifactName = input.artifactName,
+                    errorMessage = stateResult.message());
         } else {
             log:printInfo("Updated MI artifact intended state",
-                componentId = input.componentId,
-                artifactId = artifactId,
-                artifactName = input.artifactName,
-                action = actionStr);
+                    componentId = input.componentId,
+                    artifactId = artifactId,
+                    artifactName = input.artifactName,
+                    action = actionStr);
         }
 
         int successCount = 0;
@@ -1383,28 +1390,28 @@ service /graphql on graphqlListener {
         // Insert MI control command for each runtime
         foreach types:Runtime runtime in runtimes {
             error? result = storage:insertMIControlCommand(
-                runtime.runtimeId, 
-                input.componentId, 
-                artifactId, 
-                action, 
-                userContext.userId
+                    runtime.runtimeId,
+                    input.componentId,
+                    artifactId,
+                    action,
+                    userContext.userId
             );
-            
+
             if result is error {
                 failedCount += 1;
                 string detail = string `Runtime ${runtime.runtimeId}: FAILED - ${result.message()}`;
                 details.push(detail);
                 log:printError("Failed to insert MI control command for runtime",
-                    runtimeId = runtime.runtimeId,
-                    artifactName = input.artifactName,
-                    errorMessage = result.message());
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName,
+                        errorMessage = result.message());
             } else {
                 successCount += 1;
                 string detail = string `Runtime ${runtime.runtimeId}: Command queued`;
                 details.push(detail);
                 log:printDebug("MI control command queued for runtime",
-                    runtimeId = runtime.runtimeId,
-                    artifactName = input.artifactName);
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
             }
         }
 
@@ -1412,10 +1419,10 @@ service /graphql on graphqlListener {
         string message = string `Artifact status change queued for ${successCount} out of ${runtimes.length()} runtime(s)`;
 
         log:printInfo("Artifact status change commands queued",
-            componentId = input.componentId,
-            artifactName = input.artifactName,
-            successCount = successCount,
-            failedCount = failedCount);
+                componentId = input.componentId,
+                artifactName = input.artifactName,
+                successCount = successCount,
+                failedCount = failedCount);
 
         return {
             status: overallStatus,
@@ -1439,8 +1446,8 @@ service /graphql on graphqlListener {
 
         if !check auth:hasAnyPermission(userContext.userId,
                 [auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-            log:printWarn("Attempt to change artifact tracing without permission", 
-                userId = userContext.userId, componentId = input.componentId, artifactName = input.artifactName);
+            log:printWarn("Attempt to change artifact tracing without permission",
+                    userId = userContext.userId, componentId = input.componentId, artifactName = input.artifactName);
             return error("Insufficient permissions to change artifact tracing");
         }
 
@@ -1460,12 +1467,12 @@ service /graphql on graphqlListener {
 
         // Get artifact_id from artifact name and type
         string? artifactId = check storage:getArtifactIdByNameAndType(input.componentId, input.artifactName, input.artifactType);
-        
+
         if artifactId is () {
-            log:printWarn("Artifact not found in component", 
-                componentId = input.componentId, 
-                artifactName = input.artifactName, 
-                artifactType = input.artifactType);
+            log:printWarn("Artifact not found in component",
+                    componentId = input.componentId,
+                    artifactName = input.artifactName,
+                    artifactType = input.artifactType);
             return {
                 status: "failed",
                 message: string `Artifact '${input.artifactName}' of type '${input.artifactType}' not found in this component`,
@@ -1476,12 +1483,12 @@ service /graphql on graphqlListener {
         }
 
         log:printInfo("Creating MI control commands for artifact tracing change",
-            componentId = input.componentId,
-            artifactType = input.artifactType,
-            artifactName = input.artifactName,
-            artifactId = artifactId,
-            trace = input.trace,
-            runtimeCount = runtimes.length());
+                componentId = input.componentId,
+                artifactType = input.artifactType,
+                artifactName = input.artifactName,
+                artifactId = artifactId,
+                trace = input.trace,
+                runtimeCount = runtimes.length());
 
         // Determine the action based on trace
         types:MIControlAction action = input.trace == "enable" ? types:ARTIFACT_ENABLE_TRACING : types:ARTIFACT_DISABLE_TRACING;
@@ -1489,24 +1496,24 @@ service /graphql on graphqlListener {
         // Update intended state for this artifact in the component
         string actionStr = action;
         error? stateResult = storage:upsertMIArtifactIntendedState(
-            input.componentId,
-            artifactId,
-            actionStr,
-            userContext.userId
+                input.componentId,
+                artifactId,
+                actionStr,
+                userContext.userId
         );
-        
+
         if stateResult is error {
             log:printWarn("Failed to update MI artifact intended state",
-                componentId = input.componentId,
-                artifactId = artifactId,
-                artifactName = input.artifactName,
-                errorMessage = stateResult.message());
+                    componentId = input.componentId,
+                    artifactId = artifactId,
+                    artifactName = input.artifactName,
+                    errorMessage = stateResult.message());
         } else {
             log:printInfo("Updated MI artifact intended state",
-                componentId = input.componentId,
-                artifactId = artifactId,
-                artifactName = input.artifactName,
-                action = actionStr);
+                    componentId = input.componentId,
+                    artifactId = artifactId,
+                    artifactName = input.artifactName,
+                    action = actionStr);
         }
 
         int successCount = 0;
@@ -1516,28 +1523,28 @@ service /graphql on graphqlListener {
         // Insert MI control command for each runtime
         foreach types:Runtime runtime in runtimes {
             error? result = storage:insertMIControlCommand(
-                runtime.runtimeId, 
-                input.componentId, 
-                artifactId, 
-                action, 
-                userContext.userId
+                    runtime.runtimeId,
+                    input.componentId,
+                    artifactId,
+                    action,
+                    userContext.userId
             );
-            
+
             if result is error {
                 failedCount += 1;
                 string detail = string `Runtime ${runtime.runtimeId}: FAILED - ${result.message()}`;
                 details.push(detail);
                 log:printError("Failed to insert MI control command for runtime",
-                    runtimeId = runtime.runtimeId,
-                    artifactName = input.artifactName,
-                    errorMessage = result.message());
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName,
+                        errorMessage = result.message());
             } else {
                 successCount += 1;
                 string detail = string `Runtime ${runtime.runtimeId}: Command queued`;
                 details.push(detail);
                 log:printDebug("MI control command queued for runtime",
-                    runtimeId = runtime.runtimeId,
-                    artifactName = input.artifactName);
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
             }
         }
 
@@ -1545,10 +1552,10 @@ service /graphql on graphqlListener {
         string message = string `Artifact tracing change queued for ${successCount} out of ${runtimes.length()} runtime(s)`;
 
         log:printInfo("Artifact tracing change commands queued",
-            componentId = input.componentId,
-            artifactName = input.artifactName,
-            successCount = successCount,
-            failedCount = failedCount);
+                componentId = input.componentId,
+                artifactName = input.artifactName,
+                successCount = successCount,
+                failedCount = failedCount);
 
         return {
             status: overallStatus,
