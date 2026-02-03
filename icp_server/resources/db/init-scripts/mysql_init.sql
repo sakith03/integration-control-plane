@@ -1006,7 +1006,8 @@ CREATE TABLE bi_runtime_control_commands (
 CREATE TABLE mi_runtime_control_commands (
     runtime_id VARCHAR(100) NOT NULL,
     component_id CHAR(36) NOT NULL,
-    artifact_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
     action VARCHAR(50) NOT NULL, -- enable_artifact, disable_artifact, enable_tracing, disable_tracing
     status ENUM(
         'pending',
@@ -1024,13 +1025,14 @@ CREATE TABLE mi_runtime_control_commands (
     issued_by CHAR(36) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (runtime_id, component_id, artifact_id),
+    PRIMARY KEY (runtime_id, component_id, artifact_name, artifact_type),
     CONSTRAINT fk_mi_runtime_control_cmd_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
     CONSTRAINT fk_mi_runtime_control_cmd_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
     CONSTRAINT fk_mi_runtime_control_cmd_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
     INDEX idx_runtime_id (runtime_id),
     INDEX idx_component_id (component_id),
-    INDEX idx_artifact_id (artifact_id),
+    INDEX idx_artifact_name (artifact_name),
+    INDEX idx_artifact_type (artifact_type),
     INDEX idx_status (status),
     INDEX idx_issued_at (issued_at),
     INDEX idx_action (action),
@@ -1054,21 +1056,38 @@ CREATE TABLE bi_artifact_intended_state (
     INDEX idx_issued_by (issued_by)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE mi_artifact_intended_state (
+CREATE TABLE mi_artifact_intended_status (
     component_id CHAR(36) NOT NULL,
-    artifact_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
     action VARCHAR(50) NOT NULL,
     issued_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    issued_by CHAR(36) NULL,
+    issued_by CHAR(36),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (component_id, artifact_id),
-    CONSTRAINT fk_mi_artifact_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
-    CONSTRAINT fk_mi_artifact_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
-    INDEX idx_component_id (component_id),
-    INDEX idx_artifact_id (artifact_id),
-    INDEX idx_action (action),
-    INDEX idx_issued_by (issued_by)
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_status_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_status_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    INDEX idx_mi_artifact_intended_status_component_id (component_id),
+    INDEX idx_mi_artifact_intended_status_artifact (artifact_name, artifact_type),
+    INDEX idx_mi_artifact_intended_status_issued_by (issued_by)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE mi_artifact_intended_tracing (
+    component_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    issued_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_tracing_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_tracing_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    INDEX idx_mi_artifact_intended_tracing_component_id (component_id),
+    INDEX idx_mi_artifact_intended_tracing_artifact (artifact_name, artifact_type),
+    INDEX idx_mi_artifact_intended_tracing_issued_by (issued_by)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- ============================================================================

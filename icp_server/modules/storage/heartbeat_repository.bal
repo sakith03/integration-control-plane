@@ -54,23 +54,25 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
             }
         }
 
-        // Get component type for this runtime
+        // Get component type(MI/BI) for this runtime
         string? componentType = check getComponentTypeByRuntimeId(heartbeat.runtime);
 
         // Process intended states and retrieve pending control commands based on component type
         if isNewRegistration {
+            log:printInfo(string `New runtime registration detected - processing intended states for runtime ${heartbeat.runtime}`);
             check processIntendedStates(heartbeat.runtime, heartbeat.component, heartbeat.artifacts, componentType);
         }
 
-        if componentType == "BI" {
+        if componentType == types:BI {
             // Retrieve pending BI control commands (works for both new and existing runtimes)
             types:ControlCommand[] existingCommands = check sendPendingBIControlCommands(heartbeat.runtime);
             foreach types:ControlCommand cmd in existingCommands {
                 pendingCommands.push(cmd);
             }
-        } else if componentType == "MI" {
+        } else if componentType == types:MI {
             // Retrieve and mark MI control commands as sent
             // MI commands are handled via management API, not returned in heartbeat response
+            log:printDebug(string `Checking for pending MI control commands for runtime ${heartbeat.runtime}`);
             _ = check sendPendingMIControlCommands(heartbeat.runtime);
         }
         // For other component types or if runtime not found, pendingCommands remains empty
@@ -179,11 +181,9 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
         string? componentType = check getComponentTypeByRuntimeId(deltaHeartbeat.runtime);
 
         // Retrieve pending control commands based on component type
-        if componentType == "BI" {
+        if componentType == types:BI {
             pendingCommands = check sendPendingBIControlCommands(deltaHeartbeat.runtime);
-        } else if componentType == "MI" {
-            // Retrieve and send MI control commands
-            // MI commands are handled via management API, not returned in heartbeat response
+        } else if componentType == types:MI {
             _ = check sendPendingMIControlCommands(deltaHeartbeat.runtime);
         }
         // For other component types or if runtime not found, pendingCommands remains empty
@@ -412,7 +412,7 @@ isolated function validateResourcesConsistency(types:Resource[] referenceResourc
 
 // Process intended states and insert control commands to DB
 isolated function processIntendedStates(string runtimeId, string componentId, types:Artifacts artifacts, string? componentType) returns error? {
-    if componentType == "BI" {
+    if componentType == types:BI {
         // Check BI intended states and insert control commands to DB
         int|error commandCount = checkBIIntendedStatesAndInsertCommands(
                 runtimeId,
@@ -425,7 +425,7 @@ isolated function processIntendedStates(string runtimeId, string componentId, ty
         } else if commandCount is error {
             return commandCount;
         }
-    } else if componentType == "MI" {
+    } else if componentType == types:MI {
         // Check MI intended states and insert control commands to DB
         int|error commandCount = checkMIIntendedStatesAndInsertCommands(
                 runtimeId,
@@ -463,7 +463,7 @@ isolated function checkBIIntendedStatesAndInsertCommands(string runtimeId, strin
         string artifactName = svc.name;
         if intendedStates.hasKey(artifactName) {
             string intendedAction = intendedStates.get(artifactName);
-            string currentState = svc.state;
+            string currentState = svc.state.toUpperAscii();
 
             // Determine if command is needed
             boolean needsCommand = false;
@@ -494,7 +494,7 @@ isolated function checkBIIntendedStatesAndInsertCommands(string runtimeId, strin
         string artifactName = 'listener.name;
         if intendedStates.hasKey(artifactName) {
             string intendedAction = intendedStates.get(artifactName);
-            string currentState = 'listener.state;
+            string currentState = 'listener.state.toUpperAscii();
 
             // Determine if command is needed
             boolean needsCommand = false;
@@ -531,8 +531,10 @@ isolated function checkMIIntendedStatesAndInsertCommands(
 ) returns int|error {
     int commandCount = 0;
 
+    log:printInfo(string `Starting MI intended state sync for runtime ${runtimeId}, component ${componentId}`);
+
     // Get intended states for this component
-    map<string>|error intendedStates = getMIIntendedStatesForComponent(componentId);
+    types:MIArtifactIntendedStateDBRecord[]|error intendedStates = getMIIntendedStatesForComponent(componentId);
 
     if intendedStates is error {
         log:printWarn(string `Failed to retrieve MI intended states for component ${componentId}`, intendedStates);
@@ -541,139 +543,150 @@ isolated function checkMIIntendedStatesAndInsertCommands(
 
     if intendedStates.length() == 0 {
         // No intended states configured, nothing to sync
+        log:printInfo(string `No MI intended states configured for component ${componentId}`);
         return commandCount;
     }
 
-    // Fetch all artifact IDs for this runtime in a single optimized query
-    map<string> artifactIds = check getAllArtifactIdsForRuntime(runtimeId);
+    log:printInfo(string `Found ${intendedStates.length()} intended state(s) for component ${componentId}`);
 
-    // Check APIs against intended states
-    foreach types:RestApi api in <types:RestApi[]>artifacts.apis {
-        string? artifactId = artifactIds[api.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, api.name, "API", api.state, intendedAction, commandCount);
+    // Iterate through intended states and process each one
+    foreach types:MIArtifactIntendedStateDBRecord intendedState in intendedStates {
+        string artifactName = intendedState.artifact_name;
+        string artifactType = intendedState.artifact_type;
+        string intendedAction = intendedState.action;
+
+        log:printInfo(string `Processing intended state: artifact=${artifactName}, type=${artifactType}, action=${intendedAction}`);
+
+        // Query the appropriate table based on artifact type and get artifact details
+        types:ArtifactQueryResult|error? artifactDetails = getArtifactDetailsByTypeAndName(runtimeId, artifactName, artifactType);
+
+        if artifactDetails is error {
+            log:printError(string `Error querying artifact ${artifactName} of type ${artifactType}`, artifactDetails);
+            continue;
         }
+
+        if artifactDetails is () {
+            log:printWarn(string `Artifact '${artifactName}' of type '${artifactType}' not found in runtime ${runtimeId}`);
+            continue;
+        }
+
+        // Get the intended action
+        
+
+        // Process the control command
+        log:printInfo(string `Found artifact '${artifactName}' (type=${artifactType}, state=${artifactDetails.state}, tracing=${artifactDetails.tracing ?: "N/A"})`);
+        commandCount = check processMIControlCommand(
+            runtimeId,
+            componentId,
+            artifactName,
+            artifactType,
+            artifactDetails.state,
+            artifactDetails.tracing,
+            intendedAction,
+            commandCount
+        );
     }
 
-    // Check proxy services against intended states
-    foreach types:ProxyService proxy in <types:ProxyService[]>artifacts.proxyServices {
-        string? artifactId = artifactIds[proxy.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, proxy.name, "Proxy Service", proxy.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check endpoints against intended states
-    foreach types:Endpoint endpoint in <types:Endpoint[]>artifacts.endpoints {
-        string? artifactId = artifactIds[endpoint.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, endpoint.name, "Endpoint", endpoint.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check inbound endpoints against intended states
-    foreach types:InboundEndpoint inbound in <types:InboundEndpoint[]>artifacts.inboundEndpoints {
-        string? artifactId = artifactIds[inbound.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, inbound.name, "Inbound Endpoint", inbound.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check sequences against intended states
-    foreach types:Sequence sequence in <types:Sequence[]>artifacts.sequences {
-        string? artifactId = artifactIds[sequence.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, sequence.name, "Sequence", sequence.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check tasks against intended states
-    foreach types:Task task in <types:Task[]>artifacts.tasks {
-        string? artifactId = artifactIds[task.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, task.name, "Task", task.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check message processors against intended states
-    foreach types:MessageProcessor processor in <types:MessageProcessor[]>artifacts.messageProcessors {
-        string? artifactId = artifactIds[processor.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, processor.name, "Message Processor", processor.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check local entries against intended states
-    foreach types:LocalEntry entry in <types:LocalEntry[]>artifacts.localEntries {
-        string? artifactId = artifactIds[entry.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, entry.name, "Local Entry", entry.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check data services against intended states
-    foreach types:DataService dataService in <types:DataService[]>artifacts.dataServices {
-        string? artifactId = artifactIds[dataService.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, dataService.name, "Data Service", dataService.state, intendedAction, commandCount);
-        }
-    }
-
-    // Check connectors against intended states
-    foreach types:Connector connector in <types:Connector[]>artifacts.connectors {
-        string? artifactId = artifactIds[connector.name];
-        if artifactId is string && intendedStates.hasKey(artifactId) {
-            string intendedAction = intendedStates.get(artifactId);
-            commandCount = check processMIControlCommand(runtimeId, componentId, artifactId, connector.name, "Connector", connector.state, intendedAction, commandCount);
-        }
-    }
-
+    log:printInfo(string `Completed MI intended state sync for runtime ${runtimeId}: inserted ${commandCount} control command(s)`);
     return commandCount;
+}
+
+// Record type for artifact details
+type MIArtifactDetails record {|
+    string artifactId;
+    string currentState;
+|};
+
+// Get artifact details by type and name from the appropriate runtime table
+isolated function getArtifactDetailsByTypeAndName(string runtimeId, string artifactName, string artifactType) returns types:ArtifactQueryResult|error? {
+    log:printDebug(string `Querying artifact: name=${artifactName}, type=${artifactType}, runtime=${runtimeId}`);
+
+    ArtifactTableMetadata? metadata = resolveArtifactTableMetadata(artifactType);
+    if metadata is () {
+        log:printWarn(string `Unknown artifact type: ${artifactType}`);
+        return ();
+    }
+
+    // Build SELECT clause: include tracing column only for tables that have it
+    string selectClause = metadata.hasTracing
+        ? string `SELECT artifact_id, ${metadata.stateColumn} AS state, tracing FROM ${metadata.tableName}`
+        : string `SELECT artifact_id, ${metadata.stateColumn} AS state FROM ${metadata.tableName}`;
+
+    sql:ParameterizedQuery query = sql:queryConcat(
+        sqlQueryFromString(selectClause),
+        ` WHERE runtime_id = ${runtimeId} AND `,
+        sqlQueryFromString(metadata.nameColumn),
+        ` = ${artifactName} LIMIT 1`
+    );
+
+    stream<types:ArtifactQueryResult, sql:Error?> resultStream = dbClient->query(query);
+    types:ArtifactQueryResult[] results = check from types:ArtifactQueryResult state in resultStream
+        select state;
+    check resultStream.close();
+
+    if results.length() > 0 {
+        return results[0];
+    }
+    return ();
 }
 
 // Helper function to process MI control command
 isolated function processMIControlCommand(
         string runtimeId,
         string componentId,
-        string artifactId,
         string artifactName,
         string artifactType,
         string currentState,
+        string? currentTracingState,
         string intendedAction,
         int currentCommandCount
 ) returns int|error {
     int commandCount = currentCommandCount;
 
+    log:printDebug(string `Processing MI control command for ${artifactType} '${artifactName}': intendedAction=${intendedAction}, currentState=${currentState}, currentTracing=${currentTracingState ?: "N/A"}`);
+
     // Determine if command is needed
     boolean needsCommand = false;
     types:MIControlAction? actionToIssue = ();
 
-    if intendedAction == "STOP" && currentState == "ENABLED" {
+    if intendedAction == "ARTIFACT_DISABLE" && currentState == "enabled" {
         needsCommand = true;
         actionToIssue = types:ARTIFACT_DISABLE;
-    } else if intendedAction == "START" && currentState == "DISABLED" {
+        log:printInfo(string `Command needed for ${artifactType} '${artifactName}': DISABLE (intended=ARTIFACT_DISABLE, current=enabled)`);
+    } else if intendedAction == "ARTIFACT_ENABLE" && currentState == "disabled" {
         needsCommand = true;
         actionToIssue = types:ARTIFACT_ENABLE;
+        log:printInfo(string `Command needed for ${artifactType} '${artifactName}': ENABLE (intended=ARTIFACT_ENABLE, current=disabled)`);
+    } else if intendedAction == "ARTIFACT_ENABLE_TRACING" {
+        string tracingState = currentTracingState ?: "disabled";
+        if tracingState == "disabled" {
+            needsCommand = true;
+            actionToIssue = types:ARTIFACT_ENABLE_TRACING;
+            log:printInfo(string `Command needed for ${artifactType} '${artifactName}': ENABLE_TRACING (intended=ARTIFACT_ENABLE_TRACING, currentTracing=${tracingState})`);
+        }
+    } else if intendedAction == "ARTIFACT_DISABLE_TRACING" {
+        string tracingState = currentTracingState ?: "disabled";
+        if tracingState == "enabled" {
+            needsCommand = true;
+            actionToIssue = types:ARTIFACT_DISABLE_TRACING;
+            log:printInfo(string `Command needed for ${artifactType} '${artifactName}': DISABLE_TRACING (intended=ARTIFACT_DISABLE_TRACING, currentTracing=${tracingState})`);
+        }
+    }
+
+    if !needsCommand {
+        log:printDebug(string `No command needed for ${artifactType} '${artifactName}': already in desired state (intended=${intendedAction}, currentState=${currentState}, currentTracing=${currentTracingState ?: "N/A"})`);
     }
 
     if needsCommand && actionToIssue is types:MIControlAction {
         // Insert MI control command to DB
-        error? insertResult = insertMIControlCommand(runtimeId, componentId, artifactId, actionToIssue);
+        log:printInfo(string `Inserting MI control command: runtime=${runtimeId}, component=${componentId}, artifact=${artifactName}, action=${actionToIssue}`);
+        error? insertResult = insertMIControlCommand(runtimeId, componentId, artifactName, artifactType, actionToIssue);
 
         if insertResult is () {
             commandCount += 1;
-            log:printInfo(string `Inserted MI control command for ${artifactType} ${artifactName} (artifact_id: ${artifactId}): ${intendedAction} (current: ${currentState})`);
+            log:printInfo(string `Successfully inserted MI control command for ${artifactType} '${artifactName}' : ${actionToIssue} (intended=${intendedAction}, currentState=${currentState}, currentTracing=${currentTracingState ?: "N/A"})`);
         } else {
-            log:printWarn(string `Failed to insert MI control command for ${artifactType} ${artifactName}`, insertResult);
+            log:printError(string `Failed to insert MI control command for ${artifactType} '${artifactName}'`, insertResult);
         }
     }
 

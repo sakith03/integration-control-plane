@@ -1068,7 +1068,8 @@ CREATE TRIGGER update_bi_runtime_control_commands_updated_at BEFORE UPDATE ON bi
 CREATE TABLE mi_runtime_control_commands (
     runtime_id VARCHAR(100) NOT NULL,
     component_id CHAR(36) NOT NULL,
-    artifact_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
     action VARCHAR(50) NOT NULL, -- enable_artifact, disable_artifact, enable_tracing, disable_tracing
     status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'acknowledged', 'completed', 'failed', 'timeout')),
     issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1079,7 +1080,7 @@ CREATE TABLE mi_runtime_control_commands (
     issued_by CHAR(36) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (runtime_id, component_id, artifact_id),
+    PRIMARY KEY (runtime_id, component_id, artifact_name, artifact_type),
     CONSTRAINT fk_mi_runtime_control_cmd_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
     CONSTRAINT fk_mi_runtime_control_cmd_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
     CONSTRAINT fk_mi_runtime_control_cmd_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
@@ -1087,7 +1088,8 @@ CREATE TABLE mi_runtime_control_commands (
 
 CREATE INDEX idx_mi_runtime_id ON mi_runtime_control_commands(runtime_id);
 CREATE INDEX idx_mi_component_id ON mi_runtime_control_commands(component_id);
-CREATE INDEX idx_mi_artifact_id ON mi_runtime_control_commands(artifact_id);
+CREATE INDEX idx_mi_artifact_name ON mi_runtime_control_commands(artifact_name);
+CREATE INDEX idx_mi_artifact_type ON mi_runtime_control_commands(artifact_type);
 CREATE INDEX idx_mi_status ON mi_runtime_control_commands(status);
 CREATE INDEX idx_mi_issued_at ON mi_runtime_control_commands(issued_at);
 CREATE INDEX idx_mi_action ON mi_runtime_control_commands(action);
@@ -1117,25 +1119,46 @@ CREATE INDEX idx_bi_state_issued_by ON bi_artifact_intended_state(issued_by);
 CREATE TRIGGER update_bi_artifact_intended_state_updated_at BEFORE UPDATE ON bi_artifact_intended_state
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TABLE mi_artifact_intended_state (
+CREATE TABLE mi_artifact_intended_status (
     component_id CHAR(36) NOT NULL,
-    artifact_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
     action VARCHAR(50) NOT NULL,
     issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    issued_by CHAR(36) NULL,
+    issued_by CHAR(36),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (component_id, artifact_id),
-    CONSTRAINT fk_mi_artifact_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
-    CONSTRAINT fk_mi_artifact_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_status_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_status_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_mi_state_component_id ON mi_artifact_intended_state(component_id);
-CREATE INDEX idx_mi_state_artifact_id ON mi_artifact_intended_state(artifact_id);
-CREATE INDEX idx_mi_state_action ON mi_artifact_intended_state(action);
-CREATE INDEX idx_mi_state_issued_by ON mi_artifact_intended_state(issued_by);
+CREATE INDEX idx_mi_artifact_intended_status_component_id ON mi_artifact_intended_status (component_id);
+CREATE INDEX idx_mi_artifact_intended_status_artifact ON mi_artifact_intended_status (artifact_name, artifact_type);
+CREATE INDEX idx_mi_artifact_intended_status_issued_by ON mi_artifact_intended_status (issued_by);
 
-CREATE TRIGGER update_mi_artifact_intended_state_updated_at BEFORE UPDATE ON mi_artifact_intended_state
+CREATE TRIGGER update_mi_artifact_intended_status_updated_at BEFORE UPDATE ON mi_artifact_intended_status
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE mi_artifact_intended_tracing (
+    component_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_tracing_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_tracing_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_mi_artifact_intended_tracing_component_id ON mi_artifact_intended_tracing (component_id);
+CREATE INDEX idx_mi_artifact_intended_tracing_artifact ON mi_artifact_intended_tracing (artifact_name, artifact_type);
+CREATE INDEX idx_mi_artifact_intended_tracing_issued_by ON mi_artifact_intended_tracing (issued_by);
+
+CREATE TRIGGER update_mi_artifact_intended_tracing_updated_at BEFORE UPDATE ON mi_artifact_intended_tracing
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================

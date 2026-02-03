@@ -723,6 +723,7 @@ service /graphql on graphqlListener {
         }
 
         string[] commandIds = [];
+        map<boolean> processedComponents = {};
 
         // Process each runtime ID
         foreach string runtimeId in input.runtimeIds {
@@ -758,20 +759,22 @@ service /graphql on graphqlListener {
             commandIds.push(commandId);
             log:printInfo(string `Created control command ${commandId} for runtime ${runtimeId} to ${input.action} listener ${input.listenerName}`);
 
-            // This ensures all runtimes in the component will sync to the same state
-            if commandIds.length() == 1 {
+            // Record intended state per component so all runtimes in the component will sync to the same state
+            string componentId = runtime.component.id;
+            if !processedComponents.hasKey(componentId) {
+                processedComponents[componentId] = true;
                 string actionStr = input.action.toString();
                 error? stateResult = storage:upsertBIArtifactIntendedState(
-                        runtime.component.id,
+                        componentId,
                         input.listenerName,
                         actionStr,
                         userContext.userId
                 );
 
                 if stateResult is error {
-                    log:printWarn(string `Failed to update intended state for listener ${input.listenerName} in component ${runtime.component.id}`, stateResult);
+                    log:printWarn(string `Failed to update intended state for listener ${input.listenerName} in component ${componentId}`, stateResult);
                 } else {
-                    log:printInfo(string `Updated intended state for listener ${input.listenerName} to ${actionStr} in component ${runtime.component.id}`);
+                    log:printInfo(string `Updated intended state for listener ${input.listenerName} to ${actionStr} in component ${componentId}`);
                 }
             }
         }
@@ -1332,28 +1335,10 @@ service /graphql on graphqlListener {
             };
         }
 
-        // Get artifact_id from artifact name and type
-        string? artifactId = check storage:getArtifactIdByNameAndType(input.componentId, input.artifactName, input.artifactType);
-
-        if artifactId is () {
-            log:printWarn("Artifact not found in component",
-                    componentId = input.componentId,
-                    artifactName = input.artifactName,
-                    artifactType = input.artifactType);
-            return {
-                status: "failed",
-                message: string `Artifact '${input.artifactName}' of type '${input.artifactType}' not found in this component`,
-                successCount: 0,
-                failedCount: 0,
-                details: []
-            };
-        }
-
         log:printInfo("Creating MI control commands for artifact status change",
                 componentId = input.componentId,
                 artifactType = input.artifactType,
                 artifactName = input.artifactName,
-                artifactId = artifactId,
                 status = input.status,
                 runtimeCount = runtimes.length());
 
@@ -1362,24 +1347,25 @@ service /graphql on graphqlListener {
 
         // Update intended state for this artifact in the component
         string actionStr = action;
-        error? stateResult = storage:upsertMIArtifactIntendedState(
+        error? stateResult = storage:upsertMIArtifactIntendedStatus(
                 input.componentId,
-                artifactId,
+                input.artifactName,
+                input.artifactType,
                 actionStr,
                 userContext.userId
         );
 
         if stateResult is error {
-            log:printWarn("Failed to update MI artifact intended state",
+            log:printWarn("Failed to update MI artifact intended status",
                     componentId = input.componentId,
-                    artifactId = artifactId,
                     artifactName = input.artifactName,
+                    artifactType = input.artifactType,
                     errorMessage = stateResult.message());
         } else {
-            log:printInfo("Updated MI artifact intended state",
+            log:printInfo("Updated MI artifact intended status",
                     componentId = input.componentId,
-                    artifactId = artifactId,
                     artifactName = input.artifactName,
+                    artifactType = input.artifactType,
                     action = actionStr);
         }
 
@@ -1389,11 +1375,16 @@ service /graphql on graphqlListener {
 
         // Insert MI control command for each runtime
         foreach types:Runtime runtime in runtimes {
+            boolean isRunning = runtime.status == types:RUNNING;
+            string commandStatus = isRunning ? "sent" : "pending";
+
             error? result = storage:insertMIControlCommand(
                     runtime.runtimeId,
                     input.componentId,
-                    artifactId,
+                    input.artifactName,
+                    input.artifactType,
                     action,
+                    commandStatus,
                     userContext.userId
             );
 
@@ -1405,20 +1396,36 @@ service /graphql on graphqlListener {
                         runtimeId = runtime.runtimeId,
                         artifactName = input.artifactName,
                         errorMessage = result.message());
-            } else {
+            } else if isRunning {
+                // Runtime is online, fire the async HTTP request immediately (fire-and-forget)
+                storage:sendMIControlCommandAsync(
+                        runtime.runtimeId,
+                        input.artifactType,
+                        input.artifactName,
+                        actionStr
+                );
+
                 successCount += 1;
-                string detail = string `Runtime ${runtime.runtimeId}: Command queued`;
+                string detail = string `Runtime ${runtime.runtimeId}: Command sent`;
                 details.push(detail);
-                log:printDebug("MI control command queued for runtime",
+                log:printDebug("MI control command sent for runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
+            } else {
+                // Runtime is offline, command queued as pending for delivery on next heartbeat
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command queued (runtime offline)`;
+                details.push(detail);
+                log:printDebug("MI control command queued for offline runtime",
                         runtimeId = runtime.runtimeId,
                         artifactName = input.artifactName);
             }
         }
 
         string overallStatus = successCount > 0 ? "success" : "failed";
-        string message = string `Artifact status change queued for ${successCount} out of ${runtimes.length()} runtime(s)`;
+        string message = string `Artifact status change sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
 
-        log:printInfo("Artifact status change commands queued",
+        log:printInfo("Artifact status change commands sent",
                 componentId = input.componentId,
                 artifactName = input.artifactName,
                 successCount = successCount,
@@ -1465,28 +1472,10 @@ service /graphql on graphqlListener {
             };
         }
 
-        // Get artifact_id from artifact name and type
-        string? artifactId = check storage:getArtifactIdByNameAndType(input.componentId, input.artifactName, input.artifactType);
-
-        if artifactId is () {
-            log:printWarn("Artifact not found in component",
-                    componentId = input.componentId,
-                    artifactName = input.artifactName,
-                    artifactType = input.artifactType);
-            return {
-                status: "failed",
-                message: string `Artifact '${input.artifactName}' of type '${input.artifactType}' not found in this component`,
-                successCount: 0,
-                failedCount: 0,
-                details: []
-            };
-        }
-
         log:printInfo("Creating MI control commands for artifact tracing change",
                 componentId = input.componentId,
                 artifactType = input.artifactType,
                 artifactName = input.artifactName,
-                artifactId = artifactId,
                 trace = input.trace,
                 runtimeCount = runtimes.length());
 
@@ -1495,24 +1484,25 @@ service /graphql on graphqlListener {
 
         // Update intended state for this artifact in the component
         string actionStr = action;
-        error? stateResult = storage:upsertMIArtifactIntendedState(
+        error? stateResult = storage:upsertMIArtifactIntendedTracing(
                 input.componentId,
-                artifactId,
+                input.artifactName,
+                input.artifactType,
                 actionStr,
                 userContext.userId
         );
 
         if stateResult is error {
-            log:printWarn("Failed to update MI artifact intended state",
+            log:printWarn("Failed to update MI artifact intended tracing",
                     componentId = input.componentId,
-                    artifactId = artifactId,
                     artifactName = input.artifactName,
+                    artifactType = input.artifactType,
                     errorMessage = stateResult.message());
         } else {
-            log:printInfo("Updated MI artifact intended state",
+            log:printInfo("Updated MI artifact intended tracing",
                     componentId = input.componentId,
-                    artifactId = artifactId,
                     artifactName = input.artifactName,
+                    artifactType = input.artifactType,
                     action = actionStr);
         }
 
@@ -1522,11 +1512,16 @@ service /graphql on graphqlListener {
 
         // Insert MI control command for each runtime
         foreach types:Runtime runtime in runtimes {
+            boolean isRunning = runtime.status == types:RUNNING;
+            string commandStatus = isRunning ? "sent" : "pending";
+
             error? result = storage:insertMIControlCommand(
                     runtime.runtimeId,
                     input.componentId,
-                    artifactId,
+                    input.artifactName,
+                    input.artifactType,
                     action,
+                    commandStatus,
                     userContext.userId
             );
 
@@ -1538,20 +1533,36 @@ service /graphql on graphqlListener {
                         runtimeId = runtime.runtimeId,
                         artifactName = input.artifactName,
                         errorMessage = result.message());
-            } else {
+            } else if isRunning {
+                // Runtime is online, fire the async HTTP request immediately (fire-and-forget)
+                storage:sendMIControlCommandAsync(
+                        runtime.runtimeId,
+                        input.artifactType,
+                        input.artifactName,
+                        actionStr
+                );
+
                 successCount += 1;
-                string detail = string `Runtime ${runtime.runtimeId}: Command queued`;
+                string detail = string `Runtime ${runtime.runtimeId}: Command sent`;
                 details.push(detail);
-                log:printDebug("MI control command queued for runtime",
+                log:printDebug("MI control command sent for runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
+            } else {
+                // Runtime is offline, command queued as pending for delivery on next heartbeat
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command queued (runtime offline)`;
+                details.push(detail);
+                log:printDebug("MI control command queued for offline runtime",
                         runtimeId = runtime.runtimeId,
                         artifactName = input.artifactName);
             }
         }
 
         string overallStatus = successCount > 0 ? "success" : "failed";
-        string message = string `Artifact tracing change queued for ${successCount} out of ${runtimes.length()} runtime(s)`;
+        string message = string `Artifact tracing change sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
 
-        log:printInfo("Artifact tracing change commands queued",
+        log:printInfo("Artifact tracing change commands sent",
                 componentId = input.componentId,
                 artifactName = input.artifactName,
                 successCount = successCount,

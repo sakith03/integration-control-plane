@@ -35,42 +35,8 @@ type ArtifactInfoRecord record {|
     string artifact_type;
 |};
 
-// Look up artifact info (name and type) by artifact_id
-isolated function getArtifactInfoById(string artifactId) returns ArtifactInfoRecord?|error {
-    // Search each artifact table for the artifact_id using UNION ALL
-    stream<ArtifactInfoRecord, sql:Error?> resultStream = dbClient->query(`
-        SELECT api_name AS artifact_name, 'apis' AS artifact_type FROM runtime_apis WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT proxy_name AS artifact_name, 'proxy-services' AS artifact_type FROM runtime_proxy_services WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT endpoint_name AS artifact_name, 'endpoints' AS artifact_type FROM runtime_endpoints WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT inbound_name AS artifact_name, 'inbound-endpoints' AS artifact_type FROM runtime_inbound_endpoints WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT sequence_name AS artifact_name, 'sequences' AS artifact_type FROM runtime_sequences WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT task_name AS artifact_name, 'tasks' AS artifact_type FROM runtime_tasks WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT processor_name AS artifact_name, 'message-processors' AS artifact_type FROM runtime_message_processors WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT entry_name AS artifact_name, 'local-entries' AS artifact_type FROM runtime_local_entries WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT service_name AS artifact_name, 'data-services' AS artifact_type FROM runtime_data_services WHERE artifact_id = ${artifactId}
-        UNION ALL
-        SELECT connector_name AS artifact_name, 'connectors' AS artifact_type FROM runtime_connectors WHERE artifact_id = ${artifactId}
-    `);
-
-    record {|ArtifactInfoRecord value;|}|sql:Error? result = resultStream.next();
-    check resultStream.close();
-
-    if result is record {|ArtifactInfoRecord value;|} {
-        return result.value;
-    }
-    return ();
-}
-
-// Async worker function to send MI control command
-isolated function sendMIControlCommand(string runtimeId, string artifactType, string artifactName, string action) {
+// Async worker function to send MI control command (fire-and-forget)
+public isolated function sendMIControlCommandAsync(string runtimeId, string artifactType, string artifactName, string action) {
     do {
         // Get runtime details
         types:Runtime? runtime = check getRuntimeById(runtimeId);
@@ -200,13 +166,15 @@ isolated function getComponentTypeByRuntimeId(string runtimeId) returns string?|
 isolated function sendPendingBIControlCommands(string runtimeId) returns types:ControlCommand[]|error {
     types:ControlCommand[] pendingCommands = [];
 
-    // Retrieve pending control commands for this BI runtime
+    // Retrieve pending control commands for this BI runtime (FOR UPDATE prevents concurrent heartbeats
+    // from selecting the same commands within overlapping transactions)
     stream<types:ControlCommandDBRecord, sql:Error?> commandStream = dbClient->query(`
         SELECT command_id, runtime_id, target_artifact, action, issued_at, status
         FROM bi_runtime_control_commands
         WHERE runtime_id = ${runtimeId}
         AND status = 'pending'
         ORDER BY issued_at ASC
+        FOR UPDATE
     `);
 
     check from types:ControlCommandDBRecord dbCommand in commandStream
@@ -232,23 +200,24 @@ isolated function sendPendingBIControlCommands(string runtimeId) returns types:C
             `);
         }
     }
-
+    log:printInfo("pending commands" , pendingCommands = pendingCommands);
     return pendingCommands;
 }
 
 // Retrieve and mark MI control commands as sent (within transaction)
 // Caller must ensure the runtime belongs to an MI component before calling this function
 // MI commands are executed immediately via runtime management API calls (fire and forget)
-isolated function sendPendingMIControlCommands(string runtimeId) returns types:MIRuntimeControlCommand[]|error {
-    types:MIRuntimeControlCommand[] processedCommands = [];
+isolated function sendPendingMIControlCommands(string runtimeId) returns error? {
 
-    // Retrieve pending control commands for this MI runtime
+    // Retrieve pending control commands for this MI runtime (FOR UPDATE prevents concurrent heartbeats
+    // from selecting the same commands within overlapping transactions)
     stream<types:MIRuntimeControlCommandDBRecord, sql:Error?> commandStream = dbClient->query(`
-        SELECT runtime_id, component_id, artifact_id, action, status, issued_at, sent_at, acknowledged_at, completed_at, error_message, issued_by
+        SELECT runtime_id, component_id, artifact_name, artifact_type, action, status, issued_at, sent_at, acknowledged_at, completed_at, error_message, issued_by
         FROM mi_runtime_control_commands
         WHERE runtime_id = ${runtimeId}
         AND status = 'pending'
         ORDER BY issued_at ASC
+        FOR UPDATE
     `);
 
     types:MIRuntimeControlCommandDBRecord[] pendingCommands = check from types:MIRuntimeControlCommandDBRecord cmd in commandStream
@@ -256,27 +225,23 @@ isolated function sendPendingMIControlCommands(string runtimeId) returns types:M
 
     if pendingCommands.length() == 0 {
         log:printDebug(string `No pending MI control commands for runtime ${runtimeId}`);
-        return processedCommands;
+        return ();
     }
 
     // Fire API calls and mark commands as sent
     foreach types:MIRuntimeControlCommandDBRecord dbCommand in pendingCommands {
-        // Look up artifact info (name and type) for the API call
-        ArtifactInfoRecord? artifactInfo = check getArtifactInfoById(dbCommand.artifact_id);
+        // Use artifact name and type from the command record
+        log:printDebug(string `Processing MI control command for artifact: ${dbCommand.artifact_name} (${dbCommand.artifact_type})`);
 
-        if artifactInfo is ArtifactInfoRecord {
-            // Fire the API call asynchronously (fire and forget)
-            sendMIControlCommand(
-                    dbCommand.runtime_id,
-                    artifactInfo.artifact_type,
-                    artifactInfo.artifact_name,
-                    dbCommand.action
-            );
-        } else {
-            log:printWarn(string `Artifact info not found for artifact_id ${dbCommand.artifact_id}, skipping API call`);
-        }
+        // Fire the API call asynchronously (fire and forget)
+        sendMIControlCommandAsync(
+                dbCommand.runtime_id,
+                dbCommand.artifact_type,
+                dbCommand.artifact_name,
+                dbCommand.action
+        );
 
-        // Mark command as sent in DB regardless of API call
+        // Mark command as sent in DB after API call is fired
         _ = check dbClient->execute(`
             UPDATE mi_runtime_control_commands
             SET status = 'sent',
@@ -284,28 +249,12 @@ isolated function sendPendingMIControlCommands(string runtimeId) returns types:M
                 updated_at = CURRENT_TIMESTAMP
             WHERE runtime_id = ${dbCommand.runtime_id}
             AND component_id = ${dbCommand.component_id}
-            AND artifact_id = ${dbCommand.artifact_id}
+            AND artifact_name = ${dbCommand.artifact_name}
+            AND artifact_type = ${dbCommand.artifact_type}
         `);
-
-        types:MIRuntimeControlCommand command = {
-            runtimeId: dbCommand.runtime_id,
-            componentId: dbCommand.component_id,
-            artifactId: dbCommand.artifact_id,
-            action: convertToMIControlAction(dbCommand.action),
-            status: convertToControlCommandStatus(dbCommand.status),
-            issuedAt: dbCommand.issued_at,
-            sentAt: dbCommand?.sent_at,
-            acknowledgedAt: dbCommand?.acknowledged_at,
-            completedAt: dbCommand?.completed_at,
-            errorMessage: dbCommand?.error_message,
-            issuedBy: dbCommand?.issued_by
-        };
-        processedCommands.push(command);
     }
-
     log:printInfo(string `Marked ${pendingCommands.length()} MI control commands as sent for runtime ${runtimeId}`);
-
-    return processedCommands;
+    return ();
 }
 
 // Convert database status string to ControlCommandStatus enum
@@ -443,7 +392,22 @@ public isolated function upsertBIArtifactIntendedState(string componentId, strin
                 issued_by = EXCLUDED.issued_by,
                 updated_at = CURRENT_TIMESTAMP
         `);
+    } else if dbType == H2 {
+        // H2 uses MERGE syntax similar to MSSQL
+        _ = check dbClient->execute(`
+            MERGE INTO bi_artifact_intended_state AS target
+            USING (VALUES (${componentId}, ${targetArtifact}, ${action}, ${issuedBy}))
+                   AS source (component_id, target_artifact, action, issued_by)
+            ON (target.component_id = source.component_id AND target.target_artifact = source.target_artifact)
+            WHEN MATCHED THEN
+                UPDATE SET action = source.action, issued_at = CURRENT_TIMESTAMP, 
+                           issued_by = source.issued_by, updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (component_id, target_artifact, action, issued_by)
+                VALUES (source.component_id, source.target_artifact, source.action, source.issued_by)
+        `);
     } else {
+        // MySQL
         _ = check dbClient->execute(`
             INSERT INTO bi_artifact_intended_state (
                 component_id, target_artifact, action, issued_by
@@ -463,13 +427,13 @@ public isolated function upsertBIArtifactIntendedState(string componentId, strin
 public isolated function getBIIntendedStatesForComponent(string componentId) returns map<string>|error {
     map<string> intendedStates = {};
 
-    stream<record {|string target_artifact; string action;|}, sql:Error?> stateStream = dbClient->query(`
+    stream<types:BIArtifactIntendedStateDBRecord, sql:Error?> stateStream = dbClient->query(`
         SELECT target_artifact, action
         FROM bi_artifact_intended_state
         WHERE component_id = ${componentId}
     `);
 
-    check from record {|string target_artifact; string action;|} state in stateStream
+    check from types:BIArtifactIntendedStateDBRecord state in stateStream
         do {
             intendedStates[state.target_artifact] = state.action;
         };
@@ -489,165 +453,226 @@ public isolated function deleteBIArtifactIntendedState(
     `);
 }
 
-// Get MI artifact intended states for a component
-public isolated function getMIIntendedStatesForComponent(string componentId) returns map<string>|error {
-    map<string> intendedStates = {};
-
-    stream<record {|string artifact_id; string action;|}, sql:Error?> stateStream = dbClient->query(`
-        SELECT artifact_id, action
-        FROM mi_artifact_intended_state
+// Get MI artifact intended states for a component (combines status and tracing tables)
+public isolated function getMIIntendedStatesForComponent(string componentId) returns types:MIArtifactIntendedStateDBRecord[]|error {
+    // Query status intended states
+    stream<types:MIArtifactIntendedStateDBRecord, sql:Error?> statusStream = dbClient->query(`
+        SELECT component_id, artifact_name, artifact_type, action
+        FROM mi_artifact_intended_status
         WHERE component_id = ${componentId}
     `);
+    types:MIArtifactIntendedStateDBRecord[] intendedStatesList =
+        check from types:MIArtifactIntendedStateDBRecord state in statusStream
+        select state;
 
-    check from record {|string artifact_id; string action;|} state in stateStream
-        do {
-            intendedStates[state.artifact_id] = state.action;
-        };
+    // Query tracing intended states
+    stream<types:MIArtifactIntendedStateDBRecord, sql:Error?> tracingStream = dbClient->query(`
+        SELECT component_id, artifact_name, artifact_type, action
+        FROM mi_artifact_intended_tracing
+        WHERE component_id = ${componentId}
+    `);
+    types:MIArtifactIntendedStateDBRecord[] tracingStates =
+        check from types:MIArtifactIntendedStateDBRecord state in tracingStream
+        select state;
 
-    return intendedStates;
+    // Combine both lists
+    foreach types:MIArtifactIntendedStateDBRecord tracingState in tracingStates {
+        intendedStatesList.push(tracingState);
+    }
+
+    return intendedStatesList;
 }
 
-// Insert MI control command
+// Upsert MI control command (update if exists, insert if not)
 public isolated function insertMIControlCommand(
         string runtimeId,
         string componentId,
-        string artifactId,
+        string artifactName,
+        string artifactType,
         types:MIControlAction action,
+        string status = "pending",
         string? issuedBy = ()
 ) returns error? {
     // Convert action enum to string
     string actionStr = action.toString();
 
-    // Insert MI control command
-    _ = check dbClient->execute(`
-        INSERT INTO mi_runtime_control_commands (
-            runtime_id, component_id, artifact_id, action, status, issued_at, issued_by
-        ) VALUES (
-            ${runtimeId}, ${componentId}, ${artifactId}, ${actionStr}, 'pending', CURRENT_TIMESTAMP, ${issuedBy}
-        )
-    `);
+    // Use UPSERT to handle duplicate commands (update existing pending commands)
+    if dbType == MSSQL {
+        _ = check dbClient->execute(`
+            MERGE INTO mi_runtime_control_commands AS target
+            USING (VALUES (${runtimeId}, ${componentId}, ${artifactName}, ${artifactType}, ${actionStr}, ${status}, ${issuedBy}))
+                   AS source (runtime_id, component_id, artifact_name, artifact_type, action, status, issued_by)
+            ON (target.runtime_id = source.runtime_id
+                AND target.component_id = source.component_id
+                AND target.artifact_name = source.artifact_name
+                AND target.artifact_type = source.artifact_type)
+            WHEN MATCHED THEN
+                UPDATE SET action = source.action,
+                           status = source.status,
+                           issued_at = CURRENT_TIMESTAMP,
+                           issued_by = source.issued_by,
+                           sent_at = CASE WHEN source.status = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END,
+                           acknowledged_at = NULL,
+                           completed_at = NULL,
+                           error_message = NULL,
+                           updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (runtime_id, component_id, artifact_name, artifact_type, action, status, issued_by, sent_at)
+                VALUES (source.runtime_id, source.component_id, source.artifact_name, source.artifact_type, source.action, source.status, source.issued_by,
+                        CASE WHEN source.status = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END);
+        `);
+    } else if dbType == POSTGRESQL {
+        _ = check dbClient->execute(`
+            INSERT INTO mi_runtime_control_commands (
+                runtime_id, component_id, artifact_name, artifact_type, action, status, issued_at, issued_by, sent_at
+            ) VALUES (
+                ${runtimeId}, ${componentId}, ${artifactName}, ${artifactType}, ${actionStr}, ${status}, CURRENT_TIMESTAMP, ${issuedBy},
+                CASE WHEN ${status} = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END
+            )
+            ON CONFLICT (runtime_id, component_id, artifact_name, artifact_type)
+            DO UPDATE SET
+                action = EXCLUDED.action,
+                status = EXCLUDED.status,
+                issued_at = CURRENT_TIMESTAMP,
+                issued_by = EXCLUDED.issued_by,
+                sent_at = CASE WHEN EXCLUDED.status = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END,
+                acknowledged_at = NULL,
+                completed_at = NULL,
+                error_message = NULL,
+                updated_at = CURRENT_TIMESTAMP
+        `);
+    } else if dbType == H2 {
+        // H2 uses MERGE syntax similar to MSSQL
+        _ = check dbClient->execute(`
+            MERGE INTO mi_runtime_control_commands AS target
+            USING (VALUES (${runtimeId}, ${componentId}, ${artifactName}, ${artifactType}, ${actionStr}, ${status}, ${issuedBy}))
+                   AS source (runtime_id, component_id, artifact_name, artifact_type, action, status, issued_by)
+            ON (target.runtime_id = source.runtime_id
+                AND target.component_id = source.component_id
+                AND target.artifact_name = source.artifact_name
+                AND target.artifact_type = source.artifact_type)
+            WHEN MATCHED THEN
+                UPDATE SET action = source.action,
+                           status = source.status,
+                           issued_at = CURRENT_TIMESTAMP,
+                           issued_by = source.issued_by,
+                           sent_at = CASE WHEN source.status = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END,
+                           acknowledged_at = NULL,
+                           completed_at = NULL,
+                           error_message = NULL,
+                           updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (runtime_id, component_id, artifact_name, artifact_type, action, status, issued_by, sent_at)
+                VALUES (source.runtime_id, source.component_id, source.artifact_name, source.artifact_type, source.action, source.status, source.issued_by,
+                        CASE WHEN source.status = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END)
+        `);
+    } else {
+        // MySQL
+        _ = check dbClient->execute(`
+            INSERT INTO mi_runtime_control_commands (
+                runtime_id, component_id, artifact_name, artifact_type, action, status, issued_at, issued_by, sent_at
+            ) VALUES (
+                ${runtimeId}, ${componentId}, ${artifactName}, ${artifactType}, ${actionStr}, ${status}, CURRENT_TIMESTAMP, ${issuedBy},
+                CASE WHEN ${status} = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END
+            )
+            ON DUPLICATE KEY UPDATE
+                action = VALUES(action),
+                status = VALUES(status),
+                issued_at = CURRENT_TIMESTAMP,
+                issued_by = VALUES(issued_by),
+                sent_at = VALUES(sent_at),
+                acknowledged_at = NULL,
+                completed_at = NULL,
+                error_message = NULL,
+                updated_at = CURRENT_TIMESTAMP
+        `);
+    }
 }
 
-// Artifact ID lookup record type
-type ArtifactIdRecord record {|
-    string artifact_name;
-    string artifact_id;
+// Metadata for mapping artifact types to their database table and column names
+type ArtifactTableMetadata record {|
+    string tableName;
+    string nameColumn;
+    boolean hasTracing;
+    string stateColumn;
 |};
 
-// Get artifact ID by artifact name and type for a component
-// This queries all runtimes of the component to find the artifact
-public isolated function getArtifactIdByNameAndType(string componentId, string artifactName, string artifactType) returns string?|error {
-    // Use UNION ALL to search across all artifact tables for this component
-    stream<record {|string artifact_id;|}, sql:Error?> resultStream = dbClient->query(`
-        SELECT artifact_id FROM runtime_apis 
-        WHERE component_id = ${componentId} AND api_name = ${artifactName}
-        AND ${artifactType} IN ('apis', 'RestApi')
-        UNION ALL
-        SELECT artifact_id FROM runtime_proxy_services 
-        WHERE component_id = ${componentId} AND proxy_name = ${artifactName}
-        AND ${artifactType} IN ('proxy-services', 'ProxyService')
-        UNION ALL
-        SELECT artifact_id FROM runtime_endpoints 
-        WHERE component_id = ${componentId} AND endpoint_name = ${artifactName}
-        AND ${artifactType} IN ('endpoints', 'Endpoint')
-        UNION ALL
-        SELECT artifact_id FROM runtime_inbound_endpoints 
-        WHERE component_id = ${componentId} AND inbound_name = ${artifactName}
-        AND ${artifactType} IN ('inbound-endpoints', 'InboundEndpoint')
-        UNION ALL
-        SELECT artifact_id FROM runtime_sequences 
-        WHERE component_id = ${componentId} AND sequence_name = ${artifactName}
-        AND ${artifactType} IN ('sequences', 'Sequence')
-        UNION ALL
-        SELECT artifact_id FROM runtime_tasks 
-        WHERE component_id = ${componentId} AND task_name = ${artifactName}
-        AND ${artifactType} IN ('tasks', 'Task')
-        UNION ALL
-        SELECT artifact_id FROM runtime_message_processors 
-        WHERE component_id = ${componentId} AND processor_name = ${artifactName}
-        AND ${artifactType} IN ('message-processors', 'MessageProcessor')
-        UNION ALL
-        SELECT artifact_id FROM runtime_local_entries 
-        WHERE component_id = ${componentId} AND entry_name = ${artifactName}
-        AND ${artifactType} IN ('local-entries', 'LocalEntry')
-        UNION ALL
-        SELECT artifact_id FROM runtime_data_services 
-        WHERE component_id = ${componentId} AND service_name = ${artifactName}
-        AND ${artifactType} IN ('data-services', 'DataService')
-        UNION ALL
-        SELECT artifact_id FROM runtime_connectors 
-        WHERE component_id = ${componentId} AND connector_name = ${artifactName}
-        AND ${artifactType} IN ('connectors', 'Connector')
-        LIMIT 1
-    `);
-
-    record {|record {|string artifact_id;|} value;|}|sql:Error? result = resultStream.next();
-    check resultStream.close();
-
-    if result is record {|record {|string artifact_id;|} value;|} {
-        return result.value.artifact_id;
+// Resolve artifact type aliases to table metadata (single source of truth for artifact type → table mapping)
+isolated function resolveArtifactTableMetadata(string artifactType) returns ArtifactTableMetadata? {
+    string normalizedType = artifactType.toLowerAscii().trim();
+    if normalizedType == "api" || normalizedType == "apis" {
+        return {tableName: "runtime_apis", nameColumn: "api_name", hasTracing: true, stateColumn: "state"};
+    } else if normalizedType == "proxy-service" || normalizedType == "proxy-services" {
+        return {tableName: "runtime_proxy_services", nameColumn: "proxy_name", hasTracing: true, stateColumn: "state"};
+    } else if normalizedType == "endpoint" || normalizedType == "endpoints" {
+        return {tableName: "runtime_endpoints", nameColumn: "endpoint_name", hasTracing: true, stateColumn: "state"};
+    } else if normalizedType == "inbound-endpoint" || normalizedType == "inbound-endpoints" {
+        return {tableName: "runtime_inbound_endpoints", nameColumn: "inbound_name", hasTracing: true, stateColumn: "state"};
+    } else if normalizedType == "sequence" || normalizedType == "sequences" {
+        return {tableName: "runtime_sequences", nameColumn: "sequence_name", hasTracing: true, stateColumn: "state"};
+    } else if normalizedType == "task" || normalizedType == "tasks" {
+        return {tableName: "runtime_tasks", nameColumn: "task_name", hasTracing: false, stateColumn: "state"};
+    } else if normalizedType == "message-processor" || normalizedType == "message-processors" {
+        return {tableName: "runtime_message_processors", nameColumn: "processor_name", hasTracing: false, stateColumn: "state"};
+    } else if normalizedType == "local-entry" || normalizedType == "local-entries" {
+        return {tableName: "runtime_local_entries", nameColumn: "entry_name", hasTracing: false, stateColumn: "state"};
+    } else if normalizedType == "data-service" || normalizedType == "data-services" {
+        return {tableName: "runtime_data_services", nameColumn: "service_name", hasTracing: false, stateColumn: "state"};
+    } else if normalizedType == "connector" || normalizedType == "connectors" {
+        return {tableName: "runtime_connectors", nameColumn: "connector_name", hasTracing: false, stateColumn: "status"};
     }
-
     return ();
 }
 
-// Get all artifact IDs for a runtime in a single optimized query
-// Returns a map of artifact_name -> artifact_id
-isolated function getAllArtifactIdsForRuntime(string runtimeId) returns map<string>|error {
-    map<string> artifactIds = {};
-
-    // Use UNION ALL to fetch all artifact IDs in a single query
-    stream<ArtifactIdRecord, sql:Error?> resultStream = dbClient->query(`
-        SELECT api_name AS artifact_name, artifact_id FROM runtime_apis WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT proxy_name AS artifact_name, artifact_id FROM runtime_proxy_services WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT endpoint_name AS artifact_name, artifact_id FROM runtime_endpoints WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT inbound_name AS artifact_name, artifact_id FROM runtime_inbound_endpoints WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT sequence_name AS artifact_name, artifact_id FROM runtime_sequences WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT task_name AS artifact_name, artifact_id FROM runtime_tasks WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT processor_name AS artifact_name, artifact_id FROM runtime_message_processors WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT entry_name AS artifact_name, artifact_id FROM runtime_local_entries WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT service_name AS artifact_name, artifact_id FROM runtime_data_services WHERE runtime_id = ${runtimeId}
-        UNION ALL
-        SELECT connector_name AS artifact_name, artifact_id FROM runtime_connectors WHERE runtime_id = ${runtimeId}
-    `);
-
-    check from ArtifactIdRecord rec in resultStream
-        do {
-            artifactIds[rec.artifact_name] = rec.artifact_id;
-        };
-
-    return artifactIds;
-}
-
-// Upsert MI artifact intended state for a component
-public isolated function upsertMIArtifactIntendedState(string componentId, string artifactId, string action, string? issuedBy = ()) returns error? {
+// Upsert MI artifact intended status (enable/disable) for a component
+public isolated function upsertMIArtifactIntendedStatus(string componentId, string artifactName, string artifactType, string action, string? issuedBy = ()) returns error? {
     if dbType == MSSQL {
         _ = check dbClient->execute(`
-            MERGE INTO mi_artifact_intended_state AS target
-            USING (VALUES (${componentId}, ${artifactId}, ${action}, ${issuedBy}))
-                   AS source (component_id, artifact_id, action, issued_by)
-            ON (target.component_id = source.component_id AND target.artifact_id = source.artifact_id)
+            MERGE INTO mi_artifact_intended_status AS target
+            USING (VALUES (${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}))
+                   AS source (component_id, artifact_name, artifact_type, action, issued_by)
+            ON (target.component_id = source.component_id AND target.artifact_name = source.artifact_name AND target.artifact_type = source.artifact_type)
             WHEN MATCHED THEN
-                UPDATE SET action = source.action, issued_at = CURRENT_TIMESTAMP, 
+                UPDATE SET action = source.action, issued_at = CURRENT_TIMESTAMP,
                            issued_by = source.issued_by, updated_at = CURRENT_TIMESTAMP
             WHEN NOT MATCHED THEN
-                INSERT (component_id, artifact_id, action, issued_by)
-                VALUES (source.component_id, source.artifact_id, source.action, source.issued_by);
+                INSERT (component_id, artifact_name, artifact_type, action, issued_by)
+                VALUES (source.component_id, source.artifact_name, source.artifact_type, source.action, source.issued_by);
+        `);
+    } else if dbType == POSTGRESQL {
+        _ = check dbClient->execute(`
+            INSERT INTO mi_artifact_intended_status (
+                component_id, artifact_name, artifact_type, action, issued_by
+            ) VALUES (
+                ${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}
+            )
+            ON CONFLICT (component_id, artifact_name, artifact_type) DO UPDATE SET
+                action = EXCLUDED.action,
+                issued_at = CURRENT_TIMESTAMP,
+                issued_by = EXCLUDED.issued_by,
+                updated_at = CURRENT_TIMESTAMP
+        `);
+    } else if dbType == H2 {
+        // H2 uses MERGE syntax similar to MSSQL
+        _ = check dbClient->execute(`
+            MERGE INTO mi_artifact_intended_status AS target
+            USING (VALUES (${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}))
+                   AS source (component_id, artifact_name, artifact_type, action, issued_by)
+            ON (target.component_id = source.component_id AND target.artifact_name = source.artifact_name AND target.artifact_type = source.artifact_type)
+            WHEN MATCHED THEN
+                UPDATE SET action = source.action, issued_at = CURRENT_TIMESTAMP,
+                           issued_by = source.issued_by, updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (component_id, artifact_name, artifact_type, action, issued_by)
+                VALUES (source.component_id, source.artifact_name, source.artifact_type, source.action, source.issued_by)
         `);
     } else {
+        // MySQL
         _ = check dbClient->execute(`
-            INSERT INTO mi_artifact_intended_state (
-                component_id, artifact_id, action, issued_by
+            INSERT INTO mi_artifact_intended_status (
+                component_id, artifact_name, artifact_type, action, issued_by
             ) VALUES (
-                ${componentId}, ${artifactId}, ${action}, ${issuedBy}
+                ${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}
             )
             ON DUPLICATE KEY UPDATE
                 action = VALUES(action),
@@ -658,15 +683,90 @@ public isolated function upsertMIArtifactIntendedState(string componentId, strin
     }
 }
 
-// Delete MI artifact intended state
-public isolated function deleteMIArtifactIntendedState(
+// Upsert MI artifact intended tracing (enable/disable tracing) for a component
+public isolated function upsertMIArtifactIntendedTracing(string componentId, string artifactName, string artifactType, string action, string? issuedBy = ()) returns error? {
+    if dbType == MSSQL {
+        _ = check dbClient->execute(`
+            MERGE INTO mi_artifact_intended_tracing AS target
+            USING (VALUES (${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}))
+                   AS source (component_id, artifact_name, artifact_type, action, issued_by)
+            ON (target.component_id = source.component_id AND target.artifact_name = source.artifact_name AND target.artifact_type = source.artifact_type)
+            WHEN MATCHED THEN
+                UPDATE SET action = source.action, issued_at = CURRENT_TIMESTAMP,
+                           issued_by = source.issued_by, updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (component_id, artifact_name, artifact_type, action, issued_by)
+                VALUES (source.component_id, source.artifact_name, source.artifact_type, source.action, source.issued_by);
+        `);
+    } else if dbType == POSTGRESQL {
+        _ = check dbClient->execute(`
+            INSERT INTO mi_artifact_intended_tracing (
+                component_id, artifact_name, artifact_type, action, issued_by
+            ) VALUES (
+                ${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}
+            )
+            ON CONFLICT (component_id, artifact_name, artifact_type) DO UPDATE SET
+                action = EXCLUDED.action,
+                issued_at = CURRENT_TIMESTAMP,
+                issued_by = EXCLUDED.issued_by,
+                updated_at = CURRENT_TIMESTAMP
+        `);
+    } else if dbType == H2 {
+        // H2 uses MERGE syntax similar to MSSQL
+        _ = check dbClient->execute(`
+            MERGE INTO mi_artifact_intended_tracing AS target
+            USING (VALUES (${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}))
+                   AS source (component_id, artifact_name, artifact_type, action, issued_by)
+            ON (target.component_id = source.component_id AND target.artifact_name = source.artifact_name AND target.artifact_type = source.artifact_type)
+            WHEN MATCHED THEN
+                UPDATE SET action = source.action, issued_at = CURRENT_TIMESTAMP,
+                           issued_by = source.issued_by, updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (component_id, artifact_name, artifact_type, action, issued_by)
+                VALUES (source.component_id, source.artifact_name, source.artifact_type, source.action, source.issued_by)
+        `);
+    } else {
+        // MySQL
+        _ = check dbClient->execute(`
+            INSERT INTO mi_artifact_intended_tracing (
+                component_id, artifact_name, artifact_type, action, issued_by
+            ) VALUES (
+                ${componentId}, ${artifactName}, ${artifactType}, ${action}, ${issuedBy}
+            )
+            ON DUPLICATE KEY UPDATE
+                action = VALUES(action),
+                issued_at = CURRENT_TIMESTAMP,
+                issued_by = VALUES(issued_by),
+                updated_at = CURRENT_TIMESTAMP
+        `);
+    }
+}
+
+// Delete MI artifact intended status
+public isolated function deleteMIArtifactIntendedStatus(
         string componentId,
-        string artifactId
+        string artifactName,
+        string artifactType
 ) returns error? {
     _ = check dbClient->execute(`
-        DELETE FROM mi_artifact_intended_state
+        DELETE FROM mi_artifact_intended_status
         WHERE component_id = ${componentId}
-        AND artifact_id = ${artifactId}
+        AND artifact_name = ${artifactName}
+        AND artifact_type = ${artifactType}
+    `);
+}
+
+// Delete MI artifact intended tracing
+public isolated function deleteMIArtifactIntendedTracing(
+        string componentId,
+        string artifactName,
+        string artifactType
+) returns error? {
+    _ = check dbClient->execute(`
+        DELETE FROM mi_artifact_intended_tracing
+        WHERE component_id = ${componentId}
+        AND artifact_name = ${artifactName}
+        AND artifact_type = ${artifactType}
     `);
 }
 

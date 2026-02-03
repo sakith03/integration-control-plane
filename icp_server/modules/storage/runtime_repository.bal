@@ -664,7 +664,7 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
     types:RegistryResource[] resourceList = [];
 
     // Get MI artifacts only for MI runtime types
-    if runtimeRecord.runtime_type == "MI" {
+    if runtimeRecord.runtime_type == types:MI {
         apiList = check getApisForRuntime(runtimeRecord.runtime_id);
         proxyList = check getProxyServicesForRuntime(runtimeRecord.runtime_id);
         endpointList = check getEndpointsForRuntime(runtimeRecord.runtime_id);

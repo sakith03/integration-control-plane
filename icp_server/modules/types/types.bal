@@ -194,11 +194,17 @@ public enum MIControlAction {
     ARTIFACT_DISABLE_TRACING
 }
 
+public enum ComponentType {
+    BI,
+    MI
+};
+
 # MI Runtime Control Command
 #
 # + runtimeId - Runtime ID where the command should be executed
 # + componentId - Component ID that the artifact belongs to
-# + artifactId - Unique identifier of the artifact
+# + artifactName - Name of the artifact
+# + artifactType - Type of the artifact
 # + action - Control action to perform
 # + status - Current status of the command
 # + issuedAt - Timestamp when the command was issued
@@ -210,7 +216,8 @@ public enum MIControlAction {
 public type MIRuntimeControlCommand record {
     string runtimeId;
     string componentId;
-    string artifactId;
+    string artifactName;
+    string artifactType;
     MIControlAction action;
     ControlCommandStatus status;
     time:Utc issuedAt;
@@ -224,13 +231,15 @@ public type MIRuntimeControlCommand record {
 # MI Artifact Intended State
 #
 # + componentId - Component ID that the artifact belongs to
-# + artifactId - Unique identifier of the artifact
+# + artifactName - Name of the artifact
+# + artifactType - Type of the artifact (e.g., API, Proxy Service, Endpoint)
 # + action - Intended action/state for the artifact
 # + issuedAt - Timestamp when the intended state was set
 # + issuedBy - User ID who set the intended state
 public type MIArtifactIntendedState record {
     string componentId;
-    string artifactId;
+    string artifactName;
+    string artifactType;
     MIControlAction action;
     time:Utc issuedAt;
     string? issuedBy?;
@@ -240,7 +249,8 @@ public type MIArtifactIntendedState record {
 #
 # + runtime_id - field description  
 # + component_id - field description  
-# + artifact_id - field description  
+# + artifact_name - field description  
+# + artifact_type - field description  
 # + action - field description  
 # + status - field description  
 # + issued_at - field description  
@@ -252,7 +262,8 @@ public type MIArtifactIntendedState record {
 public type MIRuntimeControlCommandDBRecord record {
     string runtime_id;
     string component_id;
-    string artifact_id;
+    string artifact_name;
+    string artifact_type;
     string action;
     string status;
     time:Utc issued_at;
@@ -265,18 +276,36 @@ public type MIRuntimeControlCommandDBRecord record {
 
 # Database record for MI Artifact Intended State
 #
-# + component_id - field description  
-# + artifact_id - field description  
-# + action - field description  
-# + issued_at - field description  
-# + issued_by - field description
+# + component_id - Component ID that the artifact belongs to
+# + artifact_name - Name of the artifact
+# + artifact_type - Type of the artifact (e.g., API, Proxy Service, Endpoint)
+# + action - Intended action/state for the artifact
 public type MIArtifactIntendedStateDBRecord record {
     string component_id;
-    string artifact_id;
+    string artifact_name;
+    string artifact_type;
     string action;
-    time:Utc issued_at;
-    string? issued_by?;
 };
+
+# Database record for BI Artifact Intended State
+#
+# + target_artifact - Name of the target artifact
+# + action - Intended action/state for the artifact
+public type BIArtifactIntendedStateDBRecord record {
+    string target_artifact;
+    string action;
+};
+
+# Record type for artifact query result from runtime tables
+#
+# + artifact_id - Unique identifier for the artifact (not used in control commands)
+# + state - Current state of the artifact (enabled/disabled)
+# + tracing - Current tracing state of the artifact (enabled/disabled)
+public type ArtifactQueryResult record {|
+    string artifact_id;
+    string state;
+    string tracing?;
+|};
 
 // === Configuration ===
 
