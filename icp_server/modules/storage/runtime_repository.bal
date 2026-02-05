@@ -177,16 +177,17 @@ public isolated function deleteRuntime(string runtimeId) returns error? {
 public isolated function markOfflineRuntimes() returns error? {
 
     // Use database native timestamp functions for reliable comparison
-    // TIMESTAMPDIFF and DATE_SUB work in both H2 (in MySQL mode) and MySQL
 
     if deploymentType == "K8S" {
         // For K8S deployments, delete runtimes that should be marked offline
-        sql:ParameterizedQuery deleteQuery = `
-            DELETE FROM runtimes
+        sql:ParameterizedQuery deleteQuery = sql:queryConcat(
+                `DELETE FROM runtimes
             WHERE status != 'OFFLINE'
             AND last_heartbeat IS NOT NULL
-            AND TIMESTAMPDIFF(SECOND, last_heartbeat, CURRENT_TIMESTAMP) > ${heartbeatTimeoutSeconds}
-        `;
+            AND `,
+                sqlQueryFromString(getTimestampDiffSeconds("last_heartbeat", "CURRENT_TIMESTAMP")),
+                ` > ${heartbeatTimeoutSeconds}`
+        );
         sql:ExecutionResult result = check dbClient->execute(deleteQuery);
 
         int? affectedCount = result.affectedRowCount;
@@ -195,13 +196,15 @@ public isolated function markOfflineRuntimes() returns error? {
         }
     } else {
         // For VM deployments, mark runtimes as offline
-        sql:ParameterizedQuery updateQuery = `
-            UPDATE runtimes
+        sql:ParameterizedQuery updateQuery = sql:queryConcat(
+                `UPDATE runtimes
             SET status = 'OFFLINE'
             WHERE status != 'OFFLINE'
             AND last_heartbeat IS NOT NULL
-            AND TIMESTAMPDIFF(SECOND, last_heartbeat, CURRENT_TIMESTAMP) > ${heartbeatTimeoutSeconds}
-        `;
+            AND `,
+                sqlQueryFromString(getTimestampDiffSeconds("last_heartbeat", "CURRENT_TIMESTAMP")),
+                ` > ${heartbeatTimeoutSeconds}`
+        );
         sql:ExecutionResult result = check dbClient->execute(updateQuery);
 
         int? affectedCount = result.affectedRowCount;
@@ -214,16 +217,16 @@ public isolated function markOfflineRuntimes() returns error? {
 // Get services for a specific runtime
 public isolated function getServicesForRuntime(string runtimeId) returns types:Service[]|error {
     types:Service[] serviceList = [];
-    stream<types:Service, sql:Error?> serviceStream = dbClient->query(`
+    stream<types:ServiceRecordInDB, sql:Error?> serviceStream = dbClient->query(`
         SELECT service_name, service_package, base_path, state 
         FROM runtime_services 
         WHERE runtime_id = ${runtimeId}
     `);
 
-    check from types:Service serviceRecord in serviceStream
+    check from types:ServiceRecordInDB serviceRecord in serviceStream
         do {
-
-            serviceList.push(check mapToService(serviceRecord, runtimeId));
+            types:Service mappedService = check mapToService(serviceRecord, runtimeId);
+            serviceList.push(mappedService);
         };
 
     return serviceList;
@@ -250,7 +253,7 @@ public isolated function getListenersForRuntime(string runtimeId) returns types:
 public isolated function getApisForRuntime(string runtimeId) returns types:RestApi[]|error {
     types:RestApi[] apiList = [];
     stream<types:RestApi, sql:Error?> apiStream = dbClient->query(`
-        SELECT api_name, url, context, version, state 
+        SELECT api_name, url, context, version, state, tracing
         FROM runtime_apis 
         WHERE runtime_id = ${runtimeId}
     `);
@@ -306,7 +309,7 @@ public isolated function getProxyServicesForRuntime(string runtimeId) returns ty
         };
 
     stream<types:ProxyServiceRecordInDB, sql:Error?> proxyStream = dbClient->query(`
-        SELECT proxy_name, state 
+        SELECT proxy_name, state, tracing
         FROM runtime_proxy_services 
         WHERE runtime_id = ${runtimeId}
     `);
@@ -315,7 +318,8 @@ public isolated function getProxyServicesForRuntime(string runtimeId) returns ty
         do {
             types:ProxyService proxy = {
                 name: proxyRecord.proxy_name,
-                state: proxyRecord.state
+                state: proxyRecord.state,
+                tracing: proxyRecord.tracing
             };
             string[] eps = endpointMap[proxyRecord.proxy_name] ?: [];
             proxy.endpoints = eps;
@@ -329,7 +333,7 @@ public isolated function getProxyServicesForRuntime(string runtimeId) returns ty
 public isolated function getEndpointsForRuntime(string runtimeId) returns types:Endpoint[]|error {
     types:Endpoint[] endpointList = [];
     stream<types:EndpointRecordInDB, sql:Error?> endpointStream = dbClient->query(`
-        SELECT endpoint_name, endpoint_type, state 
+        SELECT endpoint_name, endpoint_type, state, tracing
         FROM runtime_endpoints 
         WHERE runtime_id = ${runtimeId}
     `);
@@ -339,7 +343,8 @@ public isolated function getEndpointsForRuntime(string runtimeId) returns types:
             types:Endpoint endpoint = {
                 name: endpointRecord.endpoint_name,
                 'type: endpointRecord.endpoint_type,
-                state: endpointRecord.state
+                state: endpointRecord.state,
+                tracing: endpointRecord.tracing
             };
             endpointList.push(endpoint);
         };
@@ -369,11 +374,21 @@ public isolated function getEndpointsForRuntime(string runtimeId) returns types:
 // Get inbound endpoints for a specific runtime
 public isolated function getInboundEndpointsForRuntime(string runtimeId) returns types:InboundEndpoint[]|error {
     types:InboundEndpoint[] inboundList = [];
-    stream<types:InboundEndpoint, sql:Error?> inboundStream = dbClient->query(`
-        SELECT inbound_name, protocol, sequence, state, statistics, on_error 
-        FROM runtime_inbound_endpoints 
-        WHERE runtime_id = ${runtimeId}
-    `);
+    sql:ParameterizedQuery query;
+    if isMSSQL() {
+        query = `
+            SELECT inbound_name, protocol, sequence, state, [statistics], on_error, tracing
+            FROM runtime_inbound_endpoints 
+            WHERE runtime_id = ${runtimeId}
+        `;
+    } else {
+        query = `
+            SELECT inbound_name, protocol, sequence, state, statistics, on_error, tracing
+            FROM runtime_inbound_endpoints 
+            WHERE runtime_id = ${runtimeId}
+        `;
+    }
+    stream<types:InboundEndpoint, sql:Error?> inboundStream = dbClient->query(query);
 
     check from types:InboundEndpoint inboundRecord in inboundStream
         do {
@@ -387,7 +402,7 @@ public isolated function getInboundEndpointsForRuntime(string runtimeId) returns
 public isolated function getSequencesForRuntime(string runtimeId) returns types:Sequence[]|error {
     types:Sequence[] sequenceList = [];
     stream<types:SequenceRecordInDB, sql:Error?> sequenceStream = dbClient->query(`
-        SELECT sequence_name, sequence_type, container, state 
+        SELECT sequence_name, sequence_type, container, state, tracing
         FROM runtime_sequences 
         WHERE runtime_id = ${runtimeId}
     `);
@@ -398,7 +413,8 @@ public isolated function getSequencesForRuntime(string runtimeId) returns types:
                 name: sequenceRecord.sequence_name,
                 'type: sequenceRecord.sequence_type,
                 container: sequenceRecord.container,
-                state: sequenceRecord.state
+                state: sequenceRecord.state,
+                tracing: sequenceRecord.tracing
             };
             sequenceList.push(sequence);
         };
@@ -666,7 +682,7 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
     types:RegistryResource[] resourceList = [];
 
     // Get MI artifacts only for MI runtime types
-    if runtimeRecord.runtime_type == "MI" {
+    if runtimeRecord.runtime_type == types:MI {
         apiList = check getApisForRuntime(runtimeRecord.runtime_id);
         proxyList = check getProxyServicesForRuntime(runtimeRecord.runtime_id);
         endpointList = check getEndpointsForRuntime(runtimeRecord.runtime_id);
@@ -736,12 +752,14 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
 }
 
 // Helper function to map service record and get resources
-public isolated function mapToService(types:Service serviceRecord, string runtimeId) returns types:Service|error {
+public isolated function mapToService(types:ServiceRecordInDB serviceRecord, string runtimeId) returns types:Service|error {
     types:Resource[] resourceList = [];
+    string serviceName = serviceRecord.service_name;
+
     stream<types:ResourceRecord, sql:Error?> resourceStream = dbClient->query(`
         SELECT resource_url, methods 
         FROM service_resources 
-        WHERE runtime_id = ${runtimeId} AND service_name = ${serviceRecord.name}
+        WHERE runtime_id = ${runtimeId} AND service_name = ${serviceName}
     `);
 
     check from types:ResourceRecord resourceRecord in resourceStream
@@ -760,10 +778,10 @@ public isolated function mapToService(types:Service serviceRecord, string runtim
         };
 
     return {
-        name: serviceRecord.name,
-        package: serviceRecord.package,
-        basePath: serviceRecord.basePath,
-        state: "ENABLED", // Default state
+        name: serviceRecord.service_name,
+        package: serviceRecord.service_package,
+        basePath: serviceRecord.base_path,
+        state: "enabled", // Default state
         'type: "API", // Default type
         resources: resourceList,
         listeners: [] // Empty listeners array

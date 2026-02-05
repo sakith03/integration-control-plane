@@ -712,20 +712,15 @@ CREATE INDEX idx_runtimes_registration_time ON runtimes (registration_time);
 
 -- Services deployed on a runtime
 CREATE TABLE runtime_services (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     service_name VARCHAR(100) NOT NULL,
     service_package VARCHAR(200) NOT NULL,
     base_path VARCHAR(500),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_services_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_service UNIQUE (
-        runtime_id,
-        service_name,
-        service_package
-    )
+    PRIMARY KEY (runtime_id, service_name, service_package),
+    CONSTRAINT fk_runtime_services_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_services_runtime_id ON runtime_services (runtime_id);
@@ -738,7 +733,6 @@ CREATE INDEX idx_runtime_services_state ON runtime_services (state);
 
 -- Resources inside a service (HTTP resources etc.)
 CREATE TABLE service_resources (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     service_name VARCHAR(100) NOT NULL,
     resource_url VARCHAR(1000) NOT NULL,
@@ -746,6 +740,7 @@ CREATE TABLE service_resources (
     method_first VARCHAR(20),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (runtime_id, service_name, resource_url),
     CONSTRAINT fk_service_resources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
@@ -757,24 +752,17 @@ CREATE INDEX idx_service_resources_method_first ON service_resources (method_fir
 
 -- Listeners bound to a runtime (e.g., HTTP/HTTPS)
 CREATE TABLE runtime_listeners (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     listener_name VARCHAR(100) NOT NULL,
     listener_package VARCHAR(200) NOT NULL,
     protocol VARCHAR(20) DEFAULT 'HTTP',
     listener_host VARCHAR(100),
     listener_port INT,
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_listeners_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_listener UNIQUE (
-        runtime_id,
-        listener_name,
-        listener_package,
-        listener_host,
-        listener_port
-    )
+    PRIMARY KEY (runtime_id, listener_name),
+    CONSTRAINT fk_runtime_listeners_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_listeners_runtime_id ON runtime_listeners (runtime_id);
@@ -790,34 +778,37 @@ CREATE INDEX idx_runtime_listeners_state ON runtime_listeners (state);
 -- ============================================================================
 
 CREATE TABLE runtime_apis (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     url VARCHAR(500) NOT NULL,
     context VARCHAR(500) NOT NULL,
     version VARCHAR(50),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
+    tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_apis_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_api UNIQUE (runtime_id, api_name)
+    PRIMARY KEY (runtime_id, api_name),
+    CONSTRAINT fk_runtime_apis_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_apis_runtime_id ON runtime_apis (runtime_id);
 
 CREATE INDEX idx_runtime_apis_api_name ON runtime_apis (api_name);
 
+CREATE INDEX idx_runtime_apis_artifact_id ON runtime_apis (artifact_id);
+
 CREATE INDEX idx_runtime_apis_state ON runtime_apis (state);
 
 -- API Resources (MI) - Resources inside an API
 CREATE TABLE runtime_api_resources (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
     resource_path VARCHAR(1000) NOT NULL,
     methods VARCHAR(20) NOT NULL, -- Single HTTP method as string (e.g., "POST", "GET")
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (runtime_id, api_name, resource_path),
     CONSTRAINT fk_runtime_api_resources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
@@ -829,36 +820,34 @@ CREATE INDEX idx_runtime_api_resources_methods ON runtime_api_resources (methods
 
 -- Proxy Services (MI)
 CREATE TABLE runtime_proxy_services (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    artifact_id CHAR(36) NOT NULL UNIQUE,
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
+    tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_proxy_services_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_proxy_service UNIQUE (runtime_id, proxy_name)
+    PRIMARY KEY (runtime_id, proxy_name),
+    CONSTRAINT fk_runtime_proxy_services_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_proxy_services_runtime_id ON runtime_proxy_services (runtime_id);
 
 CREATE INDEX idx_runtime_proxy_services_proxy_name ON runtime_proxy_services (proxy_name);
 
+CREATE INDEX idx_runtime_proxy_services_artifact_id ON runtime_proxy_services (artifact_id);
+
 CREATE INDEX idx_runtime_proxy_services_state ON runtime_proxy_services (state);
 
 -- Proxy Service Endpoints (MI)
 CREATE TABLE runtime_proxy_service_endpoints (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
     endpoint_url VARCHAR(500) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_proxy_service_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_proxy_service_endpoint UNIQUE (
-        runtime_id,
-        proxy_name,
-        endpoint_url
-    )
+    PRIMARY KEY (runtime_id, proxy_name, endpoint_url),
+    CONSTRAINT fk_runtime_proxy_service_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_proxy_service_endpoints_runtime_id ON runtime_proxy_service_endpoints (runtime_id);
@@ -866,28 +855,28 @@ CREATE INDEX idx_runtime_proxy_service_endpoints_proxy_name ON runtime_proxy_ser
 
 -- Endpoints (MI)
 CREATE TABLE runtime_endpoints (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     endpoint_type VARCHAR(100) NOT NULL,
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
+    tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_endpoint UNIQUE (runtime_id, endpoint_name)
+    PRIMARY KEY (runtime_id, endpoint_name),
+    CONSTRAINT fk_runtime_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 -- Endpoint Attributes (MI)
 CREATE TABLE runtime_endpoint_attributes (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
     attribute_name VARCHAR(200) NOT NULL,
     attribute_value TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_endpoint_attributes_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_endpoint_attribute UNIQUE (runtime_id, endpoint_name, attribute_name)
+    PRIMARY KEY (runtime_id, endpoint_name, attribute_name),
+    CONSTRAINT fk_runtime_endpoint_attributes_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_endpoint_attributes_runtime_id ON runtime_endpoint_attributes (runtime_id);
@@ -898,29 +887,34 @@ CREATE INDEX idx_runtime_endpoints_runtime_id ON runtime_endpoints (runtime_id);
 
 CREATE INDEX idx_runtime_endpoints_endpoint_name ON runtime_endpoints (endpoint_name);
 
+CREATE INDEX idx_runtime_endpoints_artifact_id ON runtime_endpoints (artifact_id);
+
 CREATE INDEX idx_runtime_endpoints_endpoint_type ON runtime_endpoints (endpoint_type);
 
 CREATE INDEX idx_runtime_endpoints_state ON runtime_endpoints (state);
 
 -- Inbound Endpoints (MI)
 CREATE TABLE runtime_inbound_endpoints (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     inbound_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     protocol VARCHAR(50) NOT NULL,
     sequence VARCHAR(200),
     statistics VARCHAR(20),
     on_error VARCHAR(200),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
+    tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_inbound_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_inbound_endpoint UNIQUE (runtime_id, inbound_name)
+    PRIMARY KEY (runtime_id, inbound_name),
+    CONSTRAINT fk_runtime_inbound_endpoints_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_inbound_endpoints_runtime_id ON runtime_inbound_endpoints (runtime_id);
 
 CREATE INDEX idx_runtime_inbound_endpoints_inbound_name ON runtime_inbound_endpoints (inbound_name);
+
+CREATE INDEX idx_runtime_inbound_endpoints_artifact_id ON runtime_inbound_endpoints (artifact_id);
 
 CREATE INDEX idx_runtime_inbound_endpoints_protocol ON runtime_inbound_endpoints (protocol);
 
@@ -928,21 +922,24 @@ CREATE INDEX idx_runtime_inbound_endpoints_state ON runtime_inbound_endpoints (s
 
 -- Sequences (MI)
 CREATE TABLE runtime_sequences (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     sequence_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     sequence_type VARCHAR(100),
     container VARCHAR(200),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
+    tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_sequences_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_sequence UNIQUE (runtime_id, sequence_name)
+    PRIMARY KEY (runtime_id, sequence_name),
+    CONSTRAINT fk_runtime_sequences_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_sequences_runtime_id ON runtime_sequences (runtime_id);
 
 CREATE INDEX idx_runtime_sequences_sequence_name ON runtime_sequences (sequence_name);
+
+CREATE INDEX idx_runtime_sequences_artifact_id ON runtime_sequences (artifact_id);
 
 CREATE INDEX idx_runtime_sequences_sequence_type ON runtime_sequences (sequence_type);
 
@@ -950,34 +947,35 @@ CREATE INDEX idx_runtime_sequences_state ON runtime_sequences (state);
 
 -- Tasks (MI)
 CREATE TABLE runtime_tasks (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     task_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     task_class VARCHAR(500),
     task_group VARCHAR(200),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_tasks_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_task UNIQUE (runtime_id, task_name)
+    PRIMARY KEY (runtime_id, task_name),
+    CONSTRAINT fk_runtime_tasks_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_tasks_runtime_id ON runtime_tasks (runtime_id);
 
 CREATE INDEX idx_runtime_tasks_task_name ON runtime_tasks (task_name);
 
+CREATE INDEX idx_runtime_tasks_artifact_id ON runtime_tasks (artifact_id);
+
 CREATE INDEX idx_runtime_tasks_state ON runtime_tasks (state);
 
 -- Templates (MI)
 CREATE TABLE runtime_templates (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     template_name VARCHAR(200) NOT NULL,
     template_type VARCHAR(100) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_templates_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_template UNIQUE (runtime_id, template_name)
+    PRIMARY KEY (runtime_id, template_name),
+    CONSTRAINT fk_runtime_templates_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_templates_runtime_id ON runtime_templates (runtime_id);
@@ -990,15 +988,14 @@ CREATE INDEX idx_runtime_templates_template_type ON runtime_templates (template_
 
 -- Message Stores (MI)
 CREATE TABLE runtime_message_stores (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     store_name VARCHAR(200) NOT NULL,
     store_type VARCHAR(100) NOT NULL,
     size BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_message_stores_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_message_store UNIQUE (runtime_id, store_name)
+    PRIMARY KEY (runtime_id, store_name),
+    CONSTRAINT fk_runtime_message_stores_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_message_stores_runtime_id ON runtime_message_stores (runtime_id);
@@ -1010,21 +1007,23 @@ CREATE INDEX idx_runtime_message_stores_store_type ON runtime_message_stores (st
 
 -- Message Processors (MI)
 CREATE TABLE runtime_message_processors (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     processor_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     processor_type VARCHAR(100) NOT NULL,
     processor_class VARCHAR(500),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_message_processors_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_message_processor UNIQUE (runtime_id, processor_name)
+    PRIMARY KEY (runtime_id, processor_name),
+    CONSTRAINT fk_runtime_message_processors_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_message_processors_runtime_id ON runtime_message_processors (runtime_id);
 
 CREATE INDEX idx_runtime_message_processors_processor_name ON runtime_message_processors (processor_name);
+
+CREATE INDEX idx_runtime_message_processors_artifact_id ON runtime_message_processors (artifact_id);
 
 CREATE INDEX idx_runtime_message_processors_processor_type ON runtime_message_processors (processor_type);
 
@@ -1032,21 +1031,23 @@ CREATE INDEX idx_runtime_message_processors_state ON runtime_message_processors 
 
 -- Local Entries (MI)
 CREATE TABLE runtime_local_entries (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     entry_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     entry_type VARCHAR(100) NOT NULL,
     entry_value TEXT,
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_local_entries_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_local_entry UNIQUE (runtime_id, entry_name)
+    PRIMARY KEY (runtime_id, entry_name),
+    CONSTRAINT fk_runtime_local_entries_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_local_entries_runtime_id ON runtime_local_entries (runtime_id);
 
 CREATE INDEX idx_runtime_local_entries_entry_name ON runtime_local_entries (entry_name);
+
+CREATE INDEX idx_runtime_local_entries_artifact_id ON runtime_local_entries (artifact_id);
 
 CREATE INDEX idx_runtime_local_entries_entry_type ON runtime_local_entries (entry_type);
 
@@ -1054,27 +1055,28 @@ CREATE INDEX idx_runtime_local_entries_state ON runtime_local_entries (state);
 
 -- Data Services (MI)
 CREATE TABLE runtime_data_services (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     service_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     description TEXT,
     wsdl TEXT,
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_data_services_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_data_service UNIQUE (runtime_id, service_name)
+    PRIMARY KEY (runtime_id, service_name),
+    CONSTRAINT fk_runtime_data_services_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_data_services_runtime_id ON runtime_data_services (runtime_id);
 
 CREATE INDEX idx_runtime_data_services_service_name ON runtime_data_services (service_name);
 
+CREATE INDEX idx_runtime_data_services_artifact_id ON runtime_data_services (artifact_id);
+
 CREATE INDEX idx_runtime_data_services_state ON runtime_data_services (state);
 
 -- Carbon Apps (MI)
 CREATE TABLE runtime_carbon_apps (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     app_name VARCHAR(200) NOT NULL,
     version VARCHAR(50),
@@ -1082,8 +1084,8 @@ CREATE TABLE runtime_carbon_apps (
     artifacts VARCHAR(4000), -- JSON array serialized as string (convert to JSON in app code when needed)
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_carbon_apps_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_carbon_app UNIQUE (runtime_id, app_name)
+    PRIMARY KEY (runtime_id, app_name),
+    CONSTRAINT fk_runtime_carbon_apps_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_carbon_apps_runtime_id ON runtime_carbon_apps (runtime_id);
@@ -1094,18 +1096,17 @@ CREATE INDEX idx_runtime_carbon_apps_state ON runtime_carbon_apps (state);
 
 -- Data Sources (MI)
 CREATE TABLE runtime_data_sources (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     datasource_name VARCHAR(200) NOT NULL,
     datasource_type VARCHAR(100),
     driver VARCHAR(500),
     url VARCHAR(1000),
     username VARCHAR(255),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_data_sources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_data_source UNIQUE (runtime_id, datasource_name)
+    PRIMARY KEY (runtime_id, datasource_name),
+    CONSTRAINT fk_runtime_data_sources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_data_sources_runtime_id ON runtime_data_sources (runtime_id);
@@ -1118,60 +1119,50 @@ CREATE INDEX idx_runtime_data_sources_state ON runtime_data_sources (state);
 
 -- Connectors (MI)
 CREATE TABLE runtime_connectors (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     connector_name VARCHAR(200) NOT NULL,
+    artifact_id CHAR(36) NOT NULL UNIQUE,
     package VARCHAR(200) NOT NULL,
     version VARCHAR(50),
-    state VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
+    state VARCHAR(20) NOT NULL DEFAULT 'enabled',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_connectors_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_connector UNIQUE (
-        runtime_id,
-        connector_name,
-        package
-    )
+    PRIMARY KEY (runtime_id, connector_name, package),
+    CONSTRAINT fk_runtime_connectors_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_connectors_runtime_id ON runtime_connectors (runtime_id);
 
 CREATE INDEX idx_runtime_connectors_connector_name ON runtime_connectors (connector_name);
 
+CREATE INDEX idx_runtime_connectors_artifact_id ON runtime_connectors (artifact_id);
+
 CREATE INDEX idx_runtime_connectors_state ON runtime_connectors (state);
 
 -- Registry Resources (MI)
 CREATE TABLE runtime_registry_resources (
-    id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     runtime_id VARCHAR(100) NOT NULL,
     resource_name VARCHAR(200) NOT NULL,
     resource_type VARCHAR(100),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_runtime_registry_resources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
-    CONSTRAINT uk_runtime_registry_resource UNIQUE (
-        runtime_id,
-        resource_name,
-        resource_type
-    )
+    PRIMARY KEY (runtime_id, resource_name),
+    CONSTRAINT fk_runtime_registry_resources_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_runtime_registry_resources_runtime_id ON runtime_registry_resources (runtime_id);
 
 CREATE INDEX idx_runtime_registry_resources_resource_name ON runtime_registry_resources (resource_name);
-CREATE INDEX idx_runtime_registry_resources_resource_type ON runtime_registry_resources (resource_type);
-
 
 -- ============================================================================
 -- CONTROL COMMANDS
 -- ============================================================================
 
-CREATE TABLE control_commands (
+CREATE TABLE bi_runtime_control_commands (
     command_id CHAR(36) NOT NULL PRIMARY KEY,
     runtime_id VARCHAR(100) NOT NULL,
     target_artifact VARCHAR(200) NOT NULL,
     action VARCHAR(50) NOT NULL,
-    parameters CLOB,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     sent_at TIMESTAMP,
@@ -1185,17 +1176,108 @@ CREATE TABLE control_commands (
     CONSTRAINT fk_control_cmd_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_control_commands_runtime_id ON control_commands (runtime_id);
+CREATE INDEX idx_bi_runtime_control_commands_runtime_id ON bi_runtime_control_commands (runtime_id);
 
-CREATE INDEX idx_control_commands_status ON control_commands (status);
+CREATE INDEX idx_bi_runtime_control_commands_status ON bi_runtime_control_commands (status);
 
-CREATE INDEX idx_control_commands_issued_at ON control_commands (issued_at);
+CREATE INDEX idx_bi_runtime_control_commands_issued_at ON bi_runtime_control_commands (issued_at);
 
-CREATE INDEX idx_control_commands_target_artifact ON control_commands (target_artifact);
+CREATE INDEX idx_bi_runtime_control_commands_target_artifact ON bi_runtime_control_commands (target_artifact);
 
-CREATE INDEX idx_control_commands_action ON control_commands (action);
+CREATE INDEX idx_bi_runtime_control_commands_action ON bi_runtime_control_commands (action);
 
-CREATE INDEX idx_control_commands_issued_by ON control_commands (issued_by);
+CREATE INDEX idx_bi_runtime_control_commands_issued_by ON bi_runtime_control_commands (issued_by);
+
+CREATE TABLE mi_runtime_control_commands (
+    runtime_id VARCHAR(100) NOT NULL,
+    component_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP,
+    acknowledged_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT,
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (runtime_id, component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_runtime_control_cmd_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_runtime_control_cmd_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_runtime_control_cmd_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_mi_runtime_control_commands_runtime_id ON mi_runtime_control_commands (runtime_id);
+
+CREATE INDEX idx_mi_runtime_control_commands_component_id ON mi_runtime_control_commands (component_id);
+
+
+CREATE INDEX idx_mi_runtime_control_commands_status ON mi_runtime_control_commands (status);
+
+CREATE INDEX idx_mi_runtime_control_commands_issued_at ON mi_runtime_control_commands (issued_at);
+
+CREATE INDEX idx_mi_runtime_control_commands_action ON mi_runtime_control_commands (action);
+
+CREATE INDEX idx_mi_runtime_control_commands_issued_by ON mi_runtime_control_commands (issued_by);
+
+CREATE TABLE bi_artifact_intended_state (
+    component_id CHAR(36) NOT NULL,
+    target_artifact VARCHAR(200) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, target_artifact),
+    CONSTRAINT fk_bi_artifact_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_bi_artifact_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_bi_artifact_intended_state_component_id ON bi_artifact_intended_state (component_id);
+
+CREATE INDEX idx_bi_artifact_intended_state_target_artifact ON bi_artifact_intended_state (target_artifact);
+
+CREATE INDEX idx_bi_artifact_intended_state_action ON bi_artifact_intended_state (action);
+
+CREATE INDEX idx_bi_artifact_intended_state_issued_by ON bi_artifact_intended_state (issued_by);
+
+CREATE TABLE mi_artifact_intended_status (
+    component_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_status_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_status_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_mi_artifact_intended_status_component_id ON mi_artifact_intended_status (component_id);
+CREATE INDEX idx_mi_artifact_intended_status_artifact ON mi_artifact_intended_status (artifact_name, artifact_type);
+CREATE INDEX idx_mi_artifact_intended_status_issued_by ON mi_artifact_intended_status (issued_by);
+
+CREATE TABLE mi_artifact_intended_tracing (
+    component_id CHAR(36) NOT NULL,
+    artifact_name VARCHAR(200) NOT NULL,
+    artifact_type VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, artifact_name, artifact_type),
+    CONSTRAINT fk_mi_artifact_tracing_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_artifact_tracing_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_mi_artifact_intended_tracing_component_id ON mi_artifact_intended_tracing (component_id);
+CREATE INDEX idx_mi_artifact_intended_tracing_artifact ON mi_artifact_intended_tracing (artifact_name, artifact_type);
+CREATE INDEX idx_mi_artifact_intended_tracing_issued_by ON mi_artifact_intended_tracing (issued_by);
 
 -- ============================================================================
 -- AUDIT & EVENTS
@@ -1311,6 +1393,23 @@ CREATE TABLE system_config (
 CREATE INDEX idx_system_config_config_type ON system_config (config_type);
 
 CREATE INDEX idx_system_config_updated_at ON system_config (updated_at);
+
+-- ============================================================================
+-- VIEWS
+-- ============================================================================
+
+-- Active MI commands view
+CREATE OR REPLACE VIEW active_mi_commands AS
+SELECT 
+    micc.*,
+    r.runtime_type,
+    r.status AS runtime_status,
+    c.name AS component_name,
+    DATEDIFF('SECOND', micc.issued_at, CURRENT_TIMESTAMP(6)) AS age_seconds
+FROM mi_runtime_control_commands micc
+JOIN runtimes r ON micc.runtime_id = r.runtime_id
+JOIN components c ON micc.component_id = c.component_id
+WHERE micc.status IN ('pending', 'sent');
 
 -- ============================================================================
 -- SAMPLE DATA FOR TESTING

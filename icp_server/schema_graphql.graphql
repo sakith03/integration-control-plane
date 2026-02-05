@@ -49,6 +49,13 @@ type Mutation {
   deleteComponent(componentId: String!): Boolean!
   deleteComponentV2(orgHandler: String!, componentId: String!, projectId: String!): DeleteComponentV2Response!
   updateComponent(component: ComponentUpdateInput!): Component!
+
+  # Artifact Control Mutations
+  updateArtifactStatus(input: ArtifactStatusChangeInput!): ArtifactStatusChangeResponse!
+  updateArtifactTracingStatus(input: ArtifactTracingChangeInput!): ArtifactTracingChangeResponse!
+
+  # Listener Control Mutations
+  updateListenerState(input: ListenerControlInput!): ListenerControlResponse!
 }
 
 # ============================================
@@ -77,6 +84,12 @@ type Runtime {
 type Artifacts {
   listeners: [Listener!]!
   services: [Service!]!
+  apis: [RestApi!]!
+  proxyServices: [ProxyService!]!
+  endpoints: [MIEndpoint!]!
+  inboundEndpoints: [InboundEndpoint!]!
+  sequences: [Sequence!]!
+  tasks: [Task!]!
 }
 
 # ============================================
@@ -106,6 +119,89 @@ type Listener {
 type Resource {
   methods: [String!]!
   url: String!
+}
+
+# ============================================
+# RestApi Type - MI REST API Artifacts
+# ============================================
+type RestApi {
+  name: String!
+  url: String!
+  context: String!
+  version: String
+  state: ArtifactState!
+  tracing: String!
+  resources: [ApiResource!]!
+}
+
+# ============================================
+# ApiResource Type - API Resource Path and Methods
+# ============================================
+type ApiResource {
+  path: String!
+  methods: String!
+}
+
+# ============================================
+# ProxyService Type - MI Proxy Service Artifacts
+# ============================================
+type ProxyService {
+  name: String!
+  state: ArtifactState!
+  tracing: String!
+  endpoints: [String!]
+}
+
+# ============================================
+# MIEndpoint Type - MI Endpoint Artifacts
+# ============================================
+type MIEndpoint {
+  name: String!
+  type: String!
+  state: ArtifactState!
+  tracing: String!
+  attributes: [EndpointAttribute!]
+}
+
+# ============================================
+# EndpointAttribute Type - Endpoint Attribute Key-Value
+# ============================================
+type EndpointAttribute {
+  name: String!
+  value: String
+}
+
+# ============================================
+# InboundEndpoint Type - MI Inbound Endpoint Artifacts
+# ============================================
+type InboundEndpoint {
+  name: String!
+  protocol: String!
+  sequence: String
+  state: ArtifactState!
+  statistics: String
+  onError: String
+  tracing: String!
+}
+
+# ============================================
+# Sequence Type - MI Sequence Artifacts
+# ============================================
+type Sequence {
+  name: String!
+  type: String
+  container: String
+  state: ArtifactState!
+  tracing: String!
+}
+
+# ============================================
+# Task Type - MI Scheduled Task Artifacts
+# ============================================
+type Task {
+  name: String!
+  group: String
+  state: ArtifactState!
 }
 
 # ============================================
@@ -632,6 +728,44 @@ input ComponentUpdateInput {
 }
 
 # ============================================
+# Artifact Status Change Input/Response
+# ============================================
+
+# Input for changing artifact status
+input ArtifactStatusChangeInput {
+  componentId: String!
+  artifactType: String!
+  artifactName: String!
+  status: String!
+}
+
+# Response for artifact status change
+type ArtifactStatusChangeResponse {
+  status: String!
+  message: String!
+  successCount: Int!
+  failedCount: Int!
+  details: [String!]!
+}
+
+# Input for artifact tracing change
+input ArtifactTracingChangeInput {
+  componentId: String!
+  artifactType: String!
+  artifactName: String!
+  trace: String!
+}
+
+# Response for artifact tracing change
+type ArtifactTracingChangeResponse {
+  status: String!
+  message: String!
+  successCount: Int!
+  failedCount: Int!
+  details: [String!]!
+}
+
+# ============================================
 # Input Types for Queries
 # ============================================
 
@@ -770,4 +904,21 @@ type SourceConfigMigrationStatus {
   canMigrate: Boolean!
   existingFileName: String!
   existingFileSchemaVersion: String!
+}
+
+# ============================================
+# Listener Control Input - used for enabling/disabling listeners
+# ============================================
+input ListenerControlInput {
+  runtimeIds: [String!]!
+  listenerName: String!
+  action: ControlAction!
+}
+
+# ============================================
+# Listener Control Response
+# ============================================
+type ListenerControlResponse {
+  success: Boolean!\n  message: String!
+  commandIds: [String!]!
 }

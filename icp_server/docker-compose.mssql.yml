@@ -1,4 +1,4 @@
-# Copyright (c) 2025, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+# Copyright (c) 2026, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
 #
 # WSO2 Inc. licenses this file to you under the Apache License,
 # Version 2.0 (the "License"); you may not use this file except
@@ -15,29 +15,25 @@
 # under the License.
 
 services:
-  mysql-db:
+  mssql-db:
     build:
       context: ./resources/db
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.mssql
     ports:
-      - "3306:3306"
-    container_name: icp-mysql-local
+      - "1433:1433"
+    container_name: icp-mssql-local
     environment:
-      MYSQL_ROOT_PASSWORD: my-secret-pw
-      MYSQL_DATABASE: icp_database
+      ACCEPT_EULA: "1"
+      MSSQL_SA_PASSWORD: "YourStrong@Passw0rd"
+      MSSQL_DB: icp_database
     healthcheck:
       test:
         [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-p$$MYSQL_ROOT_PASSWORD",
+          "CMD-SHELL",
+          'SQLCMDPASSWORD="$$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -Q "SELECT 1" || exit 1',
         ]
-      interval: 5s
-      timeout: 5s
+      interval: 10s
+      timeout: 10s
       retries: 30
-      start_period: 40s
+      start_period: 90s
+    # network_mode: host

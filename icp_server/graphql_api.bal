@@ -21,7 +21,6 @@ import icp_server.types;
 import ballerina/data.jsondata;
 import ballerina/graphql;
 import ballerina/http;
-import ballerina/jwt;
 import ballerina/lang.value;
 import ballerina/log;
 
@@ -57,17 +56,6 @@ isolated function selectRuntime(types:Runtime[] runtimes, string componentId, st
     return runtime;
 }
 
-isolated function buildManagementBaseUrl(string? managementHost, string? managementPort) returns string|error {
-    if managementHost is () {
-        return error("Management hostname not configured for this runtime");
-    }
-    string baseUrl = string `https://${<string>managementHost}`;
-    if managementPort is string {
-        baseUrl = string `${baseUrl}:${managementPort}`;
-    }
-    return baseUrl;
-}
-
 isolated function contextInit(http:RequestContext reqCtx, http:Request request) returns graphql:Context {
     string|error authorization = request.getHeader("Authorization");
     graphql:Context context = new;
@@ -76,25 +64,6 @@ isolated function contextInit(http:RequestContext reqCtx, http:Request request) 
     }
 
     return context;
-}
-
-// Helper: generate HMAC JWT used to call ICP internal APIs
-isolated function issueRuntimeHmacToken() returns string|error {
-    jwt:IssuerConfig issConfig = {
-        username: "icp-artifact-fetcher",
-        issuer: jwtIssuer,
-        expTime: <decimal>defaultTokenExpiryTime,
-        audience: jwtAudience,
-        signatureConfig: {algorithm: jwt:HS256, config: defaultRuntimeJwtHMACSecret}
-    };
-    issConfig.customClaims["scope"] = "runtime_agent";
-
-    string|jwt:Error hmacToken = jwt:issue(issConfig);
-    if hmacToken is jwt:Error {
-        log:printError("Failed to generate HMAC JWT for internal ICP API", hmacToken);
-        return error("Failed to generate authentication token");
-    }
-    return hmacToken;
 }
 
 // GraphQL service for runtime details
@@ -124,13 +93,15 @@ service /graphql on graphqlListener {
 
     // ----------- Runtime Resources
     // Get all runtimes with optional filtering
-    // Note: componentId is required (always provided by frontend)
-    isolated resource function get runtimes(graphql:Context context, string? status, string? runtimeType, string? environmentId, string? projectId, string componentId) returns types:Runtime[]|error {
+    // componentId is now optional - if not provided, returns all runtimes in the project
+    isolated resource function get runtimes(graphql:Context context, string? status, string? runtimeType, string? environmentId, string? projectId, string? componentId) returns types:Runtime[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
-        // Step 1: Get projectId if not provided (infer from componentId)
+        // Step 1: Determine the actual projectId
         string actualProjectId = projectId ?: "";
-        if actualProjectId == "" {
+
+        // If componentId is provided and projectId is not, infer projectId from componentId
+        if componentId is string && actualProjectId == "" {
             string|error projectIdResult = storage:getProjectIdByComponentId(componentId);
             if projectIdResult is error {
                 return []; // Component not found
@@ -138,15 +109,20 @@ service /graphql on graphqlListener {
             actualProjectId = projectIdResult;
         }
 
+        // If projectId is still empty, we cannot proceed
+        if actualProjectId == "" {
+            return error("Either projectId or componentId must be provided");
+        }
+
         // Step 2: If environmentId is specified, check access to that specific environment
         if environmentId is string {
-            // Build scope with project, integration, and environment
+            // Build scope with project, optional integration, and environment
             types:AccessScope scope = auth:buildScopeFromContext(actualProjectId, integrationId = componentId, envId = environmentId);
 
-            // Check if user has permission to view this integration in this environment
+            // Check if user has permission to view this integration/project in this environment
             if !check auth:hasAnyPermission(userContext.userId,
                     [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
-                return []; // No access to this integration in this environment
+                return []; // No access to this integration/project in this environment
             }
 
             // Fetch runtimes for the specified environment
@@ -733,6 +709,91 @@ service /graphql on graphqlListener {
         return true;
     }
 
+    // Update listener state (enable/disable) by issuing control commands
+    isolated remote function updateListenerState(graphql:Context context, types:ListenerControlInput input) returns types:ListenerControlResponse|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+
+        // Validate inputs
+        if input.runtimeIds.length() == 0 {
+            return error("At least one runtime ID must be provided");
+        }
+
+        if input.listenerName.trim().length() == 0 {
+            return error("Listener name cannot be empty");
+        }
+
+        string[] commandIds = [];
+        map<boolean> processedComponents = {};
+
+        // Process each runtime ID
+        foreach string runtimeId in input.runtimeIds {
+            // Fetch the runtime to get its context
+            types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
+
+            if runtime is () {
+                log:printWarn(string `Runtime ${runtimeId} not found, skipping`);
+                continue;
+            }
+
+            // Build scope from runtime's context
+            types:AccessScope scope = auth:buildScopeFromContext(
+                    runtime.component.projectId,
+                    runtime.component.id,
+                    runtime.environment.id
+            );
+
+            // Check permission to manage this integration's runtime
+            if !check auth:hasPermission(userContext.userId, auth:PERMISSION_INTEGRATION_MANAGE, scope) {
+                log:printWarn(string `User ${userContext.userId} lacks permission to manage runtime ${runtimeId}`);
+                return error(string `Access denied: insufficient permissions to control listener on runtime ${runtimeId}`);
+            }
+
+            // Insert control command
+            string commandId = check storage:insertControlCommand(
+                    runtimeId,
+                    input.listenerName,
+                    input.action,
+                    userContext.userId
+            );
+
+            commandIds.push(commandId);
+            log:printInfo(string `Created control command ${commandId} for runtime ${runtimeId} to ${input.action} listener ${input.listenerName}`);
+
+            // Record intended state per component so all runtimes in the component will sync to the same state
+            string componentId = runtime.component.id;
+            if !processedComponents.hasKey(componentId) {
+                processedComponents[componentId] = true;
+                string actionStr = input.action.toString();
+                error? stateResult = storage:upsertBIArtifactIntendedState(
+                        componentId,
+                        input.listenerName,
+                        actionStr,
+                        userContext.userId
+                );
+
+                if stateResult is error {
+                    log:printWarn(string `Failed to update intended state for listener ${input.listenerName} in component ${componentId}`, stateResult);
+                } else {
+                    log:printInfo(string `Updated intended state for listener ${input.listenerName} to ${actionStr} in component ${componentId}`);
+                }
+            }
+        }
+
+        if commandIds.length() == 0 {
+            return {
+                success: false,
+                message: "No valid runtimes found to issue control commands",
+                commandIds: []
+            };
+        }
+
+        return {
+            success: true,
+            message: string `Successfully created ${commandIds.length()} control command(s) to ${input.action} listener ${input.listenerName}`,
+            commandIds: commandIds
+        };
+    }
+
     // ----------- Environment Resources
     // Create a new environment (super admin only)
     isolated remote function createEnvironment(graphql:Context context, types:EnvironmentInput environment) returns types:Environment|error? {
@@ -1242,6 +1303,391 @@ service /graphql on graphqlListener {
         return check storage:getComponentById(targetComponentId);
     }
 
+    // Change artifact status (active/inactive) for all MI runtimes of a component
+    isolated remote function updateArtifactStatus(graphql:Context context, types:ArtifactStatusChangeInput input) returns types:ArtifactStatusChangeResponse|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+
+        types:Component? component = check storage:getComponentById(input.componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = input.componentId);
+
+        if !check auth:hasAnyPermission(userContext.userId,
+                [auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
+            log:printWarn("Attempt to change artifact status without permission",
+                    userId = userContext.userId, componentId = input.componentId, artifactName = input.artifactName);
+            return error("Insufficient permissions to change artifact status");
+        }
+
+        // Get all MI runtimes for this component
+        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);
+
+        if runtimes.length() == 0 {
+            log:printWarn("No MI runtimes found for component", componentId = input.componentId);
+            return {
+                status: "failed",
+                message: "No MI runtimes found for this component",
+                successCount: 0,
+                failedCount: 0,
+                details: []
+            };
+        }
+
+        log:printInfo("Creating MI control commands for artifact status change",
+                componentId = input.componentId,
+                artifactType = input.artifactType,
+                artifactName = input.artifactName,
+                status = input.status,
+                runtimeCount = runtimes.length());
+
+        // Determine the action based on status
+        types:MIControlAction action = input.status == "active" ? types:ARTIFACT_ENABLE : types:ARTIFACT_DISABLE;
+
+        // Update intended state for this artifact in the component
+        string actionStr = action;
+        error? stateResult = storage:upsertMIArtifactIntendedStatus(
+                input.componentId,
+                input.artifactName,
+                input.artifactType,
+                actionStr,
+                userContext.userId
+        );
+
+        if stateResult is error {
+            log:printWarn("Failed to update MI artifact intended status",
+                    componentId = input.componentId,
+                    artifactName = input.artifactName,
+                    artifactType = input.artifactType,
+                    errorMessage = stateResult.message());
+        } else {
+            log:printInfo("Updated MI artifact intended status",
+                    componentId = input.componentId,
+                    artifactName = input.artifactName,
+                    artifactType = input.artifactType,
+                    action = actionStr);
+        }
+
+        int successCount = 0;
+        int failedCount = 0;
+        string[] details = [];
+
+        // Insert MI control command for each runtime
+        foreach types:Runtime runtime in runtimes {
+            boolean isRunning = runtime.status == types:RUNNING;
+            string commandStatus = isRunning ? "sent" : "pending";
+
+            error? result = storage:insertMIControlCommand(
+                    runtime.runtimeId,
+                    input.componentId,
+                    input.artifactName,
+                    input.artifactType,
+                    action,
+                    commandStatus,
+                    userContext.userId
+            );
+
+            if result is error {
+                failedCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: FAILED - ${result.message()}`;
+                details.push(detail);
+                log:printError("Failed to insert MI control command for runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName,
+                        errorMessage = result.message());
+            } else if isRunning {
+                // Runtime is online, fire the async HTTP request immediately (fire-and-forget)
+                storage:sendMIControlCommandAsync(
+                        runtime.runtimeId,
+                        input.artifactType,
+                        input.artifactName,
+                        actionStr
+                );
+
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command sent`;
+                details.push(detail);
+                log:printDebug("MI control command sent for runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
+            } else {
+                // Runtime is offline, command queued as pending for delivery on next heartbeat
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command queued (runtime offline)`;
+                details.push(detail);
+                log:printDebug("MI control command queued for offline runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
+            }
+        }
+
+        string overallStatus = successCount > 0 ? "success" : "failed";
+        string message = string `Artifact status change sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
+
+        log:printInfo("Artifact status change commands sent",
+                componentId = input.componentId,
+                artifactName = input.artifactName,
+                successCount = successCount,
+                failedCount = failedCount);
+
+        return {
+            status: overallStatus,
+            message: message,
+            successCount: successCount,
+            failedCount: failedCount,
+            details: details
+        };
+    }
+
+    // Mutation to change artifact tracing (enable/disable)
+    isolated remote function updateArtifactTracingStatus(graphql:Context context, types:ArtifactTracingChangeInput input) returns types:ArtifactTracingChangeResponse|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+
+        types:Component? component = check storage:getComponentById(input.componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = input.componentId);
+
+        if !check auth:hasAnyPermission(userContext.userId,
+                [auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
+            log:printWarn("Attempt to change artifact tracing without permission",
+                    userId = userContext.userId, componentId = input.componentId, artifactName = input.artifactName);
+            return error("Insufficient permissions to change artifact tracing");
+        }
+
+        // Get all MI runtimes for this component
+        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);
+
+        if runtimes.length() == 0 {
+            log:printWarn("No MI runtimes found for component", componentId = input.componentId);
+            return {
+                status: "failed",
+                message: "No MI runtimes found for this component",
+                successCount: 0,
+                failedCount: 0,
+                details: []
+            };
+        }
+
+        log:printInfo("Creating MI control commands for artifact tracing change",
+                componentId = input.componentId,
+                artifactType = input.artifactType,
+                artifactName = input.artifactName,
+                trace = input.trace,
+                runtimeCount = runtimes.length());
+
+        // Determine the action based on trace
+        types:MIControlAction action = input.trace == "enable" ? types:ARTIFACT_ENABLE_TRACING : types:ARTIFACT_DISABLE_TRACING;
+
+        // Update intended state for this artifact in the component
+        string actionStr = action;
+        error? stateResult = storage:upsertMIArtifactIntendedTracing(
+                input.componentId,
+                input.artifactName,
+                input.artifactType,
+                actionStr,
+                userContext.userId
+        );
+
+        if stateResult is error {
+            log:printWarn("Failed to update MI artifact intended tracing",
+                    componentId = input.componentId,
+                    artifactName = input.artifactName,
+                    artifactType = input.artifactType,
+                    errorMessage = stateResult.message());
+        } else {
+            log:printInfo("Updated MI artifact intended tracing",
+                    componentId = input.componentId,
+                    artifactName = input.artifactName,
+                    artifactType = input.artifactType,
+                    action = actionStr);
+        }
+
+        int successCount = 0;
+        int failedCount = 0;
+        string[] details = [];
+
+        // Insert MI control command for each runtime
+        foreach types:Runtime runtime in runtimes {
+            boolean isRunning = runtime.status == types:RUNNING;
+            string commandStatus = isRunning ? "sent" : "pending";
+
+            error? result = storage:insertMIControlCommand(
+                    runtime.runtimeId,
+                    input.componentId,
+                    input.artifactName,
+                    input.artifactType,
+                    action,
+                    commandStatus,
+                    userContext.userId
+            );
+
+            if result is error {
+                failedCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: FAILED - ${result.message()}`;
+                details.push(detail);
+                log:printError("Failed to insert MI control command for runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName,
+                        errorMessage = result.message());
+            } else if isRunning {
+                // Runtime is online, fire the async HTTP request immediately (fire-and-forget)
+                storage:sendMIControlCommandAsync(
+                        runtime.runtimeId,
+                        input.artifactType,
+                        input.artifactName,
+                        actionStr
+                );
+
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command sent`;
+                details.push(detail);
+                log:printDebug("MI control command sent for runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
+            } else {
+                // Runtime is offline, command queued as pending for delivery on next heartbeat
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command queued (runtime offline)`;
+                details.push(detail);
+                log:printDebug("MI control command queued for offline runtime",
+                        runtimeId = runtime.runtimeId,
+                        artifactName = input.artifactName);
+            }
+        }
+
+        string overallStatus = successCount > 0 ? "success" : "failed";
+        string message = string `Artifact tracing change sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
+
+        log:printInfo("Artifact tracing change commands sent",
+                componentId = input.componentId,
+                artifactName = input.artifactName,
+                successCount = successCount,
+                failedCount = failedCount);
+
+        return {
+            status: overallStatus,
+            message: message,
+            successCount: successCount,
+            failedCount: failedCount,
+            details: details
+        };
+    }
+
+    // Mutation to trigger a task
+    isolated remote function triggerArtifact(graphql:Context context, types:ArtifactTriggerInput input) returns types:ArtifactTriggerResponse|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+
+        types:Component? component = check storage:getComponentById(input.componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = input.componentId);
+
+        if !check auth:hasAnyPermission(userContext.userId,
+                [auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
+            log:printWarn("Attempt to trigger task without permission",
+                    userId = userContext.userId, componentId = input.componentId, taskName = input.taskName);
+            return error("Insufficient permissions to trigger task");
+        }
+
+        // Get all MI runtimes for this component
+        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);
+
+        if runtimes.length() == 0 {
+            log:printWarn("No MI runtimes found for component", componentId = input.componentId);
+            return {
+                status: "failed",
+                message: "No MI runtimes found for this component",
+                successCount: 0,
+                failedCount: 0,
+                details: []
+            };
+        }
+
+        log:printInfo("Creating MI control commands for task trigger",
+                componentId = input.componentId,
+                taskName = input.taskName,
+                runtimeCount = runtimes.length());
+
+        types:MIControlAction action = types:ARTIFACT_TRIGGER;
+
+        int successCount = 0;
+        int failedCount = 0;
+        string[] details = [];
+
+        // Insert MI control command for each runtime
+        foreach types:Runtime runtime in runtimes {
+            boolean isRunning = runtime.status == types:RUNNING;
+            string commandStatus = isRunning ? "sent" : "pending";
+
+            error? result = storage:insertMIControlCommand(
+                    runtime.runtimeId,
+                    input.componentId,
+                    input.taskName,
+                    types:TASK,
+                    action,
+                    commandStatus,
+                    userContext.userId
+            );
+
+            if result is error {
+                failedCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: FAILED - ${result.message()}`;
+                details.push(detail);
+                log:printError("Failed to insert MI control command for runtime",
+                        runtimeId = runtime.runtimeId,
+                        taskName = input.taskName,
+                        errorMessage = result.message());
+            } else if isRunning {
+                // Runtime is online, fire the async HTTP request immediately (fire-and-forget)
+                string actionStr = action;
+                storage:sendMIControlCommandAsync(
+                        runtime.runtimeId,
+                        types:TASK,
+                        input.taskName,
+                        actionStr
+                );
+
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command sent`;
+                details.push(detail);
+                log:printDebug("MI control command sent for runtime",
+                        runtimeId = runtime.runtimeId,
+                        taskName = input.taskName);
+            } else {
+                // Runtime is offline, command queued as pending for delivery on next heartbeat
+                successCount += 1;
+                string detail = string `Runtime ${runtime.runtimeId}: Command queued (runtime offline)`;
+                details.push(detail);
+                log:printDebug("MI control command queued for offline runtime",
+                        runtimeId = runtime.runtimeId,
+                        taskName = input.taskName);
+            }
+        }
+
+        string overallStatus = successCount > 0 ? "success" : "failed";
+        string message = string `Task trigger sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
+
+        log:printInfo("Task trigger commands sent",
+                componentId = input.componentId,
+                taskName = input.taskName,
+                successCount = successCount,
+                failedCount = failedCount);
+
+        return {
+            status: overallStatus,
+            message: message,
+            successCount: successCount,
+            failedCount: failedCount,
+            details: details
+        };
+    }
+
     // Get available artifact types for a component
     isolated resource function get componentArtifactTypes(graphql:Context context, string componentId, string? environmentId = ()) returns types:ArtifactTypeCount[]|error {
         types:UserContextV2 userContext = check extractUserContext(context);
@@ -1301,7 +1747,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching artifact from runtime management API",
                 runtimeId = runtime.runtimeId,
@@ -1318,7 +1764,7 @@ service /graphql on graphqlListener {
             return error("Failed to create management API client");
         }
         // Generate an HMAC JWT (same mechanism as heartbeat) to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         // Fetch artifact source via ICP Internal API (/icp/artifacts)
         string artifactPath = string `${ICP_ARTIFACTS_PATH}?type=${artifactType}&name=${artifactName}`;
@@ -1410,7 +1856,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         // Normalize artifact type
         string t = artifactType.toLowerAscii();
@@ -1442,7 +1888,7 @@ service /graphql on graphqlListener {
         }
 
         // Generate an HMAC JWT to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         http:Response|error wsdlResponse = mgmtClient->get(artifactPath, {
             "Authorization": string `Bearer ${hmacToken}`,
@@ -1525,7 +1971,7 @@ service /graphql on graphqlListener {
         }
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching local entry from runtime management API",
                 runtimeId = runtime.runtimeId,
@@ -1542,7 +1988,7 @@ service /graphql on graphqlListener {
         }
 
         // Generate an HMAC JWT (same mechanism as heartbeat) to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         // Fetch local entry via ICP Internal API (/icp/artifacts/local-entry)
         string artifactPath = string `${ICP_ARTIFACTS_PATH}/local-entry?name=${entryName}`;
@@ -1616,7 +2062,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching inbound endpoint parameters from management API",
                 runtimeId = runtime.runtimeId,
@@ -1631,7 +2077,7 @@ service /graphql on graphqlListener {
             return error("Failed to create management API client");
         }
 
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
         string artifactPath = string `${ICP_ARTIFACTS_PATH}/inbound/parameters?name=${inboundName}`;
         log:printDebug("Sending ICP internal API inbound parameters request",
                 runtimeId = runtime.runtimeId,
@@ -1746,7 +2192,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
-        string baseUrl = check buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching artifact parameters from management API",
                 runtimeId = runtime.runtimeId,
@@ -1764,7 +2210,7 @@ service /graphql on graphqlListener {
         }
 
         // Generate an HMAC JWT (same mechanism as heartbeat) to call the ICP internal API
-        string hmacToken = check issueRuntimeHmacToken();
+        string hmacToken = check storage:issueRuntimeHmacToken();
 
         // Fetch parameters via ICP Internal API (/icp/artifacts/parameters)
         string artifactPath = string `${ICP_ARTIFACTS_PATH}/parameters?type=${artifactType}&name=${artifactName}`;

@@ -37,10 +37,7 @@ public enum DeploymentType {
 
 public enum RuntimeStatus {
     RUNNING,
-    FAILED,
-    DISABLED,
-    OFFLINE,
-    STOPPED
+    OFFLINE
 }
 
 public enum DeploymentState {
@@ -49,11 +46,8 @@ public enum DeploymentState {
 }
 
 public enum ArtifactState {
-    ENABLED,
-    DISABLED,
-    STARTING,
-    STOPPING,
-    FAILED
+    ENABLED = "enabled",
+    DISABLED = "disabled"
 }
 
 public enum ArtifactType {
@@ -162,14 +156,34 @@ public type DeltaHeartbeat record {|
 |};
 
 // === ICP Control Types ===
+public enum ControlCommandStatus {
+    PENDING,
+    SENT,
+    ACKNOWLEDGED,
+    FAILED,
+    COMPLETED
+};
 
+public enum ControlAction {
+    START,
+    STOP
+}
+
+# Description.
+#
+# + commandId - field description  
+# + runtimeId - field description  
+# + targetArtifact - field description  
+# + action - field description  
+# + issuedAt - field description  
+# + status - field description
 public type ControlCommand record {
     string commandId;
     string runtimeId;
-    string targetArtifact;
-    string action;
+    Artifact targetArtifact;
+    ControlAction action;
     time:Utc issuedAt;
-    string status; // pending, sent, acknowledged, failed
+    ControlCommandStatus status; // pending, sent, acknowledged, failed
 };
 
 public type HeartbeatResponse record {
@@ -179,11 +193,126 @@ public type HeartbeatResponse record {
     string[] errors?;
 };
 
-public type RuntimeRegistrationResponse record {
-    boolean success;
-    string message?;
-    string[] errors?;
+public enum MIControlAction {
+    ARTIFACT_ENABLE,
+    ARTIFACT_DISABLE,
+    ARTIFACT_ENABLE_TRACING,
+    ARTIFACT_DISABLE_TRACING,
+    ARTIFACT_TRIGGER
+}
+
+public enum ComponentType {
+    BI,
+    MI
 };
+
+# MI Runtime Control Command
+#
+# + runtimeId - Runtime ID where the command should be executed
+# + componentId - Component ID that the artifact belongs to
+# + artifactName - Name of the artifact
+# + artifactType - Type of the artifact
+# + action - Control action to perform
+# + status - Current status of the command
+# + issuedAt - Timestamp when the command was issued
+# + sentAt - Timestamp when the command was sent to runtime
+# + acknowledgedAt - Timestamp when the runtime acknowledged the command
+# + completedAt - Timestamp when the command execution completed
+# + errorMessage - Error message if the command failed
+# + issuedBy - User ID who issued the command
+public type MIRuntimeControlCommand record {
+    string runtimeId;
+    string componentId;
+    string artifactName;
+    string artifactType;
+    MIControlAction action;
+    ControlCommandStatus status;
+    time:Utc issuedAt;
+    time:Utc? sentAt?;
+    time:Utc? acknowledgedAt?;
+    time:Utc? completedAt?;
+    string? errorMessage?;
+    string? issuedBy?;
+};
+
+# MI Artifact Intended State
+#
+# + componentId - Component ID that the artifact belongs to
+# + artifactName - Name of the artifact
+# + artifactType - Type of the artifact (e.g., API, Proxy Service, Endpoint)
+# + action - Intended action/state for the artifact
+# + issuedAt - Timestamp when the intended state was set
+# + issuedBy - User ID who set the intended state
+public type MIArtifactIntendedState record {
+    string componentId;
+    string artifactName;
+    string artifactType;
+    MIControlAction action;
+    time:Utc issuedAt;
+    string? issuedBy?;
+};
+
+# Database record for MI Runtime Control Command
+#
+# + runtime_id - field description  
+# + component_id - field description  
+# + artifact_name - field description  
+# + artifact_type - field description  
+# + action - field description  
+# + status - field description  
+# + issued_at - field description  
+# + sent_at - field description  
+# + acknowledged_at - field description  
+# + completed_at - field description  
+# + error_message - field description  
+# + issued_by - field description
+public type MIRuntimeControlCommandDBRecord record {
+    string runtime_id;
+    string component_id;
+    string artifact_name;
+    string artifact_type;
+    string action;
+    string status;
+    time:Utc issued_at;
+    time:Utc? sent_at?;
+    time:Utc? acknowledged_at?;
+    time:Utc? completed_at?;
+    string? error_message?;
+    string? issued_by?;
+};
+
+# Database record for MI Artifact Intended State
+#
+# + component_id - Component ID that the artifact belongs to
+# + artifact_name - Name of the artifact
+# + artifact_type - Type of the artifact (e.g., API, Proxy Service, Endpoint)
+# + action - Intended action/state for the artifact
+public type MIArtifactIntendedStateDBRecord record {
+    string component_id;
+    string artifact_name;
+    string artifact_type;
+    string action;
+};
+
+# Database record for BI Artifact Intended State
+#
+# + target_artifact - Name of the target artifact
+# + action - Intended action/state for the artifact
+public type BIArtifactIntendedStateDBRecord record {
+    string target_artifact;
+    string action;
+};
+
+# Record type for artifact query result from runtime tables
+#
+# + artifact_id - Unique identifier for the artifact (not used in control commands)
+# + state - Current state of the artifact (enabled/disabled)
+# + tracing - Current tracing state of the artifact (enabled/disabled)
+public type ArtifactQueryResult record {|
+    string artifact_id;
+    string state;
+    string tracing?;
+|};
 
 // === Configuration ===
 
@@ -281,6 +410,14 @@ public type RuntimeTypeRecord record {
         name: "component_id"
     }
     string componentId;
+
+public type ControlCommandDBRecord record {
+    string command_id;
+    string runtime_id;
+    string target_artifact;
+    string action;
+    time:Utc issued_at;
+    string status;
 };
 
 // GraphQL response types
@@ -352,7 +489,7 @@ public type ServiceRecordInDB record {
     string service_name;
     string service_package;
     string base_path;
-    string state;
+    ArtifactState state;
     string service_type;
 };
 
@@ -360,7 +497,7 @@ public type ListenerRecordInDB record {
     string listener_name;
     string listener_package;
     string protocol;
-    string state;
+    ArtifactState state;
     string port?;
     string destination?;
     string queue?;
@@ -370,27 +507,30 @@ public type ListenerRecordInDB record {
 // Database record types for MI artifacts
 public type ProxyServiceRecordInDB record {
     string proxy_name;
-    string state;
+    ArtifactState state;
+    string tracing;
 };
 
 public type EndpointRecordInDB record {
     string endpoint_name;
     string endpoint_type;
-    string state;
+    ArtifactState state;
+    string tracing;
 };
 
 public type SequenceRecordInDB record {
     string sequence_name;
     string sequence_type?;
     string container?;
-    string state;
+    ArtifactState state;
+    string tracing;
 };
 
 public type TaskRecordInDB record {
     string task_name;
     string task_class?;
     string task_group?;
-    string state;
+    ArtifactState state;
 };
 
 public type MessageStoreRecordInDB record {
@@ -403,20 +543,20 @@ public type MessageProcessorRecordInDB record {
     string processor_name;
     string processor_type;
     string processor_class?;
-    string state;
+    ArtifactState state;
 };
 
 public type LocalEntryRecordInDB record {
     string entry_name;
     string entry_type;
     string entry_value?;
-    string state;
+    ArtifactState state;
 };
 
 public type CarbonAppRecordInDB record {
     string app_name;
     string version = "";
-    string state;
+    ArtifactState state;
 };
 
 public type RegistryResourceRecordInDB record {
@@ -447,7 +587,7 @@ public type Service record {
     @sql:Column {
         name: "service_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     @sql:Column {
         name: "service_type"
     }
@@ -498,9 +638,9 @@ public type Listener record {
     string path?; // File system path
 
     @sql:Column {
-        name: "listener_state"
+        name: "state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -517,7 +657,8 @@ public type RestApi record {
     @sql:Column {
         name: "api_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
+    string tracing = "disabled"; // "enabled", "disabled"
     ApiResource[] resources = []; // API resources (path + methods)
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
@@ -540,7 +681,8 @@ public type ProxyService record {
     @sql:Column {
         name: "proxy_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
+    string tracing = "disabled"; // "enabled", "disabled"
     string[] endpoints?;
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
@@ -555,7 +697,8 @@ public type Endpoint record {
     @sql:Column {
         name: "endpoint_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state; // "enabled", "disabled"
+    string tracing = "disabled"; // "enabled", "disabled"
     EndpointAttribute[]? attributes?;
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
@@ -591,7 +734,8 @@ public type InboundEndpoint record {
     @sql:Column {
         name: "inbound_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
+    string tracing = "disabled"; // "enabled", "disabled"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -606,7 +750,8 @@ public type Sequence record {
     @sql:Column {
         name: "sequence_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
+    string tracing = "disabled"; // "enabled", "disabled"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -621,7 +766,7 @@ public type Task record {
     @sql:Column {
         name: "task_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -649,7 +794,7 @@ public type MessageStore record {
     @sql:Column {
         name: "store_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -664,7 +809,7 @@ public type MessageProcessor record {
     @sql:Column {
         name: "processor_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -679,7 +824,7 @@ public type LocalEntry record {
     @sql:Column {
         name: "entry_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -694,7 +839,7 @@ public type DataService record {
     @sql:Column {
         name: "dataservice_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -737,7 +882,7 @@ public type DataSource record {
     @sql:Column {
         name: "datasource_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -752,7 +897,7 @@ public type Connector record {
     @sql:Column {
         name: "connector_state"
     }
-    string state = "ENABLED"; // "ENABLED", "DISABLED"
+    ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
 };
@@ -1189,7 +1334,7 @@ public type ApiVersion record {
     string proxyName?;
     string proxyUrl?;
     string proxyId?;
-    string state;
+    ArtifactState state;
     boolean latest;
     string branch?;
     string accessibility?;
@@ -1761,3 +1906,64 @@ public type LocalEntryValue record {|
     string value;
 |};
 
+// Input type for changing artifact status
+public type ArtifactStatusChangeInput record {|
+    string componentId;
+    string artifactType; // e.g., "proxy-service", "endpoint", "inbound-endpoint", "message-processor"
+    string artifactName;
+    string status; // "active" or "inactive"
+|};
+
+// Response for artifact status change
+public type ArtifactStatusChangeResponse record {|
+    string status; // "success" or "failed"
+    string message;
+    int successCount; // Number of runtimes successfully updated
+    int failedCount; // Number of runtimes that failed
+    string[] details; // Detailed status per runtime
+|};
+
+// Input type for changing artifact tracing
+public type ArtifactTracingChangeInput record {|
+    string componentId;
+    string artifactType; // e.g., "proxy-service"
+    string artifactName;
+    string trace; // "enable" or "disable"
+|};
+
+// Response for artifact tracing change
+public type ArtifactTracingChangeResponse record {|
+    string status; // "success" or "failed"
+    string message;
+    int successCount; // Number of runtimes successfully updated
+    int failedCount; // Number of runtimes that failed
+    string[] details; // Detailed status per runtime
+|};
+
+// Input type for triggering task
+public type ArtifactTriggerInput record {|
+    string componentId;
+    string taskName; // Name of the task to trigger
+|};
+
+// Response for artifact trigger
+public type ArtifactTriggerResponse record {|
+    string status; // "success" or "failed"
+    string message;
+    int successCount; // Number of runtimes successfully triggered
+    int failedCount; // Number of runtimes that failed
+    string[] details; // Detailed status per runtime
+|};
+
+// === Listener Control Types ===
+public type ListenerControlInput record {|
+    string[] runtimeIds;
+    string listenerName;
+    ControlAction action;
+|};
+
+public type ListenerControlResponse record {|
+    boolean success;
+    string message;
+    string[] commandIds;
+|};

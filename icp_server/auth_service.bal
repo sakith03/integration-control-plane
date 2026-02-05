@@ -921,6 +921,62 @@ service /auth on httpListener {
         };
     }
 
+    // GET /auth/orgs/{orgHandle}/groups/{groupId}/users - Get users in a group
+    @http:ResourceConfig {
+        auth: [
+            {
+                jwtValidatorConfig: {
+                    issuer: frontendJwtIssuer,
+                    audience: frontendJwtAudience,
+                    signatureConfig: {
+                        secret: defaultJwtHMACSecret
+                    }
+                },
+                scopes: [auth:PERMISSION_USER_MANAGE_GROUPS, auth:PERMISSION_USER_MANAGE_USERS]
+            }
+        ]
+    }
+    isolated resource function get orgs/[string orgHandle]/groups/[string groupId]/users() returns http:Ok|http:BadRequest|http:NotFound|http:Unauthorized|http:InternalServerError {
+        log:printInfo("Fetching users for group", orgHandle = orgHandle, groupId = groupId);
+
+        // Verify group exists
+        types:Group|error existingGroup = storage:getGroupById(groupId);
+        if existingGroup is error {
+            log:printError("Group not found", existingGroup, groupId = groupId);
+            return <http:NotFound>{
+                body: {
+                    message: "Group not found"
+                }
+            };
+        }
+
+        // Get user IDs in the group
+        string[]|error userIds = storage:getGroupUsers(groupId);
+        if userIds is error {
+            log:printError("Error fetching group users", userIds, groupId = groupId);
+            return utils:createInternalServerError("Failed to fetch group users");
+        }
+
+        // Fetch details for each user
+        types:User[] users = [];
+        foreach string userId in userIds {
+            types:User|error user = storage:getUserDetailsById(userId);
+            if user is types:User {
+                users.push(user);
+            } else {
+                log:printWarn(string `Failed to fetch details for user ${userId}`, user);
+            }
+        }
+
+        log:printInfo(string `Successfully fetched ${users.length()} users for group ${groupId}`);
+        return <http:Ok>{
+            body: {
+                users: users,
+                count: users.length()
+            }
+        };
+    }
+
     // DELETE /auth/orgs/{orgHandle}/groups/{groupId}/users/{userId} - Remove user from group
     @http:ResourceConfig {
         auth: [
@@ -1684,6 +1740,19 @@ service /auth on httpListener {
             return utils:createInternalServerError("Failed to create role");
         }
 
+        // Assign permissions if provided
+        if roleInput.permissionIds is string[] {
+            string[] permissionIds = <string[]>roleInput.permissionIds;
+            if permissionIds.length() > 0 {
+                error? assignResult = storage:assignPermissionsToRole(roleId, permissionIds);
+                if assignResult is error {
+                    log:printError("Error assigning permissions to role", assignResult, roleId = roleId);
+                    return utils:createInternalServerError("Role created but failed to assign permissions");
+                }
+                log:printInfo("Successfully assigned permissions to role", roleId = roleId, count = permissionIds.length());
+            }
+        }
+
         // Fetch the created role
         types:RoleV2|error createdRole = storage:getRoleV2ById(roleId);
         if createdRole is error {
@@ -1768,7 +1837,7 @@ service /auth on httpListener {
     isolated resource function put orgs/[string orgHandle]/roles/[string roleId](@http:Payload types:RoleV2Input roleInput) returns http:Ok|http:NotFound|http:Unauthorized|http:InternalServerError {
         log:printInfo("Updating role", orgHandle = orgHandle, roleId = roleId);
 
-        // Update the role
+        // Update the role (name, description)
         error? updateResult = storage:updateRoleV2(roleId, roleInput);
         if updateResult is error {
             log:printError("Error updating role", updateResult, roleId = roleId);
@@ -1780,6 +1849,55 @@ service /auth on httpListener {
                 };
             }
             return utils:createInternalServerError("Failed to update role");
+        }
+
+        // Update permissions if provided
+        if roleInput.permissionIds is string[] {
+            string[] newPermissionIds = <string[]>roleInput.permissionIds;
+            log:printInfo("Updating role permissions", roleId = roleId, permissionCount = newPermissionIds.length());
+
+            // Get current permissions
+            types:Permission[]|error currentPermissions = storage:getRolePermissions(roleId);
+            if currentPermissions is error {
+                log:printError("Error fetching current permissions", currentPermissions, roleId = roleId);
+                return utils:createInternalServerError("Failed to fetch current permissions");
+            }
+
+            // Calculate permissions to add and remove
+            string[] currentPermissionIds = from var p in currentPermissions
+                select p.permissionId;
+
+            // Permissions to add: in new but not in current
+            string[] toAdd = from var permId in newPermissionIds
+                where !currentPermissionIds.some(id => id == permId)
+                select permId;
+
+            // Permissions to remove: in current but not in new
+            string[] toRemove = from var permId in currentPermissionIds
+                where !newPermissionIds.some(id => id == permId)
+                select permId;
+
+            // Remove permissions
+            if toRemove.length() > 0 {
+                error? removeResult = storage:removePermissionsFromRole(roleId, toRemove);
+                if removeResult is error {
+                    log:printError("Error removing permissions from role", removeResult, roleId = roleId);
+                    return utils:createInternalServerError("Failed to remove permissions from role");
+                }
+                log:printInfo("Removed permissions from role", roleId = roleId, count = toRemove.length());
+            }
+
+            // Add permissions
+            if toAdd.length() > 0 {
+                error? addResult = storage:assignPermissionsToRole(roleId, toAdd);
+                if addResult is error {
+                    log:printError("Error adding permissions to role", addResult, roleId = roleId);
+                    return utils:createInternalServerError("Failed to add permissions to role");
+                }
+                log:printInfo("Added permissions to role", roleId = roleId, count = toAdd.length());
+            }
+
+            log:printInfo("Successfully updated role permissions", roleId = roleId, added = toAdd.length(), removed = toRemove.length());
         }
 
         // Fetch the updated role

@@ -31,10 +31,11 @@ public isolated function storeRefreshToken(string tokenId, string userId, string
     time:Utc expiryUtc = [<int>expiryEpoch, currentTime[1]];
     string expiryUtcStr = check convertUtcToDbDateTime(expiryUtc);
 
-    sql:ExecutionResult|sql:Error result = dbClient->execute(
-        `INSERT INTO refresh_tokens (token_id, user_id, token_hash, expires_at, user_agent, ip_address) 
-         VALUES (${tokenId}, ${userId}, ${tokenHash}, ${expiryUtcStr}, ${userAgent}, ${ipAddress})`
-        );
+    sql:ParameterizedQuery insertQuery = sql:queryConcat(
+            `INSERT INTO refresh_tokens (token_id, user_id, token_hash, expires_at, user_agent, ip_address) 
+         VALUES (${tokenId}, ${userId}, ${tokenHash}, `, sql:queryConcat(sqlQueryFromString(timestampCast(expiryUtcStr)), `, ${userAgent}, ${ipAddress})`)
+    );
+    sql:ExecutionResult|sql:Error result = dbClient->execute(insertQuery);
 
     if result is sql:Error {
         log:printError(string `Failed to store refresh token for user ${userId}`, result);
@@ -108,11 +109,12 @@ public isolated function validateRefreshToken(string tokenHash) returns types:Us
 public isolated function revokeRefreshToken(string tokenHash) returns error? {
     log:printDebug("Revoking refresh token");
 
-    sql:ExecutionResult|sql:Error result = dbClient->execute(
-        `UPDATE refresh_tokens 
-         SET revoked = TRUE, revoked_at = CURRENT_TIMESTAMP 
-         WHERE token_hash = ${tokenHash}`
-        );
+    sql:ParameterizedQuery updateQuery = sql:queryConcat(
+            `UPDATE refresh_tokens 
+         SET revoked = `, sql:queryConcat(sqlQueryFromString(TRUE_LITERAL), `, revoked_at = CURRENT_TIMESTAMP 
+         WHERE token_hash = ${tokenHash}`)
+    );
+    sql:ExecutionResult|sql:Error result = dbClient->execute(updateQuery);
 
     if result is sql:Error {
         log:printError("Failed to revoke refresh token", result);
@@ -133,11 +135,13 @@ public isolated function revokeRefreshToken(string tokenHash) returns error? {
 public isolated function revokeAllUserRefreshTokens(string userId) returns error? {
     log:printDebug(string `Revoking all refresh tokens for user: ${userId}`);
 
-    sql:ExecutionResult|sql:Error result = dbClient->execute(
-        `UPDATE refresh_tokens 
-         SET revoked = TRUE, revoked_at = CURRENT_TIMESTAMP 
-         WHERE user_id = ${userId} AND revoked = FALSE`
-        );
+    sql:ParameterizedQuery updateQuery = sql:queryConcat(
+            `UPDATE refresh_tokens 
+         SET revoked = `, sql:queryConcat(sqlQueryFromString(TRUE_LITERAL),
+                    sql:queryConcat(`, revoked_at = CURRENT_TIMESTAMP 
+         WHERE user_id = ${userId} AND revoked = `, sqlQueryFromString(FALSE_LITERAL)))
+    );
+    sql:ExecutionResult|sql:Error result = dbClient->execute(updateQuery);
 
     if result is sql:Error {
         log:printError(string `Failed to revoke refresh tokens for user ${userId}`, result);
@@ -153,10 +157,11 @@ public isolated function revokeAllUserRefreshTokens(string userId) returns error
 public isolated function cleanupExpiredRefreshTokens() returns error? {
     log:printDebug("Cleaning up expired refresh tokens");
 
-    sql:ExecutionResult|sql:Error result = dbClient->execute(
-        `DELETE FROM refresh_tokens 
-         WHERE expires_at < CURRENT_TIMESTAMP OR revoked = TRUE`
-        );
+    sql:ParameterizedQuery deleteQuery = sql:queryConcat(
+            `DELETE FROM refresh_tokens 
+         WHERE expires_at < CURRENT_TIMESTAMP OR revoked = `, sqlQueryFromString(TRUE_LITERAL)
+    );
+    sql:ExecutionResult|sql:Error result = dbClient->execute(deleteQuery);
 
     if result is sql:Error {
         log:printError("Failed to cleanup expired refresh tokens", result);

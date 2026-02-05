@@ -36,8 +36,6 @@ configurable string truststorePassword = "ballerina";
 configurable string webServerKeystorePath = check file:joinPath("..", "conf", "security", "keystore.p12");
 configurable string webServerKeystorePassword = "changeit";
 
-configurable types:DeploymentType deploymentType = "VM";
-
 configurable int schedulerIntervalSeconds = 600;
 configurable int refreshTokenCleanupIntervalSeconds = 86400; // 24 hours (in seconds)
 
@@ -51,12 +49,13 @@ configurable decimal jwtClockSkewSeconds = 10;
 configurable string defaultJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
 configurable string frontendJwtIssuer = "icp-frontend-jwt-issuer";
 configurable string frontendJwtAudience = "icp-server";
+
 configurable int defaultTokenExpiryTime = 3600; // 1 hour (in seconds)
 
 configurable string defaultRuntimeJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
 
 // Refresh token configuration
-configurable int refreshTokenExpiryTime = 604800; // 7 days (in seconds)
+configurable int refreshTokenExpiryTime = 86400; // 1 day (in seconds)
 configurable boolean enableRefreshTokenRotation = true; // Rotate refresh token on each use
 configurable int maxRefreshTokensPerUser = 10; // Maximum number of active refresh tokens per user (0 = unlimited)
 
@@ -94,7 +93,7 @@ configurable string opensearchPassword = "Ballerina@123";
 configurable boolean artifactsApiAllowInsecureTLS = true;
 
 // Build SSO configuration from configurable values
- public isolated function getSSOConfig() returns types:SSOConfig => {
+public isolated function getSSOConfig() returns types:SSOConfig => {
     enabled: ssoEnabled,
     issuer: ssoIssuer,
     authorizationEndpoint: ssoAuthorizationEndpoint,
