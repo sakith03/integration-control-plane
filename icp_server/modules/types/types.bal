@@ -410,6 +410,7 @@ public type RuntimeTypeRecord record {
         name: "component_id"
     }
     string componentId;
+};
 
 public type ControlCommandDBRecord record {
     string command_id;
