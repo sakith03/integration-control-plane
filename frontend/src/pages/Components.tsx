@@ -21,7 +21,7 @@ import { Box, Button, Card, CardContent, Chip, IconButton, ListingTable, Menu, M
 import { Plus, MoreVertical, Filter, Download, FileText, Key, Shield, RefreshCw, Lock, Inbox } from '@wso2/oxygen-ui-icons-react';
 import { useNavigate, useParams, Link as NavigateLink } from 'react-router';
 import { mockComponents } from '../mock-data/mockComponents';
-import { projectUrl, newComponentUrl, componentOverviewUrl, editComponentUrl } from '../paths';
+import { projectUrl, newComponentUrl, componentUrl, editComponentUrl } from '../paths';
 import { getStatusColor } from '../config/statusColors';
 
 const ICONS: Record<string, any> = {
@@ -158,7 +158,7 @@ export default function Components(): JSX.Element {
                 paginated.map((c) => {
                   const TI = Icon(c.type);
                   return (
-                    <ListingTable.Row key={c.id} variant="card" hover clickable onClick={() => orgId && id && navigate(componentOverviewUrl(orgId, id, c.id))}>
+                    <ListingTable.Row key={c.id} variant="card" hover clickable onClick={() => orgId && id && navigate(componentUrl(orgId, id, c.id))}>
                       <ListingTable.Cell>
                         <ListingTable.CellIcon icon={<TI size={20} />} primary={c.name} secondary={c.description} />
                       </ListingTable.Cell>
@@ -207,7 +207,7 @@ export default function Components(): JSX.Element {
         anchor={menu.el}
         onClose={() => setMenu({ el: null, id: null })}
         onView={() => {
-          orgId && id && menu.id && navigate(componentOverviewUrl(orgId, id, menu.id));
+          orgId && id && menu.id && navigate(componentUrl(orgId, id, menu.id));
           setMenu({ el: null, id: null });
         }}
         onEdit={() => {

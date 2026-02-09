@@ -40,10 +40,10 @@ export const navigationCategories: NavigationCategory[] = [
         icon: BarChart3,
         children: [
           {
-            id: 'analytics-overview',
-            label: 'Overview',
+            id: 'analytics-dashboard',
+            label: 'Dashboard',
             icon: PieChart,
-            href: analytics.overview,
+            href: analytics.base,
           },
           {
             id: 'analytics-reports',
@@ -121,10 +121,10 @@ export const navigationCategories: NavigationCategory[] = [
         icon: Shield,
         children: [
           {
-            id: 'security-overview',
-            label: 'Overview',
+            id: 'security-dashboard',
+            label: 'Dashboard',
             icon: Shield,
-            href: security.overview,
+            href: security.base,
           },
           {
             id: 'security-api-keys',

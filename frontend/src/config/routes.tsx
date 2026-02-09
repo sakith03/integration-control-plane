@@ -1,5 +1,5 @@
 import { type RouteProps, Navigate } from 'react-router';
-import { rootUrl, loginUrl, orgHomeUrl, projectUrl, componentOverviewUrl } from '../paths';
+import { rootUrl, loginUrl, orgUrl, projectUrl, componentUrl } from '../paths';
 import PublicLayout from '../layouts/PublicLayout';
 import Login from '../pages/Login';
 import AppLayout from '../layouts/AppLayout';
@@ -20,9 +20,9 @@ const routes: AppRoute[] = [
   {
     element: <AppLayout />,
     children: [
-      { path: orgHomeUrl(':orgHandler'), element: <Projects /> },
+      { path: orgUrl(':orgHandler'), element: <Projects /> },
       { path: projectUrl(':orgHandler', ':projectId'), element: <Project /> },
-      { path: componentOverviewUrl(':orgHandler', ':projectId', ':componentHandler'), element: <Component /> },
+      { path: componentUrl(':orgHandler', ':projectId', ':componentHandler'), element: <Component /> },
     ],
   },
 ];

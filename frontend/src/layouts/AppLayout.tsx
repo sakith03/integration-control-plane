@@ -48,7 +48,7 @@ import Logo from '../components/Logo';
 import { BarChart3, Bell, Building, ChevronRight, LayoutDashboard, LogOut, ScrollText, Settings, User as UserIcon, X } from '@wso2/oxygen-ui-icons-react';
 import { useProject, useProjects, useComponents } from '../api/queries';
 import { mockNotifications } from '../mock-data/mockNotifications';
-import { orgHomeUrl, projectUrl, componentOverviewUrl, loginUrl } from '../paths';
+import { orgUrl, projectUrl, componentUrl, loginUrl } from '../paths';
 
 export default function AppLayout(): JSX.Element {
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ export default function AppLayout(): JSX.Element {
   const handleSelect = (id: string) => {
     setActiveItem(id);
     if (!inProject) return;
-    if (id === 'overview') navigate(inComponent ? componentOverviewUrl(orgHandler, projectId!, componentHandler!) : projectUrl(orgHandler, projectId!));
+    if (id === 'overview') navigate(inComponent ? componentUrl(orgHandler, projectId!, componentHandler!) : projectUrl(orgHandler, projectId!));
   };
 
   return (
@@ -127,7 +127,7 @@ export default function AppLayout(): JSX.Element {
                     </ComplexSelect.MenuItem>
                   ))}
                 </ComplexSelect>
-                <IconButton size="small" onClick={() => navigate(orgHomeUrl(orgHandler))}>
+                <IconButton size="small" onClick={() => navigate(orgUrl(orgHandler))}>
                   <X size={14} />
                 </IconButton>
               </Stack>
@@ -136,7 +136,7 @@ export default function AppLayout(): JSX.Element {
               <Stack direction="row" alignItems="center" gap={0.5}>
                 <ComplexSelect
                   value={componentHandler}
-                  onChange={(e) => navigate(componentOverviewUrl(orgHandler, projectId!, String(e.target.value)))}
+                  onChange={(e) => navigate(componentUrl(orgHandler, projectId!, String(e.target.value)))}
                   size="small"
                   sx={{ minWidth: 160 }}
                   renderValue={() => <ComplexSelect.MenuItem.Text primary={componentHandler} secondary="Integration" />}
@@ -180,7 +180,7 @@ export default function AppLayout(): JSX.Element {
         <Sidebar collapsed={shell.sidebarCollapsed} activeItem={activeItem} expandedMenus={shell.expandedMenus} onSelect={handleSelect} onToggleExpand={actions.toggleMenu}>
           <Sidebar.Nav>
             <Sidebar.Category>
-              <Link component={NavLink} to={inProject ? projectUrl(orgHandler, projectId!) : orgHomeUrl(orgHandler)}>
+              <Link component={NavLink} to={inProject ? projectUrl(orgHandler, projectId!) : orgUrl(orgHandler)}>
                 <Sidebar.Item id="overview">
                   <Sidebar.ItemIcon>
                     <LayoutDashboard size={20} />

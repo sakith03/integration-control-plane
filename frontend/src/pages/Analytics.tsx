@@ -23,7 +23,6 @@ import { useNavigate, useParams } from 'react-router';
 import { orgAnalyticsLogsUrl } from '../paths';
 import { useState, type JSX, type ReactNode } from 'react';
 
-type ChartData<T> = T[];
 type Stat = {
   label: string;
   value: string | number;
@@ -116,7 +115,7 @@ const ChartContainer = ({ title, children }: { title: string; children: ReactNod
   </Card>
 );
 
-export default function AnalyticsOverview(): JSX.Element {
+export default function AnalyticsDashboard(): JSX.Element {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const [tab, setTab] = useState(0);
@@ -127,9 +126,9 @@ export default function AnalyticsOverview(): JSX.Element {
         <PageTitle.Header>
           Analytics <Chip label="Active" size="small" color="success" />
         </PageTitle.Header>
-        <PageTitle.SubHeader>Overview of activities</PageTitle.SubHeader>
+        <PageTitle.SubHeader>Dashboard of activities</PageTitle.SubHeader>
         <PageTitle.Actions>
-          <Button variant="outlined" startIcon={<Logs size={18} />} onClick={() => navigate(orgAnalyticsLogsUrl(orgId))}>
+          <Button variant="outlined" startIcon={<Logs size={18} />} onClick={() => navigate(orgAnalyticsLogsUrl(orgId ?? ''))}>
             View logs
           </Button>
         </PageTitle.Actions>

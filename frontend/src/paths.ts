@@ -1,5 +1,6 @@
 /**
  * Single source of truth for app and external URLs. Pure functions and constants only.
+ * id = uuid, handle = slug
  */
 
 export function rootUrl(): string {
@@ -10,12 +11,12 @@ export function loginUrl(): string {
   return '/login';
 }
 
-export function orgHomeUrl(orgHandler: string): string {
-  return `/organizations/${orgHandler}/home`;
+export function orgUrl(orgHandler: string): string {
+  return `/organizations/${orgHandler}`;
 }
 
 export function orgProjectsUrl(orgHandler: string): string {
-  return orgHomeUrl(orgHandler);
+  return orgUrl(orgHandler);
 }
 
 export function newOrgUrl(): string {
@@ -31,15 +32,15 @@ export function newProjectUrl(orgHandler: string): string {
 }
 
 export function projectUrl(orgHandler: string, projectId: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/home`;
+  return `/organizations/${orgHandler}/projects/${projectId}`;
 }
 
 export function projectComponentsUrl(orgHandler: string, projectId: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/home`;
+  return `/organizations/${orgHandler}/projects/${projectId}`;
 }
 
-export function componentOverviewUrl(orgHandler: string, projectId: string, componentHandler: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/components/${componentHandler}/overview`;
+export function componentUrl(orgHandler: string, projectId: string, componentHandler: string): string {
+  return `/organizations/${orgHandler}/projects/${projectId}/components/${componentHandler}`;
 }
 
 export function newComponentUrl(orgHandler: string, projectId: string): string {
@@ -67,7 +68,7 @@ export const external = {
 
 export const dashboard = '/dashboard';
 export const analytics = {
-  overview: '/analytics/overview',
+  base: '/analytics',
   reports: '/analytics/reports',
   realtime: '/analytics/realtime',
   trends: '/analytics/trends',
@@ -75,7 +76,7 @@ export const analytics = {
 export const users = { list: '/users', roles: '/users/roles', permissions: '/users/permissions' } as const;
 export const projects = '/projects';
 export const integrations = '/integrations';
-export const security = { overview: '/security', apiKeys: '/security/api-keys' } as const;
+export const security = { base: '/security', apiKeys: '/security/api-keys' } as const;
 export const databases = '/databases';
 export const domains = '/domains';
 export const settings = { base: '/settings', notifications: '/settings/notifications' } as const;
