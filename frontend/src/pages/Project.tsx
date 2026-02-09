@@ -1,5 +1,6 @@
-import { Avatar, Button, Card, CardContent, CircularProgress, Divider, Grid, IconButton, List, ListItem, ListItemText, ListingTable, PageContent, Stack, TextField, InputAdornment, Typography } from '@wso2/oxygen-ui';
-import { Clock, Plus, RefreshCw, Search } from '@wso2/oxygen-ui-icons-react';
+import { Avatar, Button, Card, CardContent, CircularProgress, Divider, Grid, IconButton, List, ListItem, ListItemText, ListingTable, PageContent, Stack, Typography } from '@wso2/oxygen-ui';
+import { Clock, Plus, RefreshCw } from '@wso2/oxygen-ui-icons-react';
+import SearchField from '../components/SearchField';
 import { useNavigate, useParams } from 'react-router';
 import { useState, type JSX } from 'react';
 import { useProject, useComponents, type GqlComponent } from '../api/queries';
@@ -20,22 +21,7 @@ function IntegrationsTable({ components, isLoading, onSelect }: { components: Gq
         <IconButton size="small">
           <RefreshCw size={16} />
         </IconButton>
-        <TextField
-          placeholder="Search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          size="small"
-          sx={{ flex: 1 }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search size={16} />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
+        <SearchField value={query} onChange={setQuery} placeholder="Search" sx={{ flex: 1 }} />
         <Button variant="contained" startIcon={<Plus size={16} />}>
           Create
         </Button>

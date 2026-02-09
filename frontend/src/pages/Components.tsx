@@ -23,6 +23,7 @@ import { useNavigate, useParams, Link as NavigateLink } from 'react-router';
 import { mockComponents } from '../mock-data/mockComponents';
 import { projectUrl, newComponentUrl, componentUrl, editComponentUrl } from '../paths';
 import { getStatusColor } from '../config/statusColors';
+import { capitalize } from '../utils/string';
 
 const ICONS: Record<string, any> = {
   Authentication: Key,
@@ -54,9 +55,7 @@ const FilterBar = ({ filters, onChange }: { filters: Filters; onChange: (f: Part
           <Select value={filters.status} onChange={(e) => onChange({ status: e.target.value as string })}>
             <MenuItem value="all">All Status</MenuItem>
             {['active', 'inactive', 'draft'].map((s) => (
-              <MenuItem key={s} value={s}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </MenuItem>
+              <MenuItem key={s} value={s}>{capitalize(s)}</MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -130,7 +129,7 @@ export default function Components(): JSX.Element {
               <ListingTable.Row>
                 {['name', 'type', 'category', 'status', 'author', 'lastModified'].map((f) => (
                   <ListingTable.Cell key={f}>
-                    <ListingTable.SortLabel field={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</ListingTable.SortLabel>
+                    <ListingTable.SortLabel field={f}>{f === 'lastModified' ? 'Last modified' : capitalize(f)}</ListingTable.SortLabel>
                   </ListingTable.Cell>
                 ))}
                 <ListingTable.Cell align="right">Actions</ListingTable.Cell>

@@ -1,5 +1,6 @@
-import { Avatar, Badge, Card, CardContent, Chip, CircularProgress, Grid, List, ListItemButton, ListItemText, ListingTable, PageContent, Stack, Tab, Tabs, TextField, InputAdornment, Typography } from '@wso2/oxygen-ui';
-import { ChevronRight, Search } from '@wso2/oxygen-ui-icons-react';
+import { Avatar, Badge, Card, CardContent, Chip, CircularProgress, Grid, List, ListItemButton, ListItemText, ListingTable, PageContent, Stack, Tab, Tabs, Typography } from '@wso2/oxygen-ui';
+import { ChevronRight } from '@wso2/oxygen-ui-icons-react';
+import SearchField from '../components/SearchField';
 import { useParams } from 'react-router';
 import { useState, type JSX } from 'react';
 import { useComponentByHandler, useEnvironments, useRuntimes, useArtifactTypes, useArtifacts, type GqlEnvironment, type GqlRuntime, type GqlArtifact, ARTIFACT_QUERY_MAP } from '../api/queries';
@@ -22,22 +23,7 @@ function RuntimesTable({ envId, projectId, componentId }: { envId: string; proje
 
   return (
     <section>
-      <TextField
-        placeholder="Search by Runtime ID, Type, Status..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        size="small"
-        sx={{ mb: 2, maxWidth: 400 }}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search size={16} />
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
+      <SearchField value={query} onChange={setQuery} placeholder="Search by Runtime ID, Type, Status..." sx={{ mb: 2, maxWidth: 400 }} />
       <ListingTable.Container disablePaper>
         <ListingTable density="compact">
           <ListingTable.Head>
@@ -159,23 +145,7 @@ function ArtifactsPanel({ envId, componentId }: { envId: string; componentId: st
         <Typography variant="overline" sx={{ mb: 1, display: 'block' }}>
           {activeType}s
         </Typography>
-        <TextField
-          placeholder={`Search ${activeType}s by name, context, or version`}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          size="small"
-          fullWidth
-          sx={{ mb: 2 }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search size={16} />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
+        <SearchField value={query} onChange={setQuery} placeholder={`Search ${activeType}s by name, context, or version`} fullWidth sx={{ mb: 2 }} />
         {loadingArtifacts ? <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} /> : <ArtifactDetail artifacts={artifacts} artifactType={activeType} query={query} />}
       </Grid>
     </Grid>

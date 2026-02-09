@@ -16,8 +16,10 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Typography, TextField, InputAdornment, Chip, Select, MenuItem, FormControl, FormLabel, Switch, FormControlLabel, Divider, PageContent, PageTitle } from '@wso2/oxygen-ui';
-import { Search, Download, RefreshCw, Filter, AlertCircle, CheckCircle, AlertTriangle, Info } from '@wso2/oxygen-ui-icons-react';
+import { Box, Button, Card, CardContent, Typography, Chip, Select, MenuItem, FormControl, FormLabel, Switch, FormControlLabel, Divider, PageContent, PageTitle } from '@wso2/oxygen-ui';
+import { Download, RefreshCw, Filter, AlertCircle, CheckCircle, AlertTriangle, Info } from '@wso2/oxygen-ui-icons-react';
+import SearchField from '../components/SearchField';
+import { capitalize } from '../utils/string';
 import { Link as NavigateLink, useParams } from 'react-router';
 import { orgAnalyticsUrl } from '../paths';
 import { useState, type JSX, type ReactNode } from 'react';
@@ -154,30 +156,14 @@ export default function Logs(): JSX.Element {
               alignItems: 'end',
             }}>
             <Box sx={{ flexGrow: 1, minWidth: 250 }}>
-              <TextField
-                fullWidth
-                placeholder="Search logs..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search size={20} />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
+              <SearchField value={query} onChange={setQuery} placeholder="Search logs..." size="medium" fullWidth />
             </Box>
             <FormControl sx={{ minWidth: 150 }}>
               <FormLabel>Level</FormLabel>
               <Select value={level} onChange={(e) => setLevel(e.target.value as string)}>
                 <MenuItem value="all">All Levels</MenuItem>
                 {['success', 'info', 'warning', 'error'].map((l) => (
-                  <MenuItem key={l} value={l}>
-                    {l.charAt(0).toUpperCase() + l.slice(1)}
-                  </MenuItem>
+                  <MenuItem key={l} value={l}>{capitalize(l)}</MenuItem>
                 ))}
               </Select>
             </FormControl>

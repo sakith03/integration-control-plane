@@ -1,5 +1,6 @@
-import { Avatar, Button, Card, CardContent, Grid, IconButton, PageContent, PageTitle, Stack, TextField, InputAdornment, Typography, CircularProgress } from '@wso2/oxygen-ui';
-import { Clock, Folder, Plus, Search, Settings } from '@wso2/oxygen-ui-icons-react';
+import { Avatar, Button, Card, CardContent, Grid, IconButton, PageContent, PageTitle, Stack, Typography, CircularProgress } from '@wso2/oxygen-ui';
+import { Clock, Folder, Plus, Settings } from '@wso2/oxygen-ui-icons-react';
+import SearchField from '../components/SearchField';
 import { useNavigate, useParams } from 'react-router';
 import { useState, type JSX } from 'react';
 import { useProjects, type GqlProject } from '../api/queries';
@@ -53,23 +54,7 @@ export default function Projects(): JSX.Element {
         </PageTitle.Actions>
       </PageTitle>
 
-      <TextField
-        fullWidth
-        placeholder="Search projects"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        size="small"
-        sx={{ mb: 3 }}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search size={18} />
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
+      <SearchField value={query} onChange={setQuery} placeholder="Search projects" fullWidth sx={{ mb: 3 }} />
 
       {isLoading ? (
         <CircularProgress sx={{ display: 'block', mx: 'auto', py: 8 }} />
