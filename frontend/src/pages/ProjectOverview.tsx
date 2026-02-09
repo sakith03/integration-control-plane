@@ -41,20 +41,22 @@ import { mockProjects } from '../mock-data/mockProjects'
 import { mockComponents } from '../mock-data/mockComponents'
 import { mockMcpServers } from '../mock-data/mockMcpServers'
 
-const chartData = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((name, i) => ({
+type ChartPoint = { name: string; uData: number; pData: number }
+
+const chartData: ChartPoint[] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((name, i) => ({
   name,
   uData: [4000, 3000, 2000, 2780, 1890, 2390, 3490][i],
   pData: [2400, 1398, 9800, 3908, 4800, 3800, 4300][i],
 }))
 
-const LastUpdatedCell = ({ value }: { value: string }) => (
+const LastUpdated = ({ value }: { value: string }) => (
   <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, minWidth: 0 }}>
     <Clock size={16} />
     <Typography variant="caption" color="text.secondary" noWrap>{value}</Typography>
   </Box>
 )
 
-const ResourceList = <T,>({ title, headers, items, renderRow }: { title: string, headers: string[], items: T[], renderRow: (item: T) => ReactNode }) => (
+const Resources = <T,>({ title, headers, items, renderRow }: { title: string, headers: string[], items: T[], renderRow: (item: T) => ReactNode }) => (
   <Box sx={{ mb: 4 }}>
     <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>{title}</Typography>
     <ListingTable.Container sx={{ width: '100%' }} disablePaper>
@@ -72,7 +74,7 @@ const ResourceList = <T,>({ title, headers, items, renderRow }: { title: string,
   </Box>
 )
 
-const SummaryCard = ({ title, children, action }: { title: string, children: ReactNode, action?: ReactNode }) => (
+const Summary = ({ title, children, action }: { title: string, children: ReactNode, action?: ReactNode }) => (
   <Card variant="outlined" sx={{ borderRadius: 0.8 }}>
     <CardContent>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -113,7 +115,7 @@ export default function ProjectOverview(): JSX.Element {
               </Grid>
             </Grid>
 
-            <ResourceList
+            <Resources
               title="API Proxies"
               headers={['Name', 'Description', 'Type', 'Last Updated']}
               items={mockComponents}
@@ -131,12 +133,12 @@ export default function ProjectOverview(): JSX.Element {
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell><Chip label={component.type ?? 'HTTP'} size="small" variant="outlined" /></ListingTable.Cell>
-                  <ListingTable.Cell align="right"><LastUpdatedCell value={component.lastModified} /></ListingTable.Cell>
+                  <ListingTable.Cell align="right"><LastUpdated value={component.lastModified} /></ListingTable.Cell>
                 </ListingTable.Row>
               )}
             />
 
-            <ResourceList
+            <Resources
               title="MCP Servers"
               headers={['Name', 'Description', 'Last Updated']}
               items={mockMcpServers.slice(0, 3)}
@@ -153,7 +155,7 @@ export default function ProjectOverview(): JSX.Element {
                       This is a sample proxy that manages a list of reading items.
                     </Typography>
                   </ListingTable.Cell>
-                  <ListingTable.Cell><Box sx={{ display: 'flex', justifyContent: 'flex-end' }}><LastUpdatedCell value={server.timestamp} /></Box></ListingTable.Cell>
+                  <ListingTable.Cell><Box sx={{ display: 'flex', justifyContent: 'flex-end' }}><LastUpdated value={server.timestamp} /></Box></ListingTable.Cell>
                 </ListingTable.Row>
               )}
             />
@@ -161,13 +163,13 @@ export default function ProjectOverview(): JSX.Element {
 
           <Grid size={{ xs: 12, lg: 4 }}>
             <Stack spacing={2}>
-              <SummaryCard title="Analytics" action={<IconButton size="small"><RefreshCw size={18} /></IconButton>}>
+              <Summary title="Analytics" action={<IconButton size="small"><RefreshCw size={18} /></IconButton>}>
                 <Box sx={{ height: 260, borderRadius: 0.8, border: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
                   <LineChart data={chartData} xAxisDataKey="name" lines={[{ dataKey: 'pData', name: 'Product A' }, { dataKey: 'uData', name: 'Product B' }]} legend={{ show: true, align: 'center', verticalAlign: 'top' }} height={260} grid={{ show: false }} />
                 </Box>
-              </SummaryCard>
+              </Summary>
 
-              <SummaryCard title="API Proxies">
+              <Summary title="API Proxies">
                 <Stack spacing={1}>
                   {[
                     { label: 'HTTP', value: 4 },
@@ -187,11 +189,11 @@ export default function ProjectOverview(): JSX.Element {
                     </Box>
                   ))}
                 </Stack>
-              </SummaryCard>
+              </Summary>
 
-              <SummaryCard title="Contributors" action={<Info size={16} />}>
+              <Summary title="Contributors" action={<Info size={16} />}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 1 }}><Avatar sx={{ width: 32, height: 32 }}>J</Avatar></Box>
-              </SummaryCard>
+              </Summary>
             </Stack>
           </Grid>
         </Grid>

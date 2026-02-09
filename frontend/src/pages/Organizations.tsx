@@ -47,25 +47,43 @@ import { useNavigate } from 'react-router'
 import { useMemo, useState, type JSX } from 'react'
 import { mockOrganizations } from '../mock-data/mockOrganizations'
 import { mockExploreMoreSections } from '../mock-data/mockExploreMoreSections'
-import type { Organization } from '../mock-data/types'
+import type { Organization, ExploreMoreSection } from '../mock-data/types'
+
+const ExploreSection = ({ icon: Icon, title, items }: ExploreMoreSection) => (
+  <Box display="flex" alignItems="flex-start" gap={2}>
+    <Box sx={{ color: 'primary.main', mt: 0.25 }}><Icon size={34} /></Box>
+    <Box>
+      <Typography variant="h6" sx={{ mb: 1 }}>{title}</Typography>
+      <Box display="flex" flexDirection="column">
+        {items.map((item) => (
+          <Button
+            key={item.id}
+            variant="text"
+            size="small"
+            startIcon={<ArrowRight size={16} />}
+            sx={{ justifyContent: 'flex-start' }}
+            onClick={() => console.log('Explore item:', item.label)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </Box>
+    </Box>
+  </Box>
+)
 
 export default function Organizations(): JSX.Element {
   const navigate = useNavigate()
-  const [searchValue, setSearchValue] = useState('')
-  const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilterState>({} as AdvancedFilterState)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<AdvancedFilterState>({} as AdvancedFilterState)
 
-  const filteredOrganizations = useMemo(() => {
-    const q = searchValue.trim().toLowerCase()
-    return !q
-      ? mockOrganizations
-      : mockOrganizations.filter(({ name, orgId }) =>
-        name.toLowerCase().includes(q) || orgId.toLowerCase().includes(q)
-      )
-  }, [searchValue])
+  const organizations = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return !q ? mockOrganizations : mockOrganizations.filter(o => o.name.toLowerCase().includes(q) || o.orgId.toLowerCase().includes(q))
+  }, [query])
 
   return (
     <PageContent>
-      {/* Header */}
       <PageTitle>
         <PageTitle.Header>Organizations</PageTitle.Header>
         <PageTitle.SubHeader>
@@ -75,44 +93,33 @@ export default function Organizations(): JSX.Element {
           </Link>
         </PageTitle.SubHeader>
         <PageTitle.Actions>
-          <Button
-            variant="contained"
-            startIcon={<Plus size={20} />}
-            onClick={() => navigate('/organizations/new')}
-          >
+          <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate('/organizations/new')}>
             New Organization
           </Button>
         </PageTitle.Actions>
       </PageTitle>
 
-      {/* Search */}
       <Box sx={{ mb: 3 }}>
         <SearchBarWithAdvancedFilter
-          value={searchValue}
-          onChange={setSearchValue}
-          advancedFilter={advancedFilter}
-          onAdvancedFilterChange={setAdvancedFilter}
+          value={query}
+          onChange={setQuery}
+          advancedFilter={filter}
+          onAdvancedFilterChange={setFilter}
           attributeOptions={[]}
           conditionOptions={[]}
           fullWidth
         />
       </Box>
 
-      {filteredOrganizations.length === 0 ? (
+      {organizations.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8 }}>
           <Folder size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-          <Typography variant="h6" gutterBottom>
-            No organizations found
-          </Typography>
+          <Typography variant="h6" gutterBottom>No organizations found</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {searchValue ? 'Try adjusting your search' : 'Create your first organization to get started'}
+            {query ? 'Try adjusting your search' : 'Create your first organization to get started'}
           </Typography>
-          {!searchValue && (
-            <Button
-              variant="contained"
-              startIcon={<Plus size={20} />}
-              onClick={() => navigate('/organizations/new')}
-            >
+          {!query && (
+            <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate('/organizations/new')}>
               Create Organization
             </Button>
           )}
@@ -121,51 +128,21 @@ export default function Organizations(): JSX.Element {
         <ListingTable.Container sx={{ width: '100%' }} disablePaper>
           <ListingTable variant="card" density="standard">
             <ListingTable.Body>
-              {filteredOrganizations.map((org: Organization) => (
-                <ListingTable.Row
-                  key={org.id}
-                  variant="card"
-                  hover
-                  clickable
-                  onClick={() => navigate(`/o/${org.orgId}/projects`)}
-                >
+              {organizations.map((org: Organization) => (
+                <ListingTable.Row key={org.id} variant="card" hover clickable onClick={() => navigate(`/o/${org.orgId}/projects`)}>
                   <ListingTable.Cell>
                     <Box display="flex" alignItems="center" justifyContent="space-between" gap={2}>
                       <Box display="flex" alignItems="center" gap={2} minWidth={0}>
-                        <Box
-                          sx={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: 'action.hover',
-                            color: 'text.secondary',
-                            flexShrink: 0,
-                          }}
-                        >
+                        <Box sx={{ width: 48, height: 48, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover', color: 'text.secondary', flexShrink: 0 }}>
                           <Building2 size={22} />
                         </Box>
                         <Box minWidth={0}>
                           <Box display="flex" alignItems="center" gap={1}>
-                            <Typography variant="h6" sx={{ lineHeight: 1.2 }} noWrap>
-                              {org.name}
-                            </Typography>
-                            <Box
-                              sx={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: '50%',
-                                bgcolor: org.status === 'active' ? 'success.main' : 'text.disabled',
-                                flexShrink: 0,
-                              }}
-                            />
+                            <Typography variant="h6" sx={{ lineHeight: 1.2 }} noWrap>{org.name}</Typography>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: org.status === 'active' ? 'success.main' : 'text.disabled', flexShrink: 0 }} />
                           </Box>
                           <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-                            <Typography variant="body2" color="text.secondary">
-                              Organization Id:
-                            </Typography>
+                            <Typography variant="body2" color="text.secondary">Organization Id:</Typography>
                             <Chip label={org.orgId} size="small" variant="outlined" />
                           </Box>
                         </Box>
@@ -179,14 +156,7 @@ export default function Organizations(): JSX.Element {
                           { title: 'Delete', icon: <Trash2 size={18} />, color: 'error', action: () => console.log('Delete:', org.id) },
                         ].map(({ title, icon, color, action }) => (
                           <Tooltip title={title} key={title}>
-                            <IconButton
-                              size="small"
-                              color={color as any}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                action()
-                              }}
-                            >
+                            <IconButton size="small" color={color as any} onClick={(e) => { e.stopPropagation(); action() }}>
                               {icon}
                             </IconButton>
                           </Tooltip>
@@ -201,39 +171,13 @@ export default function Organizations(): JSX.Element {
         </ListingTable.Container>
       )}
 
-      {/* Explore More */}
       <Box sx={{ mt: 5 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          Explore More
-        </Typography>
+        <Typography variant="h6" sx={{ mb: 1 }}>Explore More</Typography>
         <Card variant="outlined" sx={{ p: 3 }}>
           <Grid container spacing={6}>
-            {mockExploreMoreSections.map(({ id, icon: Icon, title, items }) => (
-              <Grid key={id} size={{ xs: 12, md: 4 }}>
-                <Box display="flex" alignItems="flex-start" gap={2}>
-                  <Box sx={{ color: 'primary.main', mt: 0.25 }}>
-                    <Icon size={34} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
-                      {title}
-                    </Typography>
-                    <Box display="flex" flexDirection="column">
-                      {items.map((item) => (
-                        <Button
-                          key={item.id}
-                          variant="text"
-                          size="small"
-                          startIcon={<ArrowRight size={16} />}
-                          sx={{ justifyContent: 'flex-start' }}
-                          onClick={() => console.log('Explore item:', item.label)}
-                        >
-                          {item.label}
-                        </Button>
-                      ))}
-                    </Box>
-                  </Box>
-                </Box>
+            {mockExploreMoreSections.map((section) => (
+              <Grid key={section.id} size={{ xs: 12, md: 4 }}>
+                <ExploreSection {...section} />
               </Grid>
             ))}
           </Grid>

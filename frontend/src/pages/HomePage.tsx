@@ -17,8 +17,7 @@
  */
 
 import { Badge, Box, Button, Divider, Link, Stack, Typography } from '@wso2/oxygen-ui'
-import { useState } from 'react'
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import { Link as NavigateLink } from 'react-router'
 import reactLogo from '/react.svg'
 import viteLogo from '/vite.svg'
@@ -26,51 +25,35 @@ import { Lightbulb, WSO2 } from '@wso2/oxygen-ui-icons-react'
 import appRoutes from '../config/appRoutes'
 
 export default function HomePage(): JSX.Element {
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState(0)
 
   return (
     <Box sx={{ textAlign: 'center', mx: 'auto', maxWidth: '1280px', p: 2 }}>
       <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+        <a href="https://vite.dev" target="_blank"><img src={viteLogo} className="logo" alt="Vite logo" /></a>
+        <a href="https://react.dev" target="_blank"><img src={reactLogo} className="logo react" alt="React logo" /></a>
       </div>
       <Typography variant='h1' sx={{ mb: 4 }}>Vite + React + Oxygen UI</Typography>
       <div className="card">
         <p>
           <Badge badgeContent={count} color="secondary">
-            <Button variant="contained" onClick={() => setCount((count) => count + 1)}>
-              Click to increase count
-            </Button>
+            <Button variant="contained" onClick={() => setCount((c) => c + 1)}>Click to increase count</Button>
           </Badge>
           <br /><br />
         </p>
       </div>
       Run <pre><code>pnpm storybook</code></pre>
-      <p className="read-the-docs">
-        <Lightbulb size={18} /> Click the icon on top right corner to change color mode
-      </p>
+      <p className="read-the-docs"><Lightbulb size={18} /> Click the icon on top right corner to change color mode</p>
 
       <Box sx={{ my: 8 }}>
         <Typography sx={{ mb: 2 }}>Example layouts:</Typography>
-        <Stack
-          direction="row"
-          spacing={2}
-          divider={<Divider orientation="vertical" flexItem />}
-          justifyContent="center"
-          alignItems="center"
-        >       
+        <Stack direction="row" spacing={2} divider={<Divider orientation="vertical" flexItem />} justifyContent="center" alignItems="center">
           {appRoutes
-            .flatMap((route) => route.children || [])
-            .filter((child) => child.showInNav)
-            .map((child) => (
-              <Box key={child.path}>
-                <Link component={NavigateLink} to={child.path as string}>
-                  {child.label}
-                </Link>
+            .flatMap(r => r.children || [])
+            .filter(c => c.showInNav)
+            .map(c => (
+              <Box key={c.path}>
+                <Link component={NavigateLink} to={c.path as string}>{c.label}</Link>
               </Box>
             ))}
         </Stack>
@@ -85,5 +68,5 @@ export default function HomePage(): JSX.Element {
         </Typography>
       </Box>
     </Box>
-  );
+  )
 }
