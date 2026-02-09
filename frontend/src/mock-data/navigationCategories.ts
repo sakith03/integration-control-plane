@@ -16,24 +16,8 @@
  * under the License.
  */
 
-import {
-  Home,
-  BarChart3,
-  Users,
-  FolderOpen,
-  Layers,
-  Shield,
-  Database,
-  Globe,
-  Activity,
-  PieChart,
-  TrendingUp,
-  UserCog,
-  Lock,
-  Key,
-  FileText,
-} from '@wso2/oxygen-ui-icons-react'
-import type { NavigationCategory } from './types'
+import { Home, BarChart3, Users, FolderOpen, Layers, Shield, Database, Globe, Activity, PieChart, TrendingUp, UserCog, Lock, Key, FileText } from '@wso2/oxygen-ui-icons-react';
+import type { NavigationCategory } from './types';
 
 /**
  * Main navigation items organized by category.
@@ -163,4 +147,4 @@ export const navigationCategories: NavigationCategory[] = [
       },
     ],
   },
-]
+];

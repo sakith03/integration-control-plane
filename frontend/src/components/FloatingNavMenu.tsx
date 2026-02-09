@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import { useState } from 'react'
-import { Fab, Menu, MenuItem, Box } from '@wso2/oxygen-ui'
-import { Menu as MenuIcon } from '@wso2/oxygen-ui-icons-react'
-import { useNavigate } from 'react-router'
-import routes from '../config/routes'
+import { useState } from 'react';
+import { Fab, Menu, MenuItem, Box } from '@wso2/oxygen-ui';
+import { Menu as MenuIcon } from '@wso2/oxygen-ui-icons-react';
+import { useNavigate } from 'react-router';
+import routes from '../config/routes';
 
 export default function FloatingNavMenu() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -63,11 +63,10 @@ export default function FloatingNavMenu() {
           top: 60,
           left: 60,
           zIndex: 1000,
-        }}
-      >
+        }}>
         <MenuIcon />
       </Fab>
-      
+
       <Menu
         anchorEl={anchorEl}
         open={open}
@@ -80,16 +79,10 @@ export default function FloatingNavMenu() {
           vertical: 'top',
           horizontal: 'left',
         }}
-        sx={{ mt: 1 }}
-      >
-        <MenuItem onClick={() => handleNavigation('/')}>
-          Home
-        </MenuItem>
+        sx={{ mt: 1 }}>
+        <MenuItem onClick={() => handleNavigation('/')}>Home</MenuItem>
         {navItems.map((child) => (
-          <MenuItem
-            key={child.path}
-            onClick={() => handleNavigation(child.path as string)}
-          >
+          <MenuItem key={child.path} onClick={() => handleNavigation(child.path as string)}>
             {child.label}
           </MenuItem>
         ))}

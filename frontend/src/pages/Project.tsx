@@ -16,43 +16,17 @@
  * under the License.
  */
 
-import {
-  Box,
-  Button,
-  Grid,
-  PageContent,
-  PageTitle,
-  Typography,
-  Chip,
-  Card,
-  CardContent,
-  Avatar,
-  AvatarGroup,
-  List,
-  ListItem,
-  ListItemText,
-  Divider,
-  ListingTable,
-  Tooltip,
-} from '@wso2/oxygen-ui'
-import {
-  Edit,
-  Globe,
-  Server,
-  Activity,
-  GitCommit,
-  Clock,
-  ExternalLink,
-} from '@wso2/oxygen-ui-icons-react'
-import { useNavigate, useParams, Link as NavigateLink } from 'react-router'
-import { type JSX } from 'react'
-import { LineChart } from '@wso2/oxygen-ui-charts-react'
-import { mockComponents } from '../mock-data/mockComponents'
-import { mockMcpServers } from '../mock-data/mockMcpServers'
-import type { Component, McpServer } from '../mock-data/types'
+import { Box, Button, Grid, PageContent, PageTitle, Typography, Chip, Card, CardContent, Avatar, AvatarGroup, List, ListItem, ListItemText, Divider, ListingTable, Tooltip } from '@wso2/oxygen-ui';
+import { Edit, Globe, Server, Activity, GitCommit, Clock, ExternalLink } from '@wso2/oxygen-ui-icons-react';
+import { useNavigate, useParams, Link as NavigateLink } from 'react-router';
+import { type JSX } from 'react';
+import { LineChart } from '@wso2/oxygen-ui-charts-react';
+import { mockComponents } from '../mock-data/mockComponents';
+import { mockMcpServers } from '../mock-data/mockMcpServers';
+import type { Component, McpServer } from '../mock-data/types';
 
 // --- Types ---
-type ChartPoint = { name: string; uData: number; pData: number }
+type ChartPoint = { name: string; uData: number; pData: number };
 
 // --- Constants ---
 const chartData: ChartPoint[] = [
@@ -63,7 +37,7 @@ const chartData: ChartPoint[] = [
   { name: 'Fri', uData: 1890, pData: 4800 },
   { name: 'Sat', uData: 2390, pData: 3800 },
   { name: 'Sun', uData: 3490, pData: 4300 },
-]
+];
 
 // --- Helper Components ---
 const LastUpdated = ({ value }: { value: string }) => (
@@ -71,23 +45,27 @@ const LastUpdated = ({ value }: { value: string }) => (
     <Clock size={12} style={{ marginRight: 4 }} />
     {value}
   </Box>
-)
+);
 
 const Resources = <T,>({ title, headers, items, renderRow }: { title: string; headers: string[]; items: T[]; renderRow: (item: T) => JSX.Element }) => (
   <Box sx={{ mb: 4 }}>
-    <Typography variant="h6" gutterBottom>{title}</Typography>
+    <Typography variant="h6" gutterBottom>
+      {title}
+    </Typography>
     <ListingTable.Container disablePaper>
       <ListingTable variant="card" density="compact">
         <ListingTable.Head>
           <ListingTable.Row>
-            {headers.map(h => <ListingTable.Cell key={h}>{h}</ListingTable.Cell>)}
+            {headers.map((h) => (
+              <ListingTable.Cell key={h}>{h}</ListingTable.Cell>
+            ))}
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>{items.map(renderRow)}</ListingTable.Body>
       </ListingTable>
     </ListingTable.Container>
   </Box>
-)
+);
 
 const Summary = ({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) => (
   <Card variant="outlined" sx={{ height: '100%' }}>
@@ -99,11 +77,11 @@ const Summary = ({ title, children, action }: { title: string; children: React.R
       {children}
     </CardContent>
   </Card>
-)
+);
 
 export default function Project(): JSX.Element {
-  const navigate = useNavigate()
-  const { id, orgId } = useParams<{ id: string; orgId: string }>()
+  const navigate = useNavigate();
+  const { id, orgId } = useParams<{ id: string; orgId: string }>();
 
   return (
     <PageContent>
@@ -115,8 +93,12 @@ export default function Project(): JSX.Element {
         </PageTitle.Header>
         <PageTitle.SubHeader>Manage your project resources and settings</PageTitle.SubHeader>
         <PageTitle.Actions>
-          <Button variant="outlined" startIcon={<Edit size={16} />}>Edit Project</Button>
-          <Button variant="contained" color="primary" onClick={() => navigate(`/o/${orgId}/projects/${id}/components`)}>Manage Components</Button>
+          <Button variant="outlined" startIcon={<Edit size={16} />}>
+            Edit Project
+          </Button>
+          <Button variant="contained" color="primary" onClick={() => navigate(`/o/${orgId}/projects/${id}/components`)}>
+            Manage Components
+          </Button>
         </PageTitle.Actions>
       </PageTitle>
 
@@ -136,8 +118,12 @@ export default function Project(): JSX.Element {
                     <Typography variant="body2">{c.name}</Typography>
                   </Box>
                 </ListingTable.Cell>
-                <ListingTable.Cell><Chip label={c.status} size="small" color={c.status === 'active' ? 'success' : 'default'} /></ListingTable.Cell>
-                <ListingTable.Cell><LastUpdated value={c.lastModified} /></ListingTable.Cell>
+                <ListingTable.Cell>
+                  <Chip label={c.status} size="small" color={c.status === 'active' ? 'success' : 'default'} />
+                </ListingTable.Cell>
+                <ListingTable.Cell>
+                  <LastUpdated value={c.lastModified} />
+                </ListingTable.Cell>
               </ListingTable.Row>
             )}
           />
@@ -156,20 +142,27 @@ export default function Project(): JSX.Element {
                   </Box>
                 </ListingTable.Cell>
                 <ListingTable.Cell>{s.type}</ListingTable.Cell>
-                <ListingTable.Cell><Chip label={s.status} size="small" color={s.status === 'connected' ? 'success' : 'error'} /></ListingTable.Cell>
+                <ListingTable.Cell>
+                  <Chip label={s.status} size="small" color={s.status === 'connected' ? 'success' : 'error'} />
+                </ListingTable.Cell>
               </ListingTable.Row>
             )}
           />
 
           {/* Analytics Chart */}
           <Box>
-            <Typography variant="h6" gutterBottom>Traffic Analytics</Typography>
+            <Typography variant="h6" gutterBottom>
+              Traffic Analytics
+            </Typography>
             <Card variant="outlined">
               <CardContent>
                 <LineChart
                   data={chartData}
                   xAxisDataKey="name"
-                  lines={[{ dataKey: 'pData', name: 'Requests' }, { dataKey: 'uData', name: 'Users' }]}
+                  lines={[
+                    { dataKey: 'pData', name: 'Requests' },
+                    { dataKey: 'uData', name: 'Users' },
+                  ]}
                   height={300}
                 />
               </CardContent>
@@ -184,13 +177,23 @@ export default function Project(): JSX.Element {
               <List disablePadding>
                 {[
                   { l: 'Project ID', v: 'proj_892305' },
-                  { l: 'Environment', v: <Chip label="Production" size="small" color="success" /> },
+                  {
+                    l: 'Environment',
+                    v: <Chip label="Production" size="small" color="success" />,
+                  },
                   { l: 'Region', v: 'US East (N. Virginia)' },
                   { l: 'Created', v: 'Oct 24, 2025' },
                 ].map((i, k) => (
                   <Box key={k}>
                     <ListItem sx={{ px: 0, py: 1 }}>
-                      <ListItemText primary={i.l} secondary={i.v} primaryTypographyProps={{ variant: 'body2', color: 'text.secondary' }} />
+                      <ListItemText
+                        primary={i.l}
+                        secondary={i.v}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          color: 'text.secondary',
+                        }}
+                      />
                     </ListItem>
                     {k < 3 && <Divider />}
                   </Box>
@@ -198,12 +201,30 @@ export default function Project(): JSX.Element {
               </List>
             </Summary>
 
-            <Summary title="Activity" action={<Tooltip title="View Logs"><Activity size={16} style={{ cursor: 'pointer' }} /></Tooltip>}>
+            <Summary
+              title="Activity"
+              action={
+                <Tooltip title="View Logs">
+                  <Activity size={16} style={{ cursor: 'pointer' }} />
+                </Tooltip>
+              }>
               <List disablePadding>
                 {[
-                  { t: 'Deployed new version', d: '2 mins ago', i: <GitCommit size={16} /> },
-                  { t: 'Config update', d: '1 hour ago', i: <Activity size={16} /> },
-                  { t: 'Alert resolved', d: '3 hours ago', i: <Activity size={16} /> },
+                  {
+                    t: 'Deployed new version',
+                    d: '2 mins ago',
+                    i: <GitCommit size={16} />,
+                  },
+                  {
+                    t: 'Config update',
+                    d: '1 hour ago',
+                    i: <Activity size={16} />,
+                  },
+                  {
+                    t: 'Alert resolved',
+                    d: '3 hours ago',
+                    i: <Activity size={16} />,
+                  },
                 ].map((a, k) => (
                   <ListItem key={k} sx={{ px: 0 }}>
                     <Box sx={{ mr: 2, color: 'text.secondary' }}>{a.i}</Box>
@@ -221,12 +242,14 @@ export default function Project(): JSX.Element {
                   <Avatar alt="Cindy Baker" src="/static/images/avatar/3.jpg" />
                   <Avatar alt="Agnes Walker" src="/static/images/avatar/4.jpg" />
                 </AvatarGroup>
-                <Button size="small" startIcon={<ExternalLink size={14} />}>Manage</Button>
+                <Button size="small" startIcon={<ExternalLink size={14} />}>
+                  Manage
+                </Button>
               </Box>
             </Summary>
           </Box>
         </Grid>
       </Grid>
     </PageContent>
-  )
+  );
 }

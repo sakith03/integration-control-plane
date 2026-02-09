@@ -16,11 +16,31 @@
  * under the License.
  */
 
-import type { McpServer } from './types'
+import type { McpServer } from './types';
 
 export const mockMcpServers: McpServer[] = [
-  { id: '1', name: 'Customer Support MCP', type: 'Support', status: 'connected' },
-  { id: '2', name: 'Order Processing MCP', type: 'Processing', status: 'connected' },
-  { id: '3', name: 'Fraud Detection MCP', type: 'Security', status: 'disconnected' },
-  { id: '4', name: 'Notification Dispatcher MCP', type: 'Messaging', status: 'connected' },
-]
+  {
+    id: '1',
+    name: 'Customer Support MCP',
+    type: 'Support',
+    status: 'connected',
+  },
+  {
+    id: '2',
+    name: 'Order Processing MCP',
+    type: 'Processing',
+    status: 'connected',
+  },
+  {
+    id: '3',
+    name: 'Fraud Detection MCP',
+    type: 'Security',
+    status: 'disconnected',
+  },
+  {
+    id: '4',
+    name: 'Notification Dispatcher MCP',
+    type: 'Messaging',
+    status: 'connected',
+  },
+];

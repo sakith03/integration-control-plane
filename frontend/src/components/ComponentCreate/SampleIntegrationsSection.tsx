@@ -20,16 +20,12 @@ import { Box, Form } from '@wso2/oxygen-ui';
 import type { JSX, ReactNode } from 'react';
 
 export interface SampleIntegrationsSectionProps {
-  title?: string
-  description?: string
-  children: ReactNode
+  title?: string;
+  description?: string;
+  children: ReactNode;
 }
 
-export default function SampleIntegrationsSection({
-  title = 'Try a Sample Integration',
-  description = 'Explore ready-made integrations and automations to get started quickly',
-  children,
-}: SampleIntegrationsSectionProps): JSX.Element {
+export default function SampleIntegrationsSection({ title = 'Try a Sample Integration', description = 'Explore ready-made integrations and automations to get started quickly', children }: SampleIntegrationsSectionProps): JSX.Element {
   return (
     <Form.Stack flexGrow={1}>
       <Form.Header>{title}</Form.Header>
@@ -38,6 +34,5 @@ export default function SampleIntegrationsSection({
         {children}
       </Box>
     </Form.Stack>
-  )
+  );
 }
-

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { Organization } from './types'
+import type { Organization } from './types';
 
 /**
  * Sample organizations for the org switcher.
@@ -46,4 +46,4 @@ export const mockOrganizations: Organization[] = [
     orgId: '2f7a0f14-9f12-4d2f-8a41-1b9d8d3ab9e1',
     status: 'active',
   },
-]
+];

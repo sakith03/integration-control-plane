@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { Route, Routes } from 'react-router'
-import routes from './config/routes'
-import './App.css'
+import { Route, Routes } from 'react-router';
+import routes from './config/routes';
+import './App.css';
 
 function App() {
   return (
@@ -26,17 +26,12 @@ function App() {
       {routes.map((route) => (
         <Route key={route.path} path={route.path} element={route.element}>
           {route.children?.map((child, index) => (
-            <Route
-              key={child.path || `index-${index}`}
-              index={child.index}
-              path={child.path}
-              element={child.element}
-            />
+            <Route key={child.path || `index-${index}`} index={child.index} path={child.path} element={child.element} />
           ))}
         </Route>
       ))}
     </Routes>
-  )
+  );
 }
 
-export default App
+export default App;

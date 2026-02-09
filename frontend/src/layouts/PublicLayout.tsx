@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { Outlet } from 'react-router'
-import { Box, ColorSchemeToggle, Layout, ParticleBackground, Stack, ThemeSwitcher } from '@wso2/oxygen-ui'
-import type { JSX } from 'react'
+import { Outlet } from 'react-router';
+import { Box, ColorSchemeToggle, Layout, ParticleBackground, Stack, ThemeSwitcher } from '@wso2/oxygen-ui';
+import type { JSX } from 'react';
 
 export default function PublicLayout(): JSX.Element {
   return (
@@ -32,9 +32,8 @@ export default function PublicLayout(): JSX.Element {
             position: 'fixed',
             top: '3.7rem',
             left: '8rem',
-            zIndex: 2
-          }}
-        >
+            zIndex: 2,
+          }}>
           <ThemeSwitcher />
           <ColorSchemeToggle />
         </Stack>

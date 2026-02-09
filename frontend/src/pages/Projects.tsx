@@ -16,68 +16,105 @@
  * under the License.
  */
 
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CardActions,
-  Grid,
-  PageContent,
-  PageTitle,
-  Typography,
-  TextField,
-  InputAdornment,
-  Chip,
-  IconButton,
-} from '@wso2/oxygen-ui'
-import { Search, Plus, MoreVertical, Folder } from '@wso2/oxygen-ui-icons-react'
-import { useNavigate, useParams } from 'react-router'
-import { useState, type JSX } from 'react'
-import { mockProjects } from '../mock-data/mockProjects'
-import type { Project } from '../mock-data/types'
-import { getStatusColor } from '../config/statusColors'
-import EmptyListing from '../components/EmptyListing'
+import { Box, Button, Card, CardContent, CardActions, Grid, PageContent, PageTitle, Typography, TextField, InputAdornment, Chip, IconButton } from '@wso2/oxygen-ui';
+import { Search, Plus, MoreVertical, Folder } from '@wso2/oxygen-ui-icons-react';
+import { useNavigate, useParams } from 'react-router';
+import { useState, type JSX } from 'react';
+import { mockProjects } from '../mock-data/mockProjects';
+import type { Project } from '../mock-data/types';
+import { getStatusColor } from '../config/statusColors';
+import EmptyListing from '../components/EmptyListing';
 
 const ProjectCard = ({ project, onNavigate }: { project: Project; onNavigate: (id: string) => void }) => (
-  <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease-in-out', pb: 2 }}>
+  <Card
+    variant="outlined"
+    sx={{
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'all 0.3s ease-in-out',
+      pb: 2,
+    }}>
     <CardContent sx={{ flexGrow: 1, p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'start',
+          mb: 2,
+        }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 40, height: 40, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+            }}>
             <Folder size={20} />
           </Box>
-          <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>{project.name}</Typography>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+            {project.name}
+          </Typography>
         </Box>
-        <IconButton size="small" sx={{ mt: -0.5 }}><MoreVertical size={18} /></IconButton>
+        <IconButton size="small" sx={{ mt: -0.5 }}>
+          <MoreVertical size={18} />
+        </IconButton>
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, minHeight: 40, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.6 }}>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{
+          mb: 3,
+          minHeight: 40,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          lineHeight: 1.6,
+        }}>
         {project.description ?? 'No description'}
       </Typography>
       <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Chip label={project.status} size="small" color={getStatusColor(project.status || 'archived')} sx={{ fontWeight: 500, textTransform: 'capitalize' }} />
         <Chip label={`${project.componentsCount} components`} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
       </Box>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 500 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          fontWeight: 500,
+        }}>
         Updated {project.lastUpdated}
       </Typography>
     </CardContent>
     <CardActions sx={{ p: 2, pt: 0, gap: 1 }}>
-      <Button size="small" variant="contained" fullWidth onClick={() => onNavigate(project.id)}>View Details</Button>
-      <Button size="small" variant="outlined" fullWidth>Edit</Button>
+      <Button size="small" variant="contained" fullWidth onClick={() => onNavigate(project.id)}>
+        View Details
+      </Button>
+      <Button size="small" variant="outlined" fullWidth>
+        Edit
+      </Button>
     </CardActions>
   </Card>
-)
+);
 
 export default function Projects(): JSX.Element {
-  const navigate = useNavigate()
-  const { orgId } = useParams<{ orgId: string }>() || 'default-org'
-  const [query, setQuery] = useState('')
+  const navigate = useNavigate();
+  const { orgId } = useParams<{ orgId: string }>() || 'default-org';
+  const [query, setQuery] = useState('');
 
-  const projects = mockProjects.filter(p => {
-    const q = query.toLowerCase()
-    return !q || p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q)
-  })
+  const projects = mockProjects.filter((p) => {
+    const q = query.toLowerCase();
+    return !q || p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q);
+  });
 
   return (
     <PageContent>
@@ -85,7 +122,9 @@ export default function Projects(): JSX.Element {
         <PageTitle.Header>Projects</PageTitle.Header>
         <PageTitle.SubHeader>Manage your projects and workflows</PageTitle.SubHeader>
         <PageTitle.Actions>
-          <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(`/o/${orgId}/projects/new`)}>New Project</Button>
+          <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(`/o/${orgId}/projects/new`)}>
+            New Project
+          </Button>
         </PageTitle.Actions>
       </PageTitle>
 
@@ -94,8 +133,16 @@ export default function Projects(): JSX.Element {
           fullWidth
           placeholder="Search projects..."
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search size={20} /></InputAdornment> } }}
+          onChange={(e) => setQuery(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search size={20} />
+                </InputAdornment>
+              ),
+            },
+          }}
         />
       </Box>
 
@@ -110,7 +157,7 @@ export default function Projects(): JSX.Element {
         />
       ) : (
         <Grid container spacing={3}>
-          {projects.map(p => (
+          {projects.map((p) => (
             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={p.id}>
               <ProjectCard project={p} onNavigate={(id) => navigate(`/o/${orgId}/projects/${id}`)} />
             </Grid>
@@ -118,5 +165,5 @@ export default function Projects(): JSX.Element {
         </Grid>
       )}
     </PageContent>
-  )
+  );
 }

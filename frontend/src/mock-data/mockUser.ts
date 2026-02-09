@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { User } from './types'
+import type { User } from './types';
 
 /**
  * Sample user for the user menu.
@@ -26,4 +26,4 @@ export const mockUser: User = {
   email: 'john.doe@example.com',
   avatar: 'JD',
   role: 'Pro',
-}
+};

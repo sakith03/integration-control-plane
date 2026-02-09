@@ -5,6 +5,7 @@ This is a sample Vite + React + TypeScript application demonstrating the usage o
 ## Features
 
 This test app showcases:
+
 - Integration of `@wso2/oxygen-ui` components
 - Usage of `@wso2/oxygen-ui-icons-react` for icons
 - Theme customization with `OxygenUIThemeProvider`
@@ -15,14 +16,14 @@ This test app showcases:
 
 ### Prerequisites
 
-- Node.js 24+ 
+- Node.js 24+
 - pnpm 10+
 
 ### Installation
 
 From the test app directory:
 
-```bash
+````bash
 pnpm install
 
 ### Development
@@ -31,7 +32,7 @@ Run the development server:
 
 ```bash
 pnpm dev
-```
+````
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
@@ -105,11 +106,7 @@ function Toolbar() {
 import { OxygenUIThemeProvider } from '@wso2/oxygen-ui';
 
 function App() {
-  return (
-    <OxygenUIThemeProvider>
-      {/* Your app components */}
-    </OxygenUIThemeProvider>
-  );
+  return <OxygenUIThemeProvider>{/* Your app components */}</OxygenUIThemeProvider>;
 }
 ```
 

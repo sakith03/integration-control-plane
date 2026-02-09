@@ -16,87 +16,121 @@
  * under the License.
  */
 
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Typography,
-  Tabs,
-  Tab,
-  Chip,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  Grid,
-  PageContent,
-  StatCard,
-  PageTitle,
-} from '@wso2/oxygen-ui'
-import { LineChart, BarChart, PieChart } from '@wso2/oxygen-ui-charts-react'
-import { Activity, FileText, Users, Clock, Logs } from '@wso2/oxygen-ui-icons-react'
-import { useNavigate, useParams } from 'react-router'
-import { useState, type JSX, type ReactNode } from 'react'
+import { Box, Button, Card, CardContent, Typography, Tabs, Tab, Chip, Divider, List, ListItem, ListItemText, Grid, PageContent, StatCard, PageTitle } from '@wso2/oxygen-ui';
+import { LineChart, BarChart, PieChart } from '@wso2/oxygen-ui-charts-react';
+import { Activity, FileText, Users, Clock, Logs } from '@wso2/oxygen-ui-icons-react';
+import { useNavigate, useParams } from 'react-router';
+import { useState, type JSX, type ReactNode } from 'react';
 
-type ChartData<T> = T[]
-type Stat = { label: string; value: string | number; icon: ReactNode; color: 'primary' | 'success' | 'info' | 'warning' }
-type ActivityItem = { id: string; action: string; user: string; time: string }
+type ChartData<T> = T[];
+type Stat = {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  color: 'primary' | 'success' | 'info' | 'warning';
+};
+type ActivityItem = { id: string; action: string; user: string; time: string };
 
 const stats: Stat[] = [
-  { label: 'Components', value: 4, icon: <FileText size={24} />, color: 'primary' },
+  {
+    label: 'Components',
+    value: 4,
+    icon: <FileText size={24} />,
+    color: 'primary',
+  },
   { label: 'Active', value: 3, icon: <Activity size={24} />, color: 'success' },
   { label: 'Contributors', value: 3, icon: <Users size={24} />, color: 'info' },
-  { label: 'Last Updated', value: '2h', icon: <Clock size={24} />, color: 'warning' },
-]
+  {
+    label: 'Last Updated',
+    value: '2h',
+    icon: <Clock size={24} />,
+    color: 'warning',
+  },
+];
 
 const recentActivity: ActivityItem[] = [
-  { id: '1', action: 'Updated Login Flow', user: 'John Doe', time: '2 hours ago' },
-  { id: '2', action: 'Created Sign Up Flow', user: 'Jane Smith', time: '1 day ago' },
-  { id: '3', action: 'Modified MFA settings', user: 'John Doe', time: '2 days ago' },
-  { id: '4', action: 'Added Password Reset', user: 'Mike Johnson', time: '3 days ago' },
-]
+  {
+    id: '1',
+    action: 'Updated Login Flow',
+    user: 'John Doe',
+    time: '2 hours ago',
+  },
+  {
+    id: '2',
+    action: 'Created Sign Up Flow',
+    user: 'Jane Smith',
+    time: '1 day ago',
+  },
+  {
+    id: '3',
+    action: 'Modified MFA settings',
+    user: 'John Doe',
+    time: '2 days ago',
+  },
+  {
+    id: '4',
+    action: 'Added Password Reset',
+    user: 'Mike Johnson',
+    time: '3 days ago',
+  },
+];
 
 const userGrowth = [
-  { month: 'Jan', users: 120 }, { month: 'Feb', users: 180 }, { month: 'Mar', users: 240 },
-  { month: 'Apr', users: 320 }, { month: 'May', users: 420 }, { month: 'Jun', users: 580 },
-]
+  { month: 'Jan', users: 120 },
+  { month: 'Feb', users: 180 },
+  { month: 'Mar', users: 240 },
+  { month: 'Apr', users: 320 },
+  { month: 'May', users: 420 },
+  { month: 'Jun', users: 580 },
+];
 
 const statusDist = [
-  { status: 'Active', count: 3 }, { status: 'Inactive', count: 1 }, { status: 'Pending', count: 2 },
-]
+  { status: 'Active', count: 3 },
+  { status: 'Inactive', count: 1 },
+  { status: 'Pending', count: 2 },
+];
 
 const traffic = [
-  { name: 'Direct', value: 45 }, { name: 'Organic', value: 30 },
-  { name: 'Social', value: 15 }, { name: 'Referral', value: 10 },
-]
+  { name: 'Direct', value: 45 },
+  { name: 'Organic', value: 30 },
+  { name: 'Social', value: 15 },
+  { name: 'Referral', value: 10 },
+];
 
 const revenue = [
-  { month: 'Jan', r: 4500 }, { month: 'Feb', r: 5200 }, { month: 'Mar', r: 6100 },
-  { month: 'Apr', r: 7300 }, { month: 'May', r: 8400 }, { month: 'Jun', r: 9800 },
-]
+  { month: 'Jan', r: 4500 },
+  { month: 'Feb', r: 5200 },
+  { month: 'Mar', r: 6100 },
+  { month: 'Apr', r: 7300 },
+  { month: 'May', r: 8400 },
+  { month: 'Jun', r: 9800 },
+];
 
-const ChartContainer = ({ title, children }: { title: string, children: ReactNode }) => (
+const ChartContainer = ({ title, children }: { title: string; children: ReactNode }) => (
   <Card variant="outlined" sx={{ height: '100%' }}>
     <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Typography variant="h6">{title}</Typography>
       {children}
     </CardContent>
   </Card>
-)
+);
 
 export default function AnalyticsOverview(): JSX.Element {
-  const navigate = useNavigate()
-  const { orgId } = useParams<{ orgId: string }>()
-  const [tab, setTab] = useState(0)
+  const navigate = useNavigate();
+  const { orgId } = useParams<{ orgId: string }>();
+  const [tab, setTab] = useState(0);
 
   return (
     <PageContent>
       <PageTitle>
-        <PageTitle.Header>Analytics <Chip label="Active" size="small" color="success" /></PageTitle.Header>
+        <PageTitle.Header>
+          Analytics <Chip label="Active" size="small" color="success" />
+        </PageTitle.Header>
         <PageTitle.SubHeader>Overview of activities</PageTitle.SubHeader>
         <PageTitle.Actions>
-          <Button variant="outlined" startIcon={<Logs size={18} />} onClick={() => navigate(`/o/${orgId}/analytics/logs`)}>View logs</Button>
+          <Button variant="outlined" startIcon={<Logs size={18} />} onClick={() => navigate(`/o/${orgId}/analytics/logs`)}>
+            View logs
+          </Button>
         </PageTitle.Actions>
       </PageTitle>
 
@@ -141,7 +175,9 @@ export default function AnalyticsOverview(): JSX.Element {
       ) : (
         <Card variant="outlined">
           <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>Recent Activity</Typography>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Recent Activity
+            </Typography>
             <Divider sx={{ mb: 2 }} />
             <List>
               {recentActivity.map((a, i) => (
@@ -157,5 +193,5 @@ export default function AnalyticsOverview(): JSX.Element {
         </Card>
       )}
     </PageContent>
-  )
+  );
 }

@@ -16,72 +16,44 @@
  * under the License.
  */
 
-import {
-  Box,
-  Button,
-  PageContent,
-  PageTitle,
-  Typography,
-  Chip,
-  IconButton,
-  SearchBarWithAdvancedFilter,
-  ListingTable,
-  Tooltip,
-  Card,
-  Grid,
-  Link,
-  type AdvancedFilterState,
-} from '@wso2/oxygen-ui'
-import {
-  Plus,
-  Folder,
-  ExternalLink,
-  Info,
-  Edit,
-  Trash2,
-  SlidersHorizontal,
-  Building2,
-  ArrowRight,
-} from '@wso2/oxygen-ui-icons-react'
-import { useNavigate } from 'react-router'
-import { useMemo, useState, type JSX } from 'react'
-import { mockOrganizations } from '../mock-data/mockOrganizations'
-import { mockExploreMoreSections } from '../mock-data/mockExploreMoreSections'
-import type { Organization, ExploreMoreSection } from '../mock-data/types'
-import EmptyListing from '../components/EmptyListing'
+import { Box, Button, PageContent, PageTitle, Typography, Chip, IconButton, SearchBarWithAdvancedFilter, ListingTable, Tooltip, Card, Grid, Link, type AdvancedFilterState } from '@wso2/oxygen-ui';
+import { Plus, Folder, ExternalLink, Info, Edit, Trash2, SlidersHorizontal, Building2, ArrowRight } from '@wso2/oxygen-ui-icons-react';
+import { useNavigate } from 'react-router';
+import { useMemo, useState, type JSX } from 'react';
+import { mockOrganizations } from '../mock-data/mockOrganizations';
+import { mockExploreMoreSections } from '../mock-data/mockExploreMoreSections';
+import type { Organization, ExploreMoreSection } from '../mock-data/types';
+import EmptyListing from '../components/EmptyListing';
 
 const ExploreSection = ({ icon: Icon, title, items }: ExploreMoreSection) => (
   <Box display="flex" alignItems="flex-start" gap={2}>
-    <Box sx={{ color: 'primary.main', mt: 0.25 }}><Icon size={34} /></Box>
+    <Box sx={{ color: 'primary.main', mt: 0.25 }}>
+      <Icon size={34} />
+    </Box>
     <Box>
-      <Typography variant="h6" sx={{ mb: 1 }}>{title}</Typography>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        {title}
+      </Typography>
       <Box display="flex" flexDirection="column">
         {items.map((item) => (
-          <Button
-            key={item.id}
-            variant="text"
-            size="small"
-            startIcon={<ArrowRight size={16} />}
-            sx={{ justifyContent: 'flex-start' }}
-            onClick={() => console.log('Explore item:', item.label)}
-          >
+          <Button key={item.id} variant="text" size="small" startIcon={<ArrowRight size={16} />} sx={{ justifyContent: 'flex-start' }} onClick={() => console.log('Explore item:', item.label)}>
             {item.label}
           </Button>
         ))}
       </Box>
     </Box>
   </Box>
-)
+);
 
 export default function Organizations(): JSX.Element {
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<AdvancedFilterState>({} as AdvancedFilterState)
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<AdvancedFilterState>({} as AdvancedFilterState);
 
   const organizations = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return !q ? mockOrganizations : mockOrganizations.filter(o => o.name.toLowerCase().includes(q) || o.orgId.toLowerCase().includes(q))
-  }, [query])
+    const q = query.trim().toLowerCase();
+    return !q ? mockOrganizations : mockOrganizations.filter((o) => o.name.toLowerCase().includes(q) || o.orgId.toLowerCase().includes(q));
+  }, [query]);
 
   return (
     <PageContent>
@@ -101,15 +73,7 @@ export default function Organizations(): JSX.Element {
       </PageTitle>
 
       <Box sx={{ mb: 3 }}>
-        <SearchBarWithAdvancedFilter
-          value={query}
-          onChange={setQuery}
-          advancedFilter={filter}
-          onAdvancedFilterChange={setFilter}
-          attributeOptions={[]}
-          conditionOptions={[]}
-          fullWidth
-        />
+        <SearchBarWithAdvancedFilter value={query} onChange={setQuery} advancedFilter={filter} onAdvancedFilterChange={setFilter} attributeOptions={[]} conditionOptions={[]} fullWidth />
       </Box>
 
       {organizations.length === 0 ? (
@@ -130,16 +94,39 @@ export default function Organizations(): JSX.Element {
                   <ListingTable.Cell>
                     <Box display="flex" alignItems="center" justifyContent="space-between" gap={2}>
                       <Box display="flex" alignItems="center" gap={2} minWidth={0}>
-                        <Box sx={{ width: 48, height: 48, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover', color: 'text.secondary', flexShrink: 0 }}>
+                        <Box
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: 'action.hover',
+                            color: 'text.secondary',
+                            flexShrink: 0,
+                          }}>
                           <Building2 size={22} />
                         </Box>
                         <Box minWidth={0}>
                           <Box display="flex" alignItems="center" gap={1}>
-                            <Typography variant="h6" sx={{ lineHeight: 1.2 }} noWrap>{org.name}</Typography>
-                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: org.status === 'active' ? 'success.main' : 'text.disabled', flexShrink: 0 }} />
+                            <Typography variant="h6" sx={{ lineHeight: 1.2 }} noWrap>
+                              {org.name}
+                            </Typography>
+                            <Box
+                              sx={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                bgcolor: org.status === 'active' ? 'success.main' : 'text.disabled',
+                                flexShrink: 0,
+                              }}
+                            />
                           </Box>
                           <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-                            <Typography variant="body2" color="text.secondary">Organization Id:</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Organization Id:
+                            </Typography>
                             <Chip label={org.orgId} size="small" variant="outlined" />
                           </Box>
                         </Box>
@@ -147,13 +134,36 @@ export default function Organizations(): JSX.Element {
 
                       <Box display="flex" alignItems="center" gap={0.5} flexShrink={0}>
                         {[
-                          { title: 'Info', icon: <Info size={18} />, action: () => console.log('Info:', org.id) },
-                          { title: 'Settings', icon: <SlidersHorizontal size={18} />, action: () => console.log('Settings:', org.id) },
-                          { title: 'Edit', icon: <Edit size={18} />, action: () => navigate(`/organizations/${org.id}/edit`) },
-                          { title: 'Delete', icon: <Trash2 size={18} />, color: 'error', action: () => console.log('Delete:', org.id) },
+                          {
+                            title: 'Info',
+                            icon: <Info size={18} />,
+                            action: () => console.log('Info:', org.id),
+                          },
+                          {
+                            title: 'Settings',
+                            icon: <SlidersHorizontal size={18} />,
+                            action: () => console.log('Settings:', org.id),
+                          },
+                          {
+                            title: 'Edit',
+                            icon: <Edit size={18} />,
+                            action: () => navigate(`/organizations/${org.id}/edit`),
+                          },
+                          {
+                            title: 'Delete',
+                            icon: <Trash2 size={18} />,
+                            color: 'error',
+                            action: () => console.log('Delete:', org.id),
+                          },
                         ].map(({ title, icon, color, action }) => (
                           <Tooltip title={title} key={title}>
-                            <IconButton size="small" color={color as any} onClick={(e) => { e.stopPropagation(); action() }}>
+                            <IconButton
+                              size="small"
+                              color={color as any}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                action();
+                              }}>
                               {icon}
                             </IconButton>
                           </Tooltip>
@@ -169,7 +179,9 @@ export default function Organizations(): JSX.Element {
       )}
 
       <Box sx={{ mt: 5 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>Explore More</Typography>
+        <Typography variant="h6" sx={{ mb: 1 }}>
+          Explore More
+        </Typography>
         <Card variant="outlined" sx={{ p: 3 }}>
           <Grid container spacing={6}>
             {mockExploreMoreSections.map((section) => (
@@ -181,5 +193,5 @@ export default function Organizations(): JSX.Element {
         </Card>
       </Box>
     </PageContent>
-  )
+  );
 }

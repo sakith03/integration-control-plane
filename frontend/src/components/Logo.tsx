@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { ColorSchemeImage, useThemeContent } from "@wso2/oxygen-ui";
+import { ColorSchemeImage, useThemeContent } from '@wso2/oxygen-ui';
 
 export default function Logo() {
   const choreoLogo = (
@@ -25,7 +25,7 @@ export default function Logo() {
         light: `${import.meta.env.BASE_URL}assets/images/choreo-logo.svg`,
         dark: `${import.meta.env.BASE_URL}assets/images/choreo-logo.svg`,
       }}
-      alt={{light: 'Choreo Logo (Light)', dark: 'Choreo Logo (Dark)'}}
+      alt={{ light: 'Choreo Logo (Light)', dark: 'Choreo Logo (Dark)' }}
       height={24}
       width="auto"
     />
@@ -38,15 +38,16 @@ export default function Logo() {
           light: `${import.meta.env.BASE_URL}assets/images/logo.svg`,
           dark: `${import.meta.env.BASE_URL}assets/images/logo-inverted.svg`,
         }}
-        alt={{light: 'Asgardeo Logo (Light)', dark: 'Asgardeo Logo (Dark)'}}
+        alt={{ light: 'Asgardeo Logo (Light)', dark: 'Asgardeo Logo (Dark)' }}
         height={17}
         width="auto"
         sx={{
-          marginTop: '-5px'
+          marginTop: '-5px',
         }}
-      />),
+      />
+    ),
     acrylicPurple: choreoLogo,
-    choreo: choreoLogo
+    choreo: choreoLogo,
   });
 
   return Logo;

@@ -17,12 +17,12 @@
  */
 
 export const STATUS_COLORS: Record<string, 'success' | 'warning' | 'default' | 'error' | 'info'> = {
-    active: 'success',
-    connected: 'success',
-    inactive: 'default',
-    disconnected: 'error',
-    draft: 'warning',
-    archived: 'default',
-}
+  active: 'success',
+  connected: 'success',
+  inactive: 'default',
+  disconnected: 'error',
+  draft: 'warning',
+  archived: 'default',
+};
 
-export const getStatusColor = (status: string) => STATUS_COLORS[status] || 'default'
+export const getStatusColor = (status: string) => STATUS_COLORS[status] || 'default';

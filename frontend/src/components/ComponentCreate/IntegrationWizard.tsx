@@ -56,7 +56,7 @@ export default function IntegrationWizard(): JSX.Element {
       name,
       description,
       selectedPreset,
-    })
+    });
     alert('Integration deployed successfully!');
   };
 
@@ -68,24 +68,14 @@ export default function IntegrationWizard(): JSX.Element {
         <Form.Body>Configure your repository settings for deployment</Form.Body>
         <Form.Stack direction="row">
           <Form.ElementWrapper label="Organization" name="organization">
-            <Select
-              id="organization"
-              value={organization}
-              onChange={e => setOrganization(e.target.value as string)}
-              fullWidth
-            >
+            <Select id="organization" value={organization} onChange={(e) => setOrganization(e.target.value as string)} fullWidth>
               <MenuItem value="wso2-oxigen">wso2-oxigen</MenuItem>
               <MenuItem value="wso2">wso2</MenuItem>
               <MenuItem value="asgardeo">asgardeo</MenuItem>
             </Select>
           </Form.ElementWrapper>
           <Form.ElementWrapper label="Repository" name="repository">
-            <Select
-              id="repository"
-              value={repository}
-              onChange={e => setRepository(e.target.value as string)}
-              fullWidth
-            >
+            <Select id="repository" value={repository} onChange={(e) => setRepository(e.target.value as string)} fullWidth>
               <MenuItem value="">Select a repository</MenuItem>
               <MenuItem value="integration-app">integration-app</MenuItem>
               <MenuItem value="banking-integration">banking-integration</MenuItem>
@@ -96,14 +86,13 @@ export default function IntegrationWizard(): JSX.Element {
             <Select
               id="branch"
               value={branch}
-              onChange={e => setBranch(e.target.value as string)}
+              onChange={(e) => setBranch(e.target.value as string)}
               startAdornment={
                 <InputAdornment position="start">
                   <GitBranchIcon size={16} />
                 </InputAdornment>
               }
-              fullWidth
-            >
+              fullWidth>
               <MenuItem value="main">main</MenuItem>
               <MenuItem value="develop">develop</MenuItem>
               <MenuItem value="staging">staging</MenuItem>
@@ -113,7 +102,7 @@ export default function IntegrationWizard(): JSX.Element {
             <TextField
               id="componentDirectory"
               value={componentDirectory}
-              onChange={e => setComponentDirectory(e.target.value)}
+              onChange={(e) => setComponentDirectory(e.target.value)}
               slotProps={{
                 input: {
                   endAdornment: (
@@ -137,20 +126,14 @@ export default function IntegrationWizard(): JSX.Element {
         <Form.Body>Provide information about your integration component</Form.Body>
         <Form.Stack direction="row" spacing={2}>
           <Form.ElementWrapper label="Display Name" name="displayName">
-            <TextField
-              id="displayName"
-              placeholder="Enter display name here"
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              fullWidth
-            />
+            <TextField id="displayName" placeholder="Enter display name here" value={displayName} onChange={(e) => setDisplayName(e.target.value)} fullWidth />
           </Form.ElementWrapper>
           <Form.ElementWrapper label="Name" name="name">
             <TextField
               id="name"
               placeholder="Enter name here"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               slotProps={{
                 input: {
                   endAdornment: (
@@ -166,15 +149,7 @@ export default function IntegrationWizard(): JSX.Element {
             />
           </Form.ElementWrapper>
           <Form.ElementWrapper label="Description" name="description">
-            <TextField
-              id="description"
-              placeholder="Enter description here"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              multiline
-              minRows={1}
-              fullWidth
-            />
+            <TextField id="description" placeholder="Enter description here" value={description} onChange={(e) => setDescription(e.target.value)} multiline minRows={1} fullWidth />
           </Form.ElementWrapper>
         </Form.Stack>
       </Form.Section>
@@ -184,20 +159,11 @@ export default function IntegrationWizard(): JSX.Element {
         <Form.Subheader>Build Configuration</Form.Subheader>
         <Form.Body>Select a build preset for your integration</Form.Body>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-          {buildPresets.map(preset => (
-            <Form.CardButton
-              key={preset.id}
-              onClick={() => setSelectedPreset(preset.id)}
-              selected={selectedPreset === preset.id}
-            >
+          {buildPresets.map((preset) => (
+            <Form.CardButton key={preset.id} onClick={() => setSelectedPreset(preset.id)} selected={selectedPreset === preset.id}>
               <Form.CardHeader
                 title={
-                  <Form.Stack
-                    direction="row"
-                    spacing={2}
-                    justifyContent="center"
-                    alignItems="center"
-                  >
+                  <Form.Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
                     <BoxIcon size={32} />
                     <Form.Body>{preset.label}</Form.Body>
                   </Form.Stack>
@@ -218,5 +184,5 @@ export default function IntegrationWizard(): JSX.Element {
         </Button>
       </Form.Stack>
     </Form.Stack>
-  )
+  );
 }

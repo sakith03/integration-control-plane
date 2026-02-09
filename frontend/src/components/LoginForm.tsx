@@ -16,32 +16,19 @@
  * under the License.
  */
 
-import { useState } from 'react'
-import type { JSX } from 'react'
-import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  Divider,
-  FormControlLabel,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  Link,
-  OutlinedInput,
-  Typography
-} from '@wso2/oxygen-ui';
-import { Eye, EyeOff, GitHub, Google } from '@wso2/oxygen-ui-icons-react'
-import {useNavigate} from 'react-router';
+import { useState } from 'react';
+import type { JSX } from 'react';
+import { Alert, Box, Button, Checkbox, Divider, FormControlLabel, IconButton, InputAdornment, InputLabel, Link, OutlinedInput, Typography } from '@wso2/oxygen-ui';
+import { Eye, EyeOff, GitHub, Google } from '@wso2/oxygen-ui-icons-react';
+import { useNavigate } from 'react-router';
 
 export default function LoginForm(): JSX.Element {
   const [error] = useState(false);
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin");
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('admin');
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
 
@@ -70,29 +57,17 @@ export default function LoginForm(): JSX.Element {
         </Typography>
       </Box>
 
-      { error &&
+      {error && (
         <Alert severity="warning" sx={{ my: 2 }}>
           You are about to access a non-secure site. Proceed with caution!
         </Alert>
-      }
-          
+      )}
+
       <Box>
-        <Button
-          fullWidth
-          variant="contained"
-          startIcon={<Google />}
-          color="secondary"
-          sx={{ my: 1 }}
-        >
+        <Button fullWidth variant="contained" startIcon={<Google />} color="secondary" sx={{ my: 1 }}>
           Continue with Google
         </Button>
-        <Button
-          fullWidth
-          variant="contained"
-          startIcon={<GitHub />}
-          color="secondary"
-          sx={{ my: 1 }}
-        >
+        <Button fullWidth variant="contained" startIcon={<GitHub />} color="secondary" sx={{ my: 1 }}>
           Continue with GitHub
         </Button>
       </Box>
@@ -102,16 +77,7 @@ export default function LoginForm(): JSX.Element {
       <Box display="flex" flexDirection="column" gap={2}>
         <Box display="flex" flexDirection="column" gap={0.5}>
           <InputLabel htmlFor="username">Username</InputLabel>
-          <OutlinedInput
-            type="text"
-            id="username"
-            name="username"
-            placeholder="Enter your username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            size="small"
-            required
-          />
+          <OutlinedInput type="text" id="username" name="username" placeholder="Enter your username" value={username} onChange={(e) => setUsername(e.target.value)} size="small" required />
         </Box>
         <Box display="flex" flexDirection="column" gap={0.5}>
           <InputLabel htmlFor="password">Password</InputLabel>
@@ -119,15 +85,7 @@ export default function LoginForm(): JSX.Element {
             type={showPassword ? 'text' : 'password'}
             endAdornment={
               <InputAdornment position="end">
-                <IconButton
-                  aria-label={
-                    showPassword ? 'hide the password' : 'display the password'
-                  }
-                  onClick={handleClickShowPassword}
-                  onMouseDown={handleMouseDownPassword}
-                  onMouseUp={handleMouseUpPassword}
-                  edge="end"
-                >
+                <IconButton aria-label={showPassword ? 'hide the password' : 'display the password'} onClick={handleClickShowPassword} onMouseDown={handleMouseDownPassword} onMouseUp={handleMouseUpPassword} edge="end">
                   {showPassword ? <EyeOff /> : <Eye />}
                 </IconButton>
               </InputAdornment>
@@ -147,12 +105,8 @@ export default function LoginForm(): JSX.Element {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-          }}
-        >
-          <FormControlLabel
-            control={<Checkbox name="remember-me-checkbox" />}
-            label="Remember me"
-          />
+          }}>
+          <FormControlLabel control={<Checkbox name="remember-me-checkbox" />} label="Remember me" />
           <Link href="">Forgot your password?</Link>
         </Box>
 
@@ -162,5 +116,5 @@ export default function LoginForm(): JSX.Element {
         </Button>
       </Box>
     </form>
-  )
+  );
 }

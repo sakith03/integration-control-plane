@@ -16,43 +16,49 @@
  * under the License.
  */
 
-import {
-  OxygenUIThemeProvider,
-  AcrylicOrangeTheme,
-  AcrylicPurpleTheme,
-  ChoreoTheme,
-  ClassicTheme,
-  HighContrastTheme,
-  PaleGrayTheme,
-  PaleIndigoTheme
-} from '@wso2/oxygen-ui'
-import { HashRouter, BrowserRouter } from 'react-router'
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import App from './App'
-import './index.css'
+import { OxygenUIThemeProvider, AcrylicOrangeTheme, AcrylicPurpleTheme, ChoreoTheme, ClassicTheme, HighContrastTheme, PaleGrayTheme, PaleIndigoTheme } from '@wso2/oxygen-ui';
+import { HashRouter, BrowserRouter } from 'react-router';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './index.css';
 
 // Use HashRouter for production builds (for static hosting in Storybook)
 // Use BrowserRouter for development
-const Router = import.meta.env.PROD ? HashRouter : BrowserRouter
+const Router = import.meta.env.PROD ? HashRouter : BrowserRouter;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <OxygenUIThemeProvider 
+    <OxygenUIThemeProvider
       themes={[
-        { key: 'acrylicOrange', label: 'Acrylic Orange Theme', theme: AcrylicOrangeTheme },
-        { key: 'acrylicPurple', label: 'Acrylic Purple Theme', theme: AcrylicPurpleTheme },
+        {
+          key: 'acrylicOrange',
+          label: 'Acrylic Orange Theme',
+          theme: AcrylicOrangeTheme,
+        },
+        {
+          key: 'acrylicPurple',
+          label: 'Acrylic Purple Theme',
+          theme: AcrylicPurpleTheme,
+        },
         { key: 'choreo', label: 'Choreo Theme', theme: ChoreoTheme },
-        { key: 'highContrast', label: 'High Contrast Theme', theme: HighContrastTheme },
+        {
+          key: 'highContrast',
+          label: 'High Contrast Theme',
+          theme: HighContrastTheme,
+        },
         { key: 'classic', label: 'Classic Theme', theme: ClassicTheme },
         { key: 'paleGray', label: 'Pale Gray Theme', theme: PaleGrayTheme },
-        { key: 'paleIndigo', label: 'Pale Indigo Theme', theme: PaleIndigoTheme },
+        {
+          key: 'paleIndigo',
+          label: 'Pale Indigo Theme',
+          theme: PaleIndigoTheme,
+        },
       ]}
-      initialTheme="acrylicOrange"
-    >
+      initialTheme="acrylicOrange">
       <Router>
         <App />
       </Router>
     </OxygenUIThemeProvider>
   </StrictMode>,
-)
+);

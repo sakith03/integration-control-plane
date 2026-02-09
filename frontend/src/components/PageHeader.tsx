@@ -16,18 +16,24 @@
  * under the License.
  */
 
-import { Box, Typography } from '@wso2/oxygen-ui'
-import type { JSX, ReactNode } from 'react'
+import { Box, Typography } from '@wso2/oxygen-ui';
+import type { JSX, ReactNode } from 'react';
 
 interface PageHeaderProps {
-  title: string
-  description?: string
-  action?: ReactNode
+  title: string;
+  description?: string;
+  action?: ReactNode;
 }
 
 export default function PageHeader({ title, description, action }: PageHeaderProps): JSX.Element {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 4,
+      }}>
       <Box>
         <Typography variant="h4" gutterBottom>
           {title}
@@ -40,5 +46,5 @@ export default function PageHeader({ title, description, action }: PageHeaderPro
       </Box>
       {action && <Box>{action}</Box>}
     </Box>
-  )
+  );
 }

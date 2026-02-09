@@ -16,16 +16,16 @@
  * under the License.
  */
 
-import { Box, Button, Typography, Card, CardContent } from '@wso2/oxygen-ui'
-import { Home, RefreshCw, ArrowLeft, AlertCircle } from '@wso2/oxygen-ui-icons-react'
-import { useNavigate, useSearchParams } from 'react-router'
-import type { JSX } from 'react'
+import { Box, Button, Typography, Card, CardContent } from '@wso2/oxygen-ui';
+import { Home, RefreshCw, ArrowLeft, AlertCircle } from '@wso2/oxygen-ui-icons-react';
+import { useNavigate, useSearchParams } from 'react-router';
+import type { JSX } from 'react';
 
 interface ErrorType {
-  code: string
-  title: string
-  message: string
-  suggestion: string
+  code: string;
+  title: string;
+  message: string;
+  suggestion: string;
 }
 
 const errorTypes: Record<string, ErrorType> = {
@@ -47,49 +47,49 @@ const errorTypes: Record<string, ErrorType> = {
     message: 'Something went wrong on our end. Please try again later.',
     suggestion: 'If the problem persists, contact support.',
   },
-  'network': {
+  network: {
     code: 'Network Error',
     title: 'Connection Problem',
     message: 'Unable to connect to the server. Please check your internet connection.',
     suggestion: 'Try refreshing the page or check your network settings.',
   },
-  'timeout': {
+  timeout: {
     code: 'Timeout',
     title: 'Request Timeout',
     message: 'The request took too long to complete.',
     suggestion: 'Please try again or check your connection.',
   },
-  'unauthorized': {
+  unauthorized: {
     code: '401',
     title: 'Unauthorized',
     message: 'You need to be logged in to access this page.',
     suggestion: 'Please sign in to continue.',
   },
-  'maintenance': {
+  maintenance: {
     code: 'Maintenance',
     title: 'Under Maintenance',
     message: "We're currently performing scheduled maintenance.",
     suggestion: "We'll be back shortly. Please check back later.",
   },
-}
+};
 
 export default function ErrorPage(): JSX.Element {
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const errorType = searchParams.get('type') || '404'
-  const error = errorTypes[errorType] || errorTypes['404']
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const errorType = searchParams.get('type') || '404';
+  const error = errorTypes[errorType] || errorTypes['404'];
 
   const handleGoHome = () => {
-    navigate('/')
-  }
+    navigate('/');
+  };
 
   const handleGoBack = () => {
-    navigate(-1)
-  }
+    navigate(-1);
+  };
 
   const handleRefresh = () => {
-    window.location.reload()
-  }
+    window.location.reload();
+  };
 
   return (
     <Box
@@ -100,8 +100,7 @@ export default function ErrorPage(): JSX.Element {
         justifyContent: 'center',
         bgcolor: 'background.default',
         p: 3,
-      }}
-    >
+      }}>
       <Box sx={{ maxWidth: 600, width: '100%', textAlign: 'center' }}>
         {/* Error Icon */}
         <Box
@@ -116,8 +115,7 @@ export default function ErrorPage(): JSX.Element {
             mx: 'auto',
             mb: 4,
             opacity: 0.2,
-          }}
-        >
+          }}>
           <AlertCircle size={60} style={{ color: 'currentColor' }} />
         </Box>
 
@@ -130,8 +128,7 @@ export default function ErrorPage(): JSX.Element {
             color: 'text.secondary',
             mb: 2,
             opacity: 0.5,
-          }}
-        >
+          }}>
           {error.code}
         </Typography>
 
@@ -151,7 +148,14 @@ export default function ErrorPage(): JSX.Element {
         </Typography>
 
         {/* Action Buttons */}
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', mb: 4 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 2,
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            mb: 4,
+          }}>
           <Button variant="contained" size="large" startIcon={<Home size={20} />} onClick={handleGoHome}>
             Go to Homepage
           </Button>
@@ -195,8 +199,7 @@ export default function ErrorPage(): JSX.Element {
                   borderRadius: 1,
                   fontFamily: 'monospace',
                   fontSize: '0.75rem',
-                }}
-              >
+                }}>
                 <div>Error Type: {errorType}</div>
                 <div>URL: {window.location.href}</div>
                 <div>Timestamp: {new Date().toISOString()}</div>
@@ -206,5 +209,5 @@ export default function ErrorPage(): JSX.Element {
         )}
       </Box>
     </Box>
-  )
+  );
 }

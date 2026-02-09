@@ -21,24 +21,16 @@ import { ExternalLinkIcon } from '@wso2/oxygen-ui-icons-react';
 import type { JSX } from 'react';
 
 export interface SampleAppCardProps {
-  icon?: React.ReactNode
-  title: string
-  subtitle: string
-  description: string
-  onQuickDeploy?: () => void
-  onViewSource?: () => void
-  hasQuickDeploy?: boolean
+  icon?: React.ReactNode;
+  title: string;
+  subtitle: string;
+  description: string;
+  onQuickDeploy?: () => void;
+  onViewSource?: () => void;
+  hasQuickDeploy?: boolean;
 }
 
-export default function SampleAppCard({
-  icon,
-  title,
-  subtitle,
-  description,
-  onQuickDeploy,
-  onViewSource,
-  hasQuickDeploy = true,
-}: SampleAppCardProps): JSX.Element {
+export default function SampleAppCard({ icon, title, subtitle, description, onQuickDeploy, onViewSource, hasQuickDeploy = true }: SampleAppCardProps): JSX.Element {
   return (
     <Form.CardButton sx={{ width: 280 }}>
       <Form.CardContent>
@@ -55,8 +47,7 @@ export default function SampleAppCard({
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-            }}
-          >
+            }}>
             {description}
           </Typography>
         </Stack>
@@ -67,15 +58,10 @@ export default function SampleAppCard({
             Quick Deploy
           </Button>
         )}
-        <Button
-          variant="text"
-          size="small"
-          endIcon={<ExternalLinkIcon size={16} />}
-          onClick={onViewSource}
-        >
+        <Button variant="text" size="small" endIcon={<ExternalLinkIcon size={16} />} onClick={onViewSource}>
           Source
         </Button>
       </Form.CardActions>
     </Form.CardButton>
-  )
+  );
 }

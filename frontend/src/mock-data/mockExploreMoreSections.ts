@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { BookOpen, Book, Headphones } from '@wso2/oxygen-ui-icons-react'
-import type { ExploreMoreSection } from './types'
+import { BookOpen, Book, Headphones } from '@wso2/oxygen-ui-icons-react';
+import type { ExploreMoreSection } from './types';
 
 export const mockExploreMoreSections: ExploreMoreSection[] = [
   {
@@ -76,4 +76,4 @@ export const mockExploreMoreSections: ExploreMoreSection[] = [
       },
     ],
   },
-]
+];

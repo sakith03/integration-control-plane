@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { NotificationItem } from './types'
+import type { NotificationItem } from './types';
 
 /**
  * Sample notifications for the notification panel.
@@ -75,4 +75,4 @@ export const mockNotifications: NotificationItem[] = [
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
     read: true,
   },
-]
+];

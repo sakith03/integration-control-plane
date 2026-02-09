@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Settings, Bell, HelpCircle } from '@wso2/oxygen-ui-icons-react'
-import type { NavigationCategory } from './types'
+import { Settings, Bell, HelpCircle } from '@wso2/oxygen-ui-icons-react';
+import type { NavigationCategory } from './types';
 
 /**
  * Settings navigation items (shown at bottom of sidebar).
@@ -44,4 +44,4 @@ export const settingsNavigation: NavigationCategory = {
       href: '/help',
     },
   ],
-}
+};

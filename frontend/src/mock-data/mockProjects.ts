@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { Project } from './types'
+import type { Project } from './types';
 
 /**
  * Sample projects for the project switcher.
@@ -58,4 +58,4 @@ export const mockProjects: Project[] = [
     lastUpdated: '2 months ago',
     color: '#ed6c02',
   },
-]
+];

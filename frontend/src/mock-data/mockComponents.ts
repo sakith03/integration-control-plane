@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { Component } from './types'
+import type { Component } from './types';
 
 export const mockComponents: Component[] = [
   {
@@ -139,4 +139,4 @@ export const mockComponents: Component[] = [
     author: 'George Taylor',
     description: 'Generate and manage API access keys',
   },
-]
+];

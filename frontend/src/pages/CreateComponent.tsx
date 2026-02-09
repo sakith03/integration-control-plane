@@ -16,32 +16,21 @@
  * under the License.
  */
 
-import { Button, Divider, Form, PageTitle, PageContent, Stack } from '@wso2/oxygen-ui'
-import { useState, type JSX } from 'react'
-import { Link as NavigateLink, useParams } from 'react-router'
-import { ExternalLinkIcon, Import, Network, WSO2 } from '@wso2/oxygen-ui-icons-react'
-import IntegrationTypeCard from '../components/ComponentCreate/IntegrationTypeCard'
-import IntegrationWizard from '../components/ComponentCreate/IntegrationWizard'
-import SampleAppCard from '../components/ComponentCreate/SampleAppCard'
-import SampleIntegrationsSection from '../components/ComponentCreate/SampleIntegrationsSection'
+import { Button, Divider, Form, PageTitle, PageContent, Stack } from '@wso2/oxygen-ui';
+import { useState, type JSX } from 'react';
+import { Link as NavigateLink, useParams } from 'react-router';
+import { ExternalLinkIcon, Import, Network, WSO2 } from '@wso2/oxygen-ui-icons-react';
+import IntegrationTypeCard from '../components/ComponentCreate/IntegrationTypeCard';
+import IntegrationWizard from '../components/ComponentCreate/IntegrationWizard';
+import SampleAppCard from '../components/ComponentCreate/SampleAppCard';
+import SampleIntegrationsSection from '../components/ComponentCreate/SampleIntegrationsSection';
 
 const SelectionView = ({ onNext }: { onNext: () => void }) => (
   <Stack maxWidth="xl" mx="auto" spacing={2}>
     <Stack direction="row" spacing={2}>
       <Form.Stack direction="row" width="md">
-        <IntegrationTypeCard
-          icon={Network}
-          title="Create a new Integration"
-          description="Start developing in a complete, browser-based development environment."
-          tooltipText="What is this?"
-          onClick={onNext}
-        />
-        <IntegrationTypeCard
-          icon={Import}
-          title="Import an Integration"
-          description="Connect your existing code repository, and start building instantly"
-          tooltipText="What is this?"
-        />
+        <IntegrationTypeCard icon={Network} title="Create a new Integration" description="Start developing in a complete, browser-based development environment." tooltipText="What is this?" onClick={onNext} />
+        <IntegrationTypeCard icon={Import} title="Import an Integration" description="Connect your existing code repository, and start building instantly" tooltipText="What is this?" />
       </Form.Stack>
       <Divider orientation="vertical" flexItem />
       <SampleIntegrationsSection>
@@ -49,29 +38,28 @@ const SelectionView = ({ onNext }: { onNext: () => void }) => (
           <SampleAppCard key={i} title={t} subtitle={t} description={t} icon={<WSO2 />} />
         ))}
         <Form.CardButton alignItems="center" sx={{ width: 280 }}>
-          <Button variant="text" size="small" endIcon={<ExternalLinkIcon size={16} />}>View more samples..</Button>
+          <Button variant="text" size="small" endIcon={<ExternalLinkIcon size={16} />}>
+            View more samples..
+          </Button>
         </Form.CardButton>
       </SampleIntegrationsSection>
     </Stack>
   </Stack>
-)
+);
 
 export default function CreateComponent(): JSX.Element {
-  const { orgId, id } = useParams<{ orgId: string; id?: string }>()
-  const [step, setStep] = useState<'select' | 'config'>('select')
+  const { orgId, id } = useParams<{ orgId: string; id?: string }>();
+  const [step, setStep] = useState<'select' | 'config'>('select');
 
   return (
     <PageContent>
       <PageTitle>
-        <PageTitle.BackButton
-          component={step === 'select' ? <NavigateLink to={`/o/${orgId}/projects/${id}`} /> : undefined}
-          onClick={step === 'config' ? () => setStep('select') : undefined}
-        />
+        <PageTitle.BackButton component={step === 'select' ? <NavigateLink to={`/o/${orgId}/projects/${id}`} /> : undefined} onClick={step === 'config' ? () => setStep('select') : undefined} />
         <PageTitle.Header>{step === 'select' ? 'Get started with your Integration' : 'Import your Integration'}</PageTitle.Header>
         <PageTitle.SubHeader>Follow the steps below to {step === 'select' ? 'create a new' : 'import your'} integration</PageTitle.SubHeader>
       </PageTitle>
 
       {step === 'select' ? <SelectionView onNext={() => setStep('config')} /> : <IntegrationWizard />}
     </PageContent>
-  )
+  );
 }
