@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useState, useMemo, type JSX, type ReactNode } from 'react'
+import { useState, useMemo, type JSX } from 'react'
 import {
   Box,
   Button,
@@ -49,7 +49,7 @@ import {
 } from '@wso2/oxygen-ui-icons-react'
 import { useNavigate, useParams, Link as NavigateLink } from 'react-router'
 import { mockComponents } from '../mock-data/mockComponents'
-import type { Component } from '../mock-data/types'
+import { getStatusColor } from '../config/statusColors'
 
 const ICONS: Record<string, any> = {
   Authentication: Key,
@@ -57,12 +57,6 @@ const ICONS: Record<string, any> = {
   Registration: FileText,
   Recovery: RefreshCw,
   'Multi-Factor Authentication': Lock,
-}
-
-const COLORS: Record<string, 'success' | 'default' | 'warning'> = {
-  active: 'success',
-  inactive: 'default',
-  draft: 'warning',
 }
 
 type Filters = { type: string; status: string; query: string }
@@ -170,7 +164,7 @@ export default function Components(): JSX.Element {
                       </ListingTable.Cell>
                       <ListingTable.Cell><Chip label={c.type} size="small" variant="outlined" /></ListingTable.Cell>
                       <ListingTable.Cell>{c.category}</ListingTable.Cell>
-                      <ListingTable.Cell><Chip label={c.status} size="small" color={COLORS[c.status] || 'default'} /></ListingTable.Cell>
+                      <ListingTable.Cell><Chip label={c.status} size="small" color={getStatusColor(c.status)} /></ListingTable.Cell>
                       <ListingTable.Cell>{c.author}</ListingTable.Cell>
                       <ListingTable.Cell>{c.lastModified}</ListingTable.Cell>
                       <ListingTable.Cell align="right">

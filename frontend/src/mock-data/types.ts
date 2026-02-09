@@ -231,9 +231,9 @@ export interface Component {
 
 export interface McpServer {
   id: string
-  action: string
-  user: string
-  timestamp: string
+  name: string
+  type: string
+  status: 'connected' | 'disconnected'
 }
 
 export interface ExploreMoreItem {

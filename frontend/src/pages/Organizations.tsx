@@ -48,6 +48,7 @@ import { useMemo, useState, type JSX } from 'react'
 import { mockOrganizations } from '../mock-data/mockOrganizations'
 import { mockExploreMoreSections } from '../mock-data/mockExploreMoreSections'
 import type { Organization, ExploreMoreSection } from '../mock-data/types'
+import EmptyListing from '../components/EmptyListing'
 
 const ExploreSection = ({ icon: Icon, title, items }: ExploreMoreSection) => (
   <Box display="flex" alignItems="flex-start" gap={2}>
@@ -112,18 +113,14 @@ export default function Organizations(): JSX.Element {
       </Box>
 
       {organizations.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <Folder size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-          <Typography variant="h6" gutterBottom>No organizations found</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {query ? 'Try adjusting your search' : 'Create your first organization to get started'}
-          </Typography>
-          {!query && (
-            <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate('/organizations/new')}>
-              Create Organization
-            </Button>
-          )}
-        </Box>
+        <EmptyListing
+          icon={<Folder size={48} />}
+          title="No organizations found"
+          description={query ? 'Try adjusting your search' : 'Create your first organization to get started'}
+          showAction={!query}
+          actionLabel="Create Organization"
+          onAction={() => navigate('/organizations/new')}
+        />
       ) : (
         <ListingTable.Container sx={{ width: '100%' }} disablePaper>
           <ListingTable variant="card" density="standard">

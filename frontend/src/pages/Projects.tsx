@@ -36,12 +36,8 @@ import { useNavigate, useParams } from 'react-router'
 import { useState, type JSX } from 'react'
 import { mockProjects } from '../mock-data/mockProjects'
 import type { Project } from '../mock-data/types'
-
-const COLORS: Record<string, 'success' | 'warning' | 'default'> = {
-  active: 'success',
-  draft: 'warning',
-  archived: 'default',
-} as const
+import { getStatusColor } from '../config/statusColors'
+import EmptyListing from '../components/EmptyListing'
 
 const ProjectCard = ({ project, onNavigate }: { project: Project; onNavigate: (id: string) => void }) => (
   <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease-in-out', pb: 2 }}>
@@ -59,7 +55,7 @@ const ProjectCard = ({ project, onNavigate }: { project: Project; onNavigate: (i
         {project.description ?? 'No description'}
       </Typography>
       <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-        <Chip label={project.status} size="small" color={COLORS[project.status || 'archived'] || 'default'} sx={{ fontWeight: 500, textTransform: 'capitalize' }} />
+        <Chip label={project.status} size="small" color={getStatusColor(project.status || 'archived')} sx={{ fontWeight: 500, textTransform: 'capitalize' }} />
         <Chip label={`${project.componentsCount} components`} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 500 }}>
@@ -104,14 +100,14 @@ export default function Projects(): JSX.Element {
       </Box>
 
       {projects.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <Folder size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-          <Typography variant="h6" gutterBottom>No projects found</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {query ? 'Try adjusting your search' : 'Create your first project to get started'}
-          </Typography>
-          {!query && <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(`/o/${orgId}/projects/new`)}>Create Project</Button>}
-        </Box>
+        <EmptyListing
+          icon={<Folder size={48} />}
+          title="No projects found"
+          description={query ? 'Try adjusting your search' : 'Create your first project to get started'}
+          showAction={!query}
+          actionLabel="Create Project"
+          onAction={() => navigate(`/o/${orgId}/projects/new`)}
+        />
       ) : (
         <Grid container spacing={3}>
           {projects.map(p => (

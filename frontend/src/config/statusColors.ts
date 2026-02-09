@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -16,11 +16,13 @@
  * under the License.
  */
 
-import type { McpServer } from './types'
+export const STATUS_COLORS: Record<string, 'success' | 'warning' | 'default' | 'error' | 'info'> = {
+    active: 'success',
+    connected: 'success',
+    inactive: 'default',
+    disconnected: 'error',
+    draft: 'warning',
+    archived: 'default',
+}
 
-export const mockMcpServers: McpServer[] = [
-  { id: '1', name: 'Customer Support MCP', type: 'Support', status: 'connected' },
-  { id: '2', name: 'Order Processing MCP', type: 'Processing', status: 'connected' },
-  { id: '3', name: 'Fraud Detection MCP', type: 'Security', status: 'disconnected' },
-  { id: '4', name: 'Notification Dispatcher MCP', type: 'Messaging', status: 'connected' },
-]
+export const getStatusColor = (status: string) => STATUS_COLORS[status] || 'default'
