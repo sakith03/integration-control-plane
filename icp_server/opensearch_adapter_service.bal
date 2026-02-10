@@ -150,6 +150,7 @@ service /observability on openSerachObservabilityListener {
         searchResponses.push(searchResponse);
         log:printDebug("Search returned " + searchResponse.hits.total.value.toString() + " results");
         } else if componentType == "ALL" {
+            log:printDebug("Searching across all component types (BI and MI)");
             OpenSearchResponse BiSearchResponse = check opensearchClient->post("/ballerina-application-logs-*/_search", searchRequest);
             searchResponses.push(BiSearchResponse);
             OpenSearchResponse MiSearchResponse = check opensearchClient->post("/mi-application-logs-*/_search", searchRequest);

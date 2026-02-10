@@ -145,6 +145,7 @@ public isolated function getRuntimeById(string runtimeId) returns types:Runtime?
 
 // Get the type of a runtime by ID
 public isolated function getRuntimeTypeById(string runtimeId) returns types:RuntimeTypeRecord?|error {
+    log:printDebug("Fetching runtime type for runtime ID: " + runtimeId);
     stream<types:RuntimeTypeRecord, sql:Error?> runtimeTypeStream = dbClient->query(`
         SELECT runtime_id, runtime_type, environment_id, component_id 
         FROM runtimes
@@ -155,6 +156,7 @@ public isolated function getRuntimeTypeById(string runtimeId) returns types:Runt
         select runtimeTypeRecord;
 
     if runtimeTypeRecords.length() == 0 {
+        log:printDebug("No runtime type found for runtime ID: " + runtimeId);
         return;
     }
 

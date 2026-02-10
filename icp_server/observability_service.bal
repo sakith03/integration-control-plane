@@ -86,7 +86,8 @@ service /icp/observability on observabilityListener {
         }
 
         // Resolve runtime types to request
-        types:LogIndexRuntimeType componentType = check resolveComponentTypes(runtimeIdList);       
+        types:LogIndexRuntimeType componentType = check resolveComponentTypes(runtimeIdList);
+        log:printDebug("Resolved component type: " + componentType.toString() + " for log filtering");  
 
         // Construct LogEntryRequest with resolved runtime IDs and copy other filter fields
         types:LogEntryRequest adaptorRequest = {
