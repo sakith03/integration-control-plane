@@ -55,7 +55,9 @@ const FilterBar = ({ filters, onChange }: { filters: Filters; onChange: (f: Part
           <Select value={filters.status} onChange={(e) => onChange({ status: e.target.value as string })}>
             <MenuItem value="all">All Status</MenuItem>
             {['active', 'inactive', 'draft'].map((s) => (
-              <MenuItem key={s} value={s}>{capitalize(s)}</MenuItem>
+              <MenuItem key={s} value={s}>
+                {capitalize(s)}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>

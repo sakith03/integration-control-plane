@@ -163,7 +163,9 @@ export default function Logs(): JSX.Element {
               <Select value={level} onChange={(e) => setLevel(e.target.value as string)}>
                 <MenuItem value="all">All Levels</MenuItem>
                 {['success', 'info', 'warning', 'error'].map((l) => (
-                  <MenuItem key={l} value={l}>{capitalize(l)}</MenuItem>
+                  <MenuItem key={l} value={l}>
+                    {capitalize(l)}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>

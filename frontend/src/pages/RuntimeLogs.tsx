@@ -32,9 +32,7 @@ export default function RuntimeLogs(): JSX.Element {
   const { data: allComponents = [], isLoading: loadingComponents } = useComponents(orgHandler, projectId);
   const { data: environments = [], isLoading: loadingEnvironments } = useEnvironments(projectId);
 
-  const componentIds = isComponentLevel
-    ? (singleComponent ? [singleComponent.id] : [])
-    : allComponents.map((c) => c.id);
+  const componentIds = isComponentLevel ? (singleComponent ? [singleComponent.id] : []) : allComponents.map((c) => c.id);
 
   const [envFilter, setEnvFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
@@ -48,10 +46,7 @@ export default function RuntimeLogs(): JSX.Element {
   const selectedEnv = environments.find((e) => e.id === effectiveEnvId);
   const componentIdsKey = componentIds.join(',');
 
-  const { data: runtimes = [] } = useRuntimes(
-    effectiveEnvId, projectId,
-    isComponentLevel && singleComponent ? singleComponent.id : '',
-  );
+  const { data: runtimes = [] } = useRuntimes(effectiveEnvId, projectId, isComponentLevel && singleComponent ? singleComponent.id : '');
 
   const logsRequest = useMemo<LogsRequest | null>(() => {
     if (componentIds.length === 0 || !selectedEnv) return null;
@@ -74,16 +69,15 @@ export default function RuntimeLogs(): JSX.Element {
 
   const { data: logs = [], isLoading, error, refetch } = useLogs(logsRequest);
 
-  const filteredLogs = runtimeFilter === 'all'
-    ? logs
-    : logs.filter((l) => l.entry.includes(runtimeFilter));
+  const filteredLogs = runtimeFilter === 'all' ? logs : logs.filter((l) => l.entry.includes(runtimeFilter));
 
-  const toggle = (i: number) => setExpanded((s) => {
-    const next = new Set(s);
-    if (next.has(i)) next.delete(i);
-    else next.add(i);
-    return next;
-  });
+  const toggle = (i: number) =>
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
 
   const loadingContext = isComponentLevel ? loadingComponent : loadingComponents;
   if (loadingContext || loadingEnvironments) {
@@ -114,41 +108,33 @@ export default function RuntimeLogs(): JSX.Element {
   return (
     <PageContent>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>Runtime Logs</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          Runtime Logs
+        </Typography>
         <Chip label={timeRange} size="small" aria-label="Time range" />
       </Stack>
 
       <Stack direction="row" gap={2} sx={{ mb: 2 }} flexWrap="wrap" alignItems="center">
-        <Select
-          value={levelFilter}
-          onChange={(e) => setLevelFilter(e.target.value as string)}
-          size="small"
-          sx={{ minWidth: 120 }}
-          aria-label="Log level"
-        >
+        <Select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value as string)} size="small" sx={{ minWidth: 120 }} aria-label="Log level">
           <MenuItem value="all">All Levels</MenuItem>
-          {LOG_LEVELS.map((l) => <MenuItem key={l} value={l}>{l}</MenuItem>)}
+          {LOG_LEVELS.map((l) => (
+            <MenuItem key={l} value={l}>
+              {l}
+            </MenuItem>
+          ))}
         </Select>
 
         {environments.length > 0 && (
-          <Select
-            value={effectiveEnvId}
-            onChange={(e) => setEnvFilter(e.target.value as string)}
-            size="small"
-            sx={{ minWidth: 140 }}
-            aria-label="Environment"
-          >
-            {environments.map((e) => <MenuItem key={e.id} value={e.id}>{e.name}</MenuItem>)}
+          <Select value={effectiveEnvId} onChange={(e) => setEnvFilter(e.target.value as string)} size="small" sx={{ minWidth: 140 }} aria-label="Environment">
+            {environments.map((e) => (
+              <MenuItem key={e.id} value={e.id}>
+                {e.name}
+              </MenuItem>
+            ))}
           </Select>
         )}
 
-        <Select
-          value={runtimeFilter}
-          onChange={(e) => setRuntimeFilter(e.target.value as string)}
-          size="small"
-          sx={{ minWidth: 140 }}
-          aria-label="Runtime"
-        >
+        <Select value={runtimeFilter} onChange={(e) => setRuntimeFilter(e.target.value as string)} size="small" sx={{ minWidth: 140 }} aria-label="Runtime">
           <MenuItem value="all">All Runtimes</MenuItem>
           {runtimes.map((r) => (
             <MenuItem key={r.runtimeId} value={r.runtimeId}>
@@ -157,29 +143,19 @@ export default function RuntimeLogs(): JSX.Element {
           ))}
         </Select>
 
-        <Select
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value as string)}
-          size="small"
-          sx={{ minWidth: 160 }}
-          aria-label="Time range selector"
-        >
-          {Object.keys(TIME_RANGES).map((k) => <MenuItem key={k} value={k}>{k}</MenuItem>)}
+        <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value as string)} size="small" sx={{ minWidth: 160 }} aria-label="Time range selector">
+          {Object.keys(TIME_RANGES).map((k) => (
+            <MenuItem key={k} value={k}>
+              {k}
+            </MenuItem>
+          ))}
         </Select>
 
-        <SearchField
-          value={searchPhrase}
-          onChange={setSearchPhrase}
-          placeholder="Search logs..."
-          sx={{ minWidth: 200, flex: 1 }}
-        />
+        <SearchField value={searchPhrase} onChange={setSearchPhrase} placeholder="Search logs..." sx={{ minWidth: 200, flex: 1 }} />
       </Stack>
 
       <Stack direction="row" alignItems="center" gap={2} sx={{ mb: 2 }}>
-        <FormControlLabel
-          control={<Checkbox checked={autoFetch} onChange={(_, v) => setAutoFetch(v)} size="small" />}
-          label="Auto Fetch"
-        />
+        <FormControlLabel control={<Checkbox checked={autoFetch} onChange={(_, v) => setAutoFetch(v)} size="small" />} label="Auto Fetch" />
         <Button variant="outlined" size="small" onClick={() => refetch()} disabled={!logsRequest} startIcon={<RefreshCw size={14} />}>
           Load latest logs
         </Button>
@@ -201,23 +177,16 @@ export default function RuntimeLogs(): JSX.Element {
       ) : (
         <List disablePadding sx={{ fontFamily: 'monospace', fontSize: 13 }}>
           {filteredLogs.map((log, i) => (
-            <ListItemButton
-              key={i}
-              onClick={() => toggle(i)}
-              aria-label={`Log entry ${i}`}
-              sx={{ borderBottom: '1px solid', borderColor: 'divider', flexDirection: 'column', alignItems: 'stretch' }}
-            >
+            <ListItemButton key={i} onClick={() => toggle(i)} aria-label={`Log entry ${i}`} sx={{ borderBottom: '1px solid', borderColor: 'divider', flexDirection: 'column', alignItems: 'stretch' }}>
               <Stack direction="row" gap={2} alignItems="center">
                 <Typography variant="caption" sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap', color: 'text.secondary' }}>
                   {new Date(log.timestamp).toLocaleString()}
                 </Typography>
                 <Chip label={log.level} size="small" color={levelColor(log.level)} sx={{ fontFamily: 'monospace', height: 20, fontSize: 11 }} />
-                <Typography variant="caption" color="text.secondary">{selectedEnv!.name}</Typography>
-                <ListItemText
-                  primary={log.entry}
-                  primaryTypographyProps={{ variant: 'caption', sx: { fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }}
-                  sx={{ flex: 1, minWidth: 0 }}
-                />
+                <Typography variant="caption" color="text.secondary">
+                  {selectedEnv!.name}
+                </Typography>
+                <ListItemText primary={log.entry} primaryTypographyProps={{ variant: 'caption', sx: { fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} sx={{ flex: 1, minWidth: 0 }} />
               </Stack>
               {expanded.has(i) && (
                 <Typography component="pre" variant="body2" sx={{ mt: 1, p: 1.5, bgcolor: 'background.default', borderRadius: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12 }}>
