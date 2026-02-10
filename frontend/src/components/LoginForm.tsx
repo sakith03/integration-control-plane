@@ -18,18 +18,21 @@
 
 import { useState } from 'react';
 import type { JSX } from 'react';
-import { Alert, Box, Button, Checkbox, Divider, FormControlLabel, IconButton, InputAdornment, InputLabel, Link, OutlinedInput, Typography } from '@wso2/oxygen-ui';
+import { Alert, Box, Button, Checkbox, CircularProgress, Divider, FormControlLabel, IconButton, InputAdornment, InputLabel, Link, OutlinedInput, Typography } from '@wso2/oxygen-ui';
 import { Eye, EyeOff, GitHub, Google } from '@wso2/oxygen-ui-icons-react';
 import { useNavigate } from 'react-router';
 import { orgUrl } from '../paths';
+import { useAuth } from '../auth/AuthContext';
 
 export default function LoginForm(): JSX.Element {
-  const [error] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
 
@@ -41,9 +44,18 @@ export default function LoginForm(): JSX.Element {
     event.preventDefault();
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate(orgUrl('default'));
+    setError(null);
+    setLoading(true);
+    try {
+      await login(username, password);
+      navigate(orgUrl('default'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -59,8 +71,8 @@ export default function LoginForm(): JSX.Element {
       </Box>
 
       {error && (
-        <Alert severity="warning" sx={{ my: 2 }}>
-          You are about to access a non-secure site. Proceed with caution!
+        <Alert severity="error" sx={{ my: 2 }}>
+          {error}
         </Alert>
       )}
 
@@ -78,7 +90,7 @@ export default function LoginForm(): JSX.Element {
       <Box display="flex" flexDirection="column" gap={2}>
         <Box display="flex" flexDirection="column" gap={0.5}>
           <InputLabel htmlFor="username">Username</InputLabel>
-          <OutlinedInput type="text" id="username" name="username" placeholder="Enter your username" value={username} onChange={(e) => setUsername(e.target.value)} size="small" required />
+          <OutlinedInput type="text" id="username" name="username" placeholder="Enter your username" value={username} onChange={(e) => setUsername(e.target.value)} size="small" required disabled={loading} />
         </Box>
         <Box display="flex" flexDirection="column" gap={0.5}>
           <InputLabel htmlFor="password">Password</InputLabel>
@@ -98,6 +110,7 @@ export default function LoginForm(): JSX.Element {
             onChange={(e) => setPassword(e.target.value)}
             size="small"
             required
+            disabled={loading}
           />
         </Box>
 
@@ -112,8 +125,8 @@ export default function LoginForm(): JSX.Element {
         </Box>
 
         <input type="hidden" id="sessionDataKey" name="sessionDataKey" value="" />
-        <Button variant="contained" color="primary" type="submit" fullWidth sx={{ mt: 2 }}>
-          Sign In
+        <Button variant="contained" color="primary" type="submit" fullWidth sx={{ mt: 2 }} disabled={loading} startIcon={loading ? <CircularProgress size={20} color="inherit" /> : undefined}>
+          {loading ? 'Signing In...' : 'Sign In'}
         </Button>
       </Box>
     </form>
