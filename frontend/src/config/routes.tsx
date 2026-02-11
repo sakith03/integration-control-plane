@@ -1,5 +1,5 @@
 import { type RouteProps, Navigate } from 'react-router';
-import { rootUrl, loginUrl, oidcCallbackUrl, orgUrl, newProjectUrl, projectUrl, componentUrl, projectLogsUrl, componentLogsUrl } from '../paths';
+import { rootUrl, loginUrl, orgUrl, newProjectUrl, projectUrl, componentUrl, projectLogsUrl, componentLogsUrl, environmentsUrl, newEnvironmentUrl, oidcCallbackUrl,  } from '../paths';
 import PublicLayout from '../layouts/PublicLayout';
 import Login from '../pages/Login';
 import OIDCCallback from '../pages/OIDCCallback';
@@ -10,6 +10,8 @@ import CreateProject from '../pages/CreateProject';
 import Project from '../pages/Project';
 import Component from '../pages/Component';
 import RuntimeLogs from '../pages/RuntimeLogs';
+import Environments from '../pages/Environments';
+import CreateEnvironment from '../pages/CreateEnvironment';
 
 export interface AppRoute extends Omit<RouteProps, 'children'> {
   children?: AppRoute[];
@@ -28,6 +30,8 @@ const routes: AppRoute[] = [
     element: <AppLayout />,
     children: [
       { path: orgUrl(':orgHandler'), element: <Projects /> },
+      { path: environmentsUrl(':orgHandler'), element: <Environments /> },
+      { path: newEnvironmentUrl(':orgHandler'), element: <CreateEnvironment /> },
       { path: newProjectUrl(':orgHandler'), element: <CreateProject /> },
       { path: projectUrl(':orgHandler', ':projectId'), element: <Project /> },
       { path: componentUrl(':orgHandler', ':projectId', ':componentHandler'), element: <Component /> },
