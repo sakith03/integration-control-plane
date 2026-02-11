@@ -1,7 +1,8 @@
 import { type RouteProps, Navigate } from 'react-router';
-import { rootUrl, loginUrl, orgUrl, newProjectUrl, projectUrl, componentUrl, projectLogsUrl, componentLogsUrl } from '../paths';
+import { rootUrl, loginUrl, oidcCallbackUrl, orgUrl, newProjectUrl, projectUrl, componentUrl, projectLogsUrl, componentLogsUrl } from '../paths';
 import PublicLayout from '../layouts/PublicLayout';
 import Login from '../pages/Login';
+import OIDCCallback from '../pages/OIDCCallback';
 import AppLayout from '../layouts/AppLayout';
 import ProtectedRoute from '../auth/ProtectedRoute';
 import Projects from '../pages/Projects';
@@ -20,6 +21,7 @@ const routes: AppRoute[] = [
     element: <PublicLayout />,
     children: [{ path: loginUrl(), element: <Login /> }],
   },
+  { path: oidcCallbackUrl(), element: <OIDCCallback /> },
   {
     element: <ProtectedRoute />,
     children: [{
