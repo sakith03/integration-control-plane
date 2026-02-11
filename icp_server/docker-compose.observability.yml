@@ -95,7 +95,7 @@ services:
       - ./resources/observability/opensearch-observability-dashboard/logs/ballerina:/var/log/ballerina:ro
       - ${MI_LOG_FILE_PATH}/${MI_LOG_FILE_NAME}:/var/log/mi/${MI_LOG_FILE_NAME}:ro
       # Persist position database
-      -  fluent-bit-db:/fluent-bit/db
+      - fluent-bit-db:/fluent-bit/db
       # Persist buffer storage
       - fluent-bit-buffer:/fluent-bit/buffer
     depends_on:
@@ -163,4 +163,5 @@ volumes:
   opensearch_data:
   data_prepper_config:
   fluent-bit-db:
+  # Size constrained by Fluent Bit storage.total_limit_size (500M) in fluent-bit.conf
   fluent-bit-buffer:
