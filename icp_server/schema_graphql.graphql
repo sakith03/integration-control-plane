@@ -899,7 +899,7 @@ type ArtifactTracingChangeResponse {
 }
 
 # Input for artifact statistics change
-# Supported artifact types: ProxyService, Endpoint, RestApi, Sequence, InboundEndpoint, Template
+# Supported artifact types: proxy-service, endpoint, api, sequence, inbound-endpoint, template
 input ArtifactStatisticsChangeInput {
   componentId: String!
   artifactType: String!
