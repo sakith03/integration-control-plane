@@ -102,7 +102,9 @@ export default function Components(): JSX.Element {
     return mockComponents.filter((c) => (filters.type === 'all' || c.type === filters.type) && (filters.status === 'all' || c.status === filters.status) && (!q || [c.name, c.type, c.category, c.description].some((s) => s.toLowerCase().includes(q))));
   }, [filters]);
 
-  const paginated = list.slice(page * rows, (page + 1) * rows);
+  const maxPage = Math.max(0, Math.ceil(list.length / rows) - 1);
+  const safePage = Math.min(page, maxPage);
+  const paginated = list.slice(safePage * rows, (safePage + 1) * rows);
   const Icon = (type: string) => ICONS[type] || FileText;
 
   return (
@@ -194,7 +196,7 @@ export default function Components(): JSX.Element {
             component="div"
             count={list.length}
             rowsPerPage={rows}
-            page={page}
+            page={safePage}
             onPageChange={(_, p) => setPage(p)}
             onRowsPerPageChange={(e) => {
               setRows(parseInt(e.target.value, 10));

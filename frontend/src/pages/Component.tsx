@@ -356,7 +356,9 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
   const filtered = artifacts.filter((a) => !query || a.name?.toString().toLowerCase().includes(query.toLowerCase()));
   const supportsToggle = ['ProxyService', 'Endpoint', 'Task'].includes(artifactType);
   const hasStateField = ['ProxyService', 'Task', 'Connector'].includes(artifactType);
-  const paginatedArtifacts = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const maxPage = Math.max(0, Math.ceil(filtered.length / rowsPerPage) - 1);
+  const safePage = Math.min(page, maxPage);
+  const paginatedArtifacts = filtered.slice(safePage * rowsPerPage, safePage * rowsPerPage + rowsPerPage);
   const totalColumns = columns.length + (hasStateField ? 1 : 0);
   const columnSize = Math.floor(12 / totalColumns);
 
