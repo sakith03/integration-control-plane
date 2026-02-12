@@ -667,8 +667,13 @@ function EntryPointDetail({ selected, onViewSource, onViewRuntimes }: { selected
 
   const artifactKey = `${artifactType}-${artifact.name}`;
   useEffect(() => {
-    setActiveTabIndex(0);
-  }, [artifactKey]);
+    if (selected.initialTab) {
+      const idx = tabs.indexOf(selected.initialTab);
+      setActiveTabIndex(idx >= 0 ? idx : 0);
+    } else {
+      setActiveTabIndex(0);
+    }
+  }, [artifactKey, selected.initialTab]);
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -696,12 +701,7 @@ function EntryPointDetail({ selected, onViewSource, onViewRuntimes }: { selected
             Context: {context}
           </Typography>
         )}
-        <Stack direction="row" alignItems="center" gap={0.5} sx={{ ml: 'auto' }}>
-          <Typography variant="body2" color="text.secondary">
-            Tracing {tracing === 'enabled' ? 'Enabled' : 'Disabled'}
-          </Typography>
-          <Switch size="small" checked={tracing === 'enabled'} />
-        </Stack>
+        <Chip label={tracing === 'enabled' ? 'Tracing Enabled' : 'Tracing Disabled'} size="small" color={tracing === 'enabled' ? 'success' : 'default'} variant="outlined" sx={{ ml: 'auto' }} />
         {(ARTIFACT_TABS[artifactType] ?? DEFAULT_ARTIFACT_TABS).includes('Source') && (
           <Button variant="outlined" size="small" onClick={onViewSource}>
             View Source
