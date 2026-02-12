@@ -215,7 +215,13 @@ function PermissionsEditor({ allPermissions, selectedIds, onChange }: { allPermi
   const toggleDomain = (_domain: string, perms: Permission[]) => {
     const allSelected = perms.every((p) => selectedIds.has(p.permissionId));
     const next = new Set(selectedIds);
-    perms.forEach((p) => (allSelected ? next.delete(p.permissionId) : next.add(p.permissionId)));
+    for (const p of perms) {
+      if (allSelected) {
+        next.delete(p.permissionId);
+      } else {
+        next.add(p.permissionId);
+      }
+    }
     onChange(next);
   };
   const togglePerm = (id: string) => {
