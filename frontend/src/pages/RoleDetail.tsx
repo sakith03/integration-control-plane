@@ -1,4 +1,33 @@
-import { Autocomplete, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, IconButton, MenuItem, Radio, RadioGroup, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography, PageContent, PageTitle } from '@wso2/oxygen-ui';
+import {
+  Autocomplete,
+  Box,
+  Button,
+  Checkbox,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  FormControlLabel,
+  IconButton,
+  MenuItem,
+  Radio,
+  RadioGroup,
+  Stack,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Tabs,
+  TextField,
+  Typography,
+  PageContent,
+  PageTitle,
+} from '@wso2/oxygen-ui';
 import { ArrowLeft, ChevronDown, ChevronUp, Lock, Plus, Trash2, Users } from '@wso2/oxygen-ui-icons-react';
 import { useState, useMemo, useCallback, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router';
@@ -77,7 +106,14 @@ function AssignRoleToGroupsDialog({ orgHandler, roleId, roleName, existingGroupI
     let remaining = selected.length;
     const envUuid = envMode === 'selected' && selectedEnvs.length > 0 ? selectedEnvs[0] : undefined;
     for (const g of selected) {
-      mutation.mutate({ groupId: g.groupId, roleIds: [roleId], envUuid }, { onSuccess: () => { if (--remaining === 0) onClose(); } });
+      mutation.mutate(
+        { groupId: g.groupId, roleIds: [roleId], envUuid },
+        {
+          onSuccess: () => {
+            if (--remaining === 0) onClose();
+          },
+        },
+      );
     }
   };
   return (
@@ -106,14 +142,7 @@ function AssignRoleToGroupsDialog({ orgHandler, roleId, roleName, existingGroupI
               <FormControlLabel value="selected" control={<Radio />} label="Selected Environments" />
             </RadioGroup>
             {envMode === 'selected' && (
-              <TextField
-                select
-                fullWidth
-                label="Select applicable environments"
-                value={selectedEnvs[0] || ''}
-                onChange={(e) => setSelectedEnvs(e.target.value ? [e.target.value] : [])}
-                sx={{ mt: 2 }}
-              >
+              <TextField select fullWidth label="Select applicable environments" value={selectedEnvs[0] || ''} onChange={(e) => setSelectedEnvs(e.target.value ? [e.target.value] : [])} sx={{ mt: 2 }}>
                 {allEnvironments.map((env) => (
                   <MenuItem key={env.id} value={env.id}>
                     {env.name}
@@ -126,7 +155,9 @@ function AssignRoleToGroupsDialog({ orgHandler, roleId, roleName, existingGroupI
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={selected.length === 0 || pending || (envMode === 'selected' && selectedEnvs.length === 0)} onClick={assign}>Assign</Button>
+        <Button variant="contained" disabled={selected.length === 0 || pending || (envMode === 'selected' && selectedEnvs.length === 0)} onClick={assign}>
+          Assign
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -167,15 +198,22 @@ export default function RoleDetail(): JSX.Element {
   };
   const confirmDelete = () => {
     if (deletingGroup) {
-      removeMutation.mutate(
-        { groupId: deletingGroup.groupId, mappingId: deletingGroup.id },
-        { onSuccess: () => setDeletingGroup(null) }
-      );
+      removeMutation.mutate({ groupId: deletingGroup.groupId, mappingId: deletingGroup.id }, { onSuccess: () => setDeletingGroup(null) });
     }
   };
 
-  if (loadingRole) return <PageContent><Loading /></PageContent>;
-  if (!role) return <PageContent><Typography>Role not found</Typography></PageContent>;
+  if (loadingRole)
+    return (
+      <PageContent>
+        <Loading />
+      </PageContent>
+    );
+  if (!role)
+    return (
+      <PageContent>
+        <Typography>Role not found</Typography>
+      </PageContent>
+    );
   const dirty = selectedIds !== null;
 
   return (
@@ -215,7 +253,9 @@ export default function RoleDetail(): JSX.Element {
         <>
           <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
             <SearchField value={search} onChange={setSearch} />
-            <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAddingGroups(true)}>Add Group</Button>
+            <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAddingGroups(true)}>
+              Add Group
+            </Button>
           </Stack>
           {loadingGroups ? (
             <Loading />
@@ -237,14 +277,14 @@ export default function RoleDetail(): JSX.Element {
                 {filteredGroups.map((g) => (
                   <TableRow key={g.id}>
                     <TableCell>{g.groupName ?? g.groupId}</TableCell>
-                    <TableCell><Chip label={mappingLevel(g)} size="small" /></TableCell>
-                    <TableCell align="center"><Chip label={envLabel(g, allEnvironments)} size="small" /></TableCell>
                     <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteGroup(g)}
-                        disabled={removeMutation.isPending}
-                      >
+                      <Chip label={mappingLevel(g)} size="small" />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip label={envLabel(g, allEnvironments)} size="small" />
+                    </TableCell>
+                    <TableCell>
+                      <IconButton size="small" onClick={() => handleDeleteGroup(g)} disabled={removeMutation.isPending}>
                         <Trash2 size={16} />
                       </IconButton>
                     </TableCell>
@@ -267,12 +307,7 @@ export default function RoleDetail(): JSX.Element {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDeletingGroup(null)}>Cancel</Button>
-            <Button
-              variant="contained"
-              color="error"
-              disabled={removeMutation.isPending}
-              onClick={confirmDelete}
-            >
+            <Button variant="contained" color="error" disabled={removeMutation.isPending} onClick={confirmDelete}>
               Remove
             </Button>
           </DialogActions>

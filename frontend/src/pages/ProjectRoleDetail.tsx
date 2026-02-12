@@ -32,13 +32,7 @@ import { ArrowLeft, Plus, Trash2 } from '@wso2/oxygen-ui-icons-react';
 import { useState, useMemo, useCallback, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import SearchField from '../components/SearchField';
-import {
-  useRoleDetail,
-  useRoleGroups,
-  useGroups,
-  useAddRolesToGroup,
-  useRemoveRoleFromGroup,
-} from '../api/authQueries';
+import { useRoleDetail, useRoleGroups, useGroups, useAddRolesToGroup, useRemoveRoleFromGroup } from '../api/authQueries';
 import type { RoleGroupMapping, Group } from '../api/auth';
 import { useAllEnvironments } from '../api/queries';
 import { projectAccessControlUrl } from '../paths';
@@ -47,21 +41,7 @@ function Loading() {
   return <CircularProgress sx={{ display: 'block', mx: 'auto', py: 8 }} />;
 }
 
-function AssignRoleToGroupsDialog({
-  orgHandler,
-  projectId,
-  roleId,
-  roleName,
-  existingGroupIds,
-  onClose,
-}: {
-  orgHandler: string;
-  projectId: string;
-  roleId: string;
-  roleName: string;
-  existingGroupIds: string[];
-  onClose: () => void;
-}) {
+function AssignRoleToGroupsDialog({ orgHandler, projectId, roleId, roleName, existingGroupIds, onClose }: { orgHandler: string; projectId: string; roleId: string; roleName: string; existingGroupIds: string[]; onClose: () => void }) {
   const { data: allGroups = [] } = useGroups(orgHandler);
   const { data: allEnvironments = [] } = useAllEnvironments();
   const mutation = useAddRolesToGroup(orgHandler, projectId);
@@ -70,7 +50,7 @@ function AssignRoleToGroupsDialog({
   const [selectedEnvs, setSelectedEnvs] = useState<string[]>([]);
   const available = allGroups.filter((g) => !existingGroupIds.includes(g.groupId));
   const pending = mutation.isPending;
-  
+
   const assign = () => {
     if (envMode === 'selected' && selectedEnvs.length === 0) {
       return;
@@ -84,11 +64,11 @@ function AssignRoleToGroupsDialog({
           onSuccess: () => {
             if (--remaining === 0) onClose();
           },
-        }
+        },
       );
     }
   };
-  
+
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Assign Role to Groups</DialogTitle>
@@ -115,14 +95,7 @@ function AssignRoleToGroupsDialog({
               <FormControlLabel value="selected" control={<Radio />} label="Selected Environments" />
             </RadioGroup>
             {envMode === 'selected' && (
-              <TextField
-                select
-                fullWidth
-                label="Select applicable environments"
-                value={selectedEnvs[0] || ''}
-                onChange={(e) => setSelectedEnvs(e.target.value ? [e.target.value] : [])}
-                sx={{ mt: 2 }}
-              >
+              <TextField select fullWidth label="Select applicable environments" value={selectedEnvs[0] || ''} onChange={(e) => setSelectedEnvs(e.target.value ? [e.target.value] : [])} sx={{ mt: 2 }}>
                 {allEnvironments.map((env) => (
                   <MenuItem key={env.id} value={env.id}>
                     {env.name}
@@ -160,29 +133,36 @@ export default function ProjectRoleDetail(): JSX.Element {
   const [search, setSearch] = useState('');
   const [addingGroups, setAddingGroups] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState<RoleGroupMapping | null>(null);
-  
+
   const getSearchStr = useCallback((g: RoleGroupMapping) => (g.groupName ?? '') + (g.groupId ?? ''), []);
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return roleGroups;
     const s = search.toLowerCase();
     return roleGroups.filter((g) => getSearchStr(g).toLowerCase().includes(s));
   }, [roleGroups, search, getSearchStr]);
-  
+
   const onBack = () => navigate(projectAccessControlUrl(orgHandler, projectId, 'roles'));
   const handleDeleteGroup = (group: RoleGroupMapping) => {
     setDeletingGroup(group);
   };
   const confirmDelete = () => {
     if (deletingGroup) {
-      removeMutation.mutate(
-        { groupId: deletingGroup.groupId, mappingId: deletingGroup.id },
-        { onSuccess: () => setDeletingGroup(null) }
-      );
+      removeMutation.mutate({ groupId: deletingGroup.groupId, mappingId: deletingGroup.id }, { onSuccess: () => setDeletingGroup(null) });
     }
   };
 
-  if (loadingRole) return <PageContent><Loading /></PageContent>;
-  if (!role) return <PageContent><Typography>Role not found</Typography></PageContent>;
+  if (loadingRole)
+    return (
+      <PageContent>
+        <Loading />
+      </PageContent>
+    );
+  if (!role)
+    return (
+      <PageContent>
+        <Typography>Role not found</Typography>
+      </PageContent>
+    );
 
   return (
     <PageContent>
@@ -200,14 +180,14 @@ export default function ProjectRoleDetail(): JSX.Element {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Description : {role.description}
       </Typography>
-      
+
       <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
         <SearchField value={search} onChange={setSearch} />
         <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAddingGroups(true)}>
           Add Group
         </Button>
       </Stack>
-      
+
       {loadingGroups ? (
         <Loading />
       ) : filteredGroups.length === 0 ? (
@@ -235,13 +215,9 @@ export default function ProjectRoleDetail(): JSX.Element {
                   <Chip label={envLabel(g, allEnvironments)} size="small" />
                 </TableCell>
                 <TableCell>
-                  <Tooltip title={!g.projectUuid ? "Org-level mapping" : ""} placement="right">
+                  <Tooltip title={!g.projectUuid ? 'Org-level mapping' : ''} placement="right">
                     <span>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteGroup(g)}
-                        disabled={removeMutation.isPending || Boolean(!g.projectUuid)}
-                      >
+                      <IconButton size="small" onClick={() => handleDeleteGroup(g)} disabled={removeMutation.isPending || Boolean(!g.projectUuid)}>
                         <Trash2 size={16} />
                       </IconButton>
                     </span>
@@ -252,17 +228,8 @@ export default function ProjectRoleDetail(): JSX.Element {
           </TableBody>
         </Table>
       )}
-      
-      {addingGroups && (
-        <AssignRoleToGroupsDialog
-          orgHandler={orgHandler}
-          projectId={projectId}
-          roleId={roleId}
-          roleName={role.roleName}
-          existingGroupIds={roleGroups.map((g) => g.groupId)}
-          onClose={() => setAddingGroups(false)}
-        />
-      )}
+
+      {addingGroups && <AssignRoleToGroupsDialog orgHandler={orgHandler} projectId={projectId} roleId={roleId} roleName={role.roleName} existingGroupIds={roleGroups.map((g) => g.groupId)} onClose={() => setAddingGroups(false)} />}
 
       {deletingGroup && (
         <Dialog open onClose={() => setDeletingGroup(null)} maxWidth="sm" fullWidth>
@@ -274,12 +241,7 @@ export default function ProjectRoleDetail(): JSX.Element {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDeletingGroup(null)}>Cancel</Button>
-            <Button
-              variant="contained"
-              color="error"
-              disabled={removeMutation.isPending}
-              onClick={confirmDelete}
-            >
+            <Button variant="contained" color="error" disabled={removeMutation.isPending} onClick={confirmDelete}>
               Remove
             </Button>
           </DialogActions>

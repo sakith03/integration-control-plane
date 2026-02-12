@@ -137,14 +137,19 @@ function CreateUserDialog({ orgHandler, onClose }: { orgHandler: string; onClose
   );
 }
 
-
 function AssignGroupsDialog({ orgHandler, user, onClose }: { orgHandler: string; user: User; onClose: () => void }) {
   const { data: allGroups = [] } = useGroups(orgHandler);
   const mutation = useUpdateUserGroups(orgHandler);
   const [selected, setSelected] = useState<Group[]>([]);
   const available = allGroups.filter((g) => !user.groups.some((ug) => ug.groupId === g.groupId));
   return (
-    <FormDialog open onClose={onClose} primaryLabel="Assign" primaryDisabled={selected.length === 0 || mutation.isPending} onPrimary={() => mutation.mutate({ userId: user.userId, groupIds: [...user.groups.map((g) => g.groupId), ...selected.map((g) => g.groupId)] }, { onSuccess: onClose })} title="Assign Groups">
+    <FormDialog
+      open
+      onClose={onClose}
+      primaryLabel="Assign"
+      primaryDisabled={selected.length === 0 || mutation.isPending}
+      onPrimary={() => mutation.mutate({ userId: user.userId, groupIds: [...user.groups.map((g) => g.groupId), ...selected.map((g) => g.groupId)] }, { onSuccess: onClose })}
+      title="Assign Groups">
       <Autocomplete
         multiple
         options={available}
@@ -178,7 +183,9 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
         <Avatar sx={{ width: 48, height: 48 }}>{getUserInitial(user)}</Avatar>
         <Stack>
           <Typography variant="h6">{user.displayName}</Typography>
-          <Typography variant="body2" color="text.secondary">{user.username}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {user.username}
+          </Typography>
         </Stack>
       </Stack>
       <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
@@ -200,7 +207,9 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={isSelf ? 2 : 3} align="center">No groups assigned</TableCell>
+              <TableCell colSpan={isSelf ? 2 : 3} align="center">
+                No groups assigned
+              </TableCell>
             </TableRow>
           ) : (
             filtered.map((g) => (
@@ -224,7 +233,9 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
         <Dialog open onClose={() => setRemovingGroupId(null)} maxWidth="xs" fullWidth>
           <DialogTitle>Remove Group</DialogTitle>
           <DialogContent>
-            <Typography>Remove <strong>{user.displayName}</strong> from <strong>{removingGroup.groupName}</strong>?</Typography>
+            <Typography>
+              Remove <strong>{user.displayName}</strong> from <strong>{removingGroup.groupName}</strong>?
+            </Typography>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setRemovingGroupId(null)}>Cancel</Button>
@@ -285,10 +296,20 @@ function UsersTab({ orgHandler }: { orgHandler: string }) {
               <TableCell align="right">
                 {!u.isSuperAdmin && (
                   <>
-                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); setViewingUserId(u.userId); }}>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingUserId(u.userId);
+                      }}>
                       <Pencil size={16} />
                     </IconButton>
-                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); setDeletingUserId(u.userId); }}>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingUserId(u.userId);
+                      }}>
                       <Trash2 size={16} />
                     </IconButton>
                   </>
@@ -299,23 +320,26 @@ function UsersTab({ orgHandler }: { orgHandler: string }) {
         </TableBody>
       </Table>
       {creating && <CreateUserDialog orgHandler={orgHandler} onClose={() => setCreating(false)} />}
-      {deletingUserId && (() => {
-        const u = users?.find((x) => x.userId === deletingUserId);
-        return u ? (
-          <Dialog open onClose={() => setDeletingUserId(null)} maxWidth="xs" fullWidth>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogContent>
-              <Typography>Delete <strong>{u.displayName}</strong> ({u.username})?</Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setDeletingUserId(null)}>Cancel</Button>
-              <Button variant="contained" color="error" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(u.userId, { onSuccess: () => setDeletingUserId(null) })}>
-                Delete
-              </Button>
-            </DialogActions>
-          </Dialog>
-        ) : null;
-      })()}
+      {deletingUserId &&
+        (() => {
+          const u = users?.find((x) => x.userId === deletingUserId);
+          return u ? (
+            <Dialog open onClose={() => setDeletingUserId(null)} maxWidth="xs" fullWidth>
+              <DialogTitle>Delete User</DialogTitle>
+              <DialogContent>
+                <Typography>
+                  Delete <strong>{u.displayName}</strong> ({u.username})?
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setDeletingUserId(null)}>Cancel</Button>
+                <Button variant="contained" color="error" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(u.userId, { onSuccess: () => setDeletingUserId(null) })}>
+                  Delete
+                </Button>
+              </DialogActions>
+            </Dialog>
+          ) : null;
+        })()}
     </>
   );
 }
@@ -411,11 +435,9 @@ export function RolesTab({ orgHandler, projectId, readOnly }: { orgHandler: stri
   const [creating, setCreating] = useState(false);
   const [deletingRole, setDeletingRole] = useState<Role | null>(null);
   const filtered = useFiltered(roles ?? [], search, (r) => r.roleName);
-  
+
   const getRoleDetailUrl = (roleId: string) => {
-    return projectId 
-      ? projectRoleDetailUrl(orgHandler, projectId, roleId)
-      : orgRoleDetailUrl(orgHandler, roleId);
+    return projectId ? projectRoleDetailUrl(orgHandler, projectId, roleId) : orgRoleDetailUrl(orgHandler, roleId);
   };
 
   if (isLoading) return <Loading />;
@@ -443,11 +465,21 @@ export function RolesTab({ orgHandler, projectId, readOnly }: { orgHandler: stri
               <TableCell>{r.roleName}</TableCell>
               <TableCell>{r.description}</TableCell>
               <TableCell align="right">
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); navigate(getRoleDetailUrl(r.roleId)); }}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(getRoleDetailUrl(r.roleId));
+                  }}>
                   <Pencil size={16} />
                 </IconButton>
                 {!readOnly && (
-                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); setDeletingRole(r); }}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingRole(r);
+                    }}>
                     <Trash2 size={16} />
                   </IconButton>
                 )}
@@ -467,12 +499,7 @@ export function RolesTab({ orgHandler, projectId, readOnly }: { orgHandler: stri
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDeletingRole(null)}>Cancel</Button>
-            <Button
-              variant="contained"
-              color="error"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(deletingRole.roleId, { onSuccess: () => setDeletingRole(null) })}
-            >
+            <Button variant="contained" color="error" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deletingRole.roleId, { onSuccess: () => setDeletingRole(null) })}>
               Delete
             </Button>
           </DialogActions>
@@ -535,7 +562,7 @@ function AddRolesToGroupDialog({ orgHandler, projectId, groupId, existingRoleIds
   const [selectedEnvs, setSelectedEnvs] = useState<string[]>([]);
   const available = allRoles.filter((r) => !existingRoleIds.includes(r.roleId));
   const pending = mutation.isPending;
-  
+
   const assign = () => {
     if (envMode === 'selected' && selectedEnvs.length === 0) {
       return;
@@ -549,10 +576,10 @@ function AddRolesToGroupDialog({ orgHandler, projectId, groupId, existingRoleIds
         onError: (error) => {
           console.error('Failed to add roles to group:', error);
         },
-      }
+      },
     );
   };
-  
+
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Add Roles to Group</DialogTitle>
@@ -576,14 +603,7 @@ function AddRolesToGroupDialog({ orgHandler, projectId, groupId, existingRoleIds
               <FormControlLabel value="selected" control={<Radio />} label="Selected Environments" />
             </RadioGroup>
             {envMode === 'selected' && (
-              <TextField
-                select
-                fullWidth
-                label="Select applicable environments"
-                value={selectedEnvs[0] || ''}
-                onChange={(e) => setSelectedEnvs(e.target.value ? [e.target.value] : [])}
-                sx={{ mt: 2 }}
-              >
+              <TextField select fullWidth label="Select applicable environments" value={selectedEnvs[0] || ''} onChange={(e) => setSelectedEnvs(e.target.value ? [e.target.value] : [])} sx={{ mt: 2 }}>
                 {allEnvironments.map((env) => (
                   <MenuItem key={env.id} value={env.id}>
                     {env.name}
@@ -596,7 +616,9 @@ function AddRolesToGroupDialog({ orgHandler, projectId, groupId, existingRoleIds
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={selected.length === 0 || pending || (envMode === 'selected' && selectedEnvs.length === 0)} onClick={assign}>Add</Button>
+        <Button variant="contained" disabled={selected.length === 0 || pending || (envMode === 'selected' && selectedEnvs.length === 0)} onClick={assign}>
+          Add
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -707,12 +729,7 @@ function GroupDetailView({ orgHandler, projectId, group, onBack, showUsers = tru
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setRemovingUser(null)}>Cancel</Button>
-                <Button
-                  variant="contained"
-                  color="error"
-                  disabled={removeUserMutation.isPending}
-                  onClick={() => removeUserMutation.mutate({ groupId: group.groupId, userId: removingUser.userId }, { onSuccess: () => setRemovingUser(null) })}
-                >
+                <Button variant="contained" color="error" disabled={removeUserMutation.isPending} onClick={() => removeUserMutation.mutate({ groupId: group.groupId, userId: removingUser.userId }, { onSuccess: () => setRemovingUser(null) })}>
                   Remove
                 </Button>
               </DialogActions>
@@ -751,13 +768,9 @@ function GroupDetailView({ orgHandler, projectId, group, onBack, showUsers = tru
                       <Chip label={envLabel(r, allEnvironments)} size="small" />
                     </TableCell>
                     <TableCell align="right">
-                      <Tooltip title={projectId && !r.projectUuid ? "Org-level mapping" : ""} placement="right">
+                      <Tooltip title={projectId && !r.projectUuid ? 'Org-level mapping' : ''} placement="right">
                         <span>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => setRemovingRole({ id: r.id, roleName: r.roleName })}
-                            disabled={Boolean(projectId && !r.projectUuid)}
-                          >
+                          <IconButton size="small" onClick={() => setRemovingRole({ id: r.id, roleName: r.roleName })} disabled={Boolean(projectId && !r.projectUuid)}>
                             <Trash2 size={16} />
                           </IconButton>
                         </span>
@@ -779,12 +792,7 @@ function GroupDetailView({ orgHandler, projectId, group, onBack, showUsers = tru
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setRemovingRole(null)}>Cancel</Button>
-                <Button
-                  variant="contained"
-                  color="error"
-                  disabled={removeRoleMutation.isPending}
-                  onClick={() => removeRoleMutation.mutate({ groupId: group.groupId, mappingId: removingRole.id }, { onSuccess: () => setRemovingRole(null) })}
-                >
+                <Button variant="contained" color="error" disabled={removeRoleMutation.isPending} onClick={() => removeRoleMutation.mutate({ groupId: group.groupId, mappingId: removingRole.id }, { onSuccess: () => setRemovingRole(null) })}>
                   Remove
                 </Button>
               </DialogActions>
@@ -843,11 +851,21 @@ export function GroupsTab({ orgHandler, projectId, readOnly }: { orgHandler: str
               <TableCell>{g.groupName}</TableCell>
               <TableCell>{g.description}</TableCell>
               <TableCell align="right">
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); setViewingGroup(g); }}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewingGroup(g);
+                  }}>
                   <Pencil size={16} />
                 </IconButton>
                 {!readOnly && (
-                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); setDeletingGroup(g); }}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingGroup(g);
+                    }}>
                     <Trash2 size={16} />
                   </IconButton>
                 )}
@@ -867,12 +885,7 @@ export function GroupsTab({ orgHandler, projectId, readOnly }: { orgHandler: str
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDeletingGroup(null)}>Cancel</Button>
-            <Button
-              variant="contained"
-              color="error"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(deletingGroup.groupId, { onSuccess: () => setDeletingGroup(null) })}
-            >
+            <Button variant="contained" color="error" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deletingGroup.groupId, { onSuccess: () => setDeletingGroup(null) })}>
               Delete
             </Button>
           </DialogActions>
@@ -938,17 +951,13 @@ export function ProjectAccessControl({ org, project }: { org: string; project: s
   const navigate = useNavigate();
   const tabIndex = PROJECT_TABS.indexOf(tab as string as (typeof PROJECT_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
-  
+
   return (
     <PageContent>
       <PageTitle>
         <PageTitle.Header>Access Control</PageTitle.Header>
       </PageTitle>
-      <Tabs 
-        value={safeIndex} 
-        onChange={(_, v) => navigate(`/organizations/${org}/projects/${project}/settings/access-control/${PROJECT_TABS[v] ?? 'roles'}`)} 
-        sx={{ mb: 3 }}
-      >
+      <Tabs value={safeIndex} onChange={(_, v) => navigate(`/organizations/${org}/projects/${project}/settings/access-control/${PROJECT_TABS[v] ?? 'roles'}`)} sx={{ mb: 3 }}>
         <Tab label="Roles" />
         <Tab label="Groups" />
       </Tabs>
