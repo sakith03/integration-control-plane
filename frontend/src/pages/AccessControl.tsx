@@ -145,7 +145,7 @@ function EditUserDialog({ orgHandler, user, groups, onClose }: { orgHandler: str
 
 function UsersTab({ orgHandler }: { orgHandler: string }) {
   const { data: users, isLoading } = useUsers(orgHandler);
-  const { data: groups = [] } = useGroups(orgHandler);
+  const { data: groups = [], isLoading: groupsLoading } = useGroups(orgHandler);
   const deleteMutation = useDeleteUser(orgHandler);
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
@@ -188,7 +188,7 @@ function UsersTab({ orgHandler }: { orgHandler: string }) {
               <TableCell align="right">
                 {!u.isSuperAdmin && (
                   <>
-                    <IconButton size="small" onClick={() => setEditing(u)}>
+                    <IconButton size="small" disabled={groupsLoading} onClick={() => setEditing(u)}>
                       <Pencil size={16} />
                     </IconButton>
                     <IconButton size="small" onClick={() => deleteMutation.mutate(u.userId)}>
