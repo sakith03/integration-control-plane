@@ -222,7 +222,12 @@ const ARTIFACT_QUERY_MAP: Record<string, { queryName: string; field: string; fie
   Connector: { queryName: 'connectorsByEnvironmentAndComponent', field: 'connectorsByEnvironmentAndComponent', fields: 'name, package, state', gqlFields: 'name, package, version, state, runtimes { runtimeId, status }' },
   RegistryResource: { queryName: 'registryResourcesByEnvironmentAndComponent', field: 'registryResourcesByEnvironmentAndComponent', fields: 'name, type', gqlFields: 'name, type, runtimes { runtimeId, status }' },
   Listener: { queryName: 'listenersByEnvironmentAndComponent', field: 'listenersByEnvironmentAndComponent', fields: 'name, package, protocol, host, port, state', gqlFields: 'name, package, protocol, host, port, state, runtimes { runtimeId, status }' },
-  Service: { queryName: 'servicesByEnvironmentAndComponent', field: 'servicesByEnvironmentAndComponent', fields: 'name, package, basePath, type', gqlFields: 'name, package, basePath, type, runtimes { runtimeId, status }, resources { path, method, url, methods }' },
+  Service: {
+    queryName: 'servicesByEnvironmentAndComponent',
+    field: 'servicesByEnvironmentAndComponent',
+    fields: 'name, package, basePath, type',
+    gqlFields: 'name, package, basePath, type, runtimes { runtimeId, status }, resources { path, method, url, methods }',
+  },
 };
 
 export function useArtifacts(artifactType: string, envId: string, componentId: string) {
@@ -302,7 +307,7 @@ export const ARTIFACT_TYPE_TO_SOURCE_TYPE: Record<string, string> = {
 
 export function useRefreshEnvironmentArtifacts() {
   const qc = useQueryClient();
-  
+
   return (envId: string, componentId: string) => {
     return Promise.all([
       qc.invalidateQueries({
@@ -310,11 +315,11 @@ export function useRefreshEnvironmentArtifacts() {
         predicate: (query) => {
           const [, , envIdKey, compIdKey] = query.queryKey;
           return envIdKey === envId && compIdKey === componentId;
-        }
+        },
       }),
       qc.invalidateQueries({
-        queryKey: ['artifactTypes', componentId, envId]
-      })
+        queryKey: ['artifactTypes', componentId, envId],
+      }),
     ]);
   };
 }

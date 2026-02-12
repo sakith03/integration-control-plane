@@ -95,12 +95,14 @@ export default function Components(): JSX.Element {
   const [rows, setRows] = useState(5);
   const [menu, setMenu] = useState<{
     el: HTMLElement | null;
-    id: string | null;
-  }>({ el: null, id: null });
+    handler: string | null;
+  }>({ el: null, handler: null });
 
   const list = useMemo(() => {
     const q = filters.query.toLowerCase();
-    return components.filter((c: any) => (filters.type === 'all' || c.type === filters.type) && (filters.status === 'all' || c.status === filters.status) && (!q || [c.name, c.displayName, c.componentType, c.description].some((s) => s?.toLowerCase().includes(q))));
+    return components.filter(
+      (c: any) => (filters.type === 'all' || c.componentType === filters.type) && (filters.status === 'all' || c.status === filters.status) && (!q || [c.name, c.displayName, c.componentType, c.description].some((s) => s?.toLowerCase().includes(q))),
+    );
   }, [filters, components]);
 
   const maxPage = Math.max(0, Math.ceil(list.length / rows) - 1);
@@ -124,12 +126,7 @@ export default function Components(): JSX.Element {
           <PageTitle.Header>Components</PageTitle.Header>
           <PageTitle.SubHeader>Manage authentication components</PageTitle.SubHeader>
           <PageTitle.Actions>
-            <IconButton
-              size="small"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              sx={{ mr: 1 }}
-            >
+            <IconButton size="small" onClick={() => refetch()} disabled={isFetching} sx={{ mr: 1 }}>
               <RefreshCw size={18} style={{ animation: isFetching ? 'spin 1s linear infinite' : 'none' }} />
             </IconButton>
             <Button variant="outlined" startIcon={<Download size={18} />}>
@@ -204,7 +201,7 @@ export default function Components(): JSX.Element {
                               size="small"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setMenu({ el: e.currentTarget, id: c.id });
+                                setMenu({ el: e.currentTarget, handler: c.handler });
                               }}>
                               <MoreVertical size={18} />
                             </IconButton>
@@ -232,14 +229,14 @@ export default function Components(): JSX.Element {
 
         <ActionMenu
           anchor={menu.el}
-          onClose={() => setMenu({ el: null, id: null })}
+          onClose={() => setMenu({ el: null, handler: null })}
           onView={() => {
-            orgId && id && menu.id && navigate(componentUrl(orgId, id, menu.id));
-            setMenu({ el: null, id: null });
+            orgId && id && menu.handler && navigate(componentUrl(orgId, id, menu.handler));
+            setMenu({ el: null, handler: null });
           }}
           onEdit={() => {
-            orgId && id && menu.id && navigate(editComponentUrl(orgId, id, menu.id));
-            setMenu({ el: null, id: null });
+            orgId && id && menu.handler && navigate(editComponentUrl(orgId, id, menu.handler));
+            setMenu({ el: null, handler: null });
           }}
         />
       </PageContent>

@@ -35,7 +35,19 @@ import { ChevronRight, Maximize2, RefreshCw, X } from '@wso2/oxygen-ui-icons-rea
 import { Globe, Link2, ListOrdered, Clock, FolderArchive, Package, Plug, FileText, Radio, Server, Wifi, Layers } from '@wso2/oxygen-ui-icons-react';
 import SearchField from '../components/SearchField';
 import { useEffect, useState, type JSX } from 'react';
-import { useComponentByHandler, useEnvironments, useArtifactTypes, useArtifacts, useArtifactSource, useLocalEntryValue, useRefreshEnvironmentArtifacts, ARTIFACT_TYPE_TO_SOURCE_TYPE, type GqlEnvironment, type GqlArtifact, ARTIFACT_QUERY_MAP } from '../api/queries';
+import {
+  useComponentByHandler,
+  useEnvironments,
+  useArtifactTypes,
+  useArtifacts,
+  useArtifactSource,
+  useLocalEntryValue,
+  useRefreshEnvironmentArtifacts,
+  ARTIFACT_TYPE_TO_SOURCE_TYPE,
+  type GqlEnvironment,
+  type GqlArtifact,
+  ARTIFACT_QUERY_MAP,
+} from '../api/queries';
 import { useUpdateArtifactStatus, useUpdateListenerState } from '../api/mutations';
 import NotFound from '../components/NotFound';
 import { resourceUrl, broaden, type ComponentScope } from '../nav';
@@ -92,24 +104,10 @@ const labelSx = { ...cellSx, fontWeight: 600, textTransform: 'capitalize', width
 const preSx = { p: 2, bgcolor: 'action.hover', borderRadius: 1, overflow: 'auto', fontSize: 12, fontFamily: 'monospace', maxHeight: 500 };
 const emptySx = { color: 'text.secondary', py: 2 };
 
-function ListenerConfirmDialog({
-  open,
-  action,
-  listenerName,
-  onConfirm,
-  onCancel,
-}: {
-  open: boolean;
-  action: 'START' | 'STOP';
-  listenerName: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
+function ListenerConfirmDialog({ open, action, listenerName, onConfirm, onCancel }: { open: boolean; action: 'START' | 'STOP'; listenerName: string; onConfirm: () => void; onCancel: () => void }) {
   return (
     <Dialog open={open} onClose={onCancel}>
-      <DialogTitle>
-        {action === 'STOP' ? 'Disable Listener' : 'Enable Listener'}
-      </DialogTitle>
+      <DialogTitle>{action === 'STOP' ? 'Disable Listener' : 'Enable Listener'}</DialogTitle>
       <DialogContent>
         <Typography>
           Are you sure you want to {action === 'STOP' ? 'disable' : 'enable'} the listener <strong>{listenerName}</strong>?
@@ -130,12 +128,7 @@ function ListenerConfirmDialog({
 function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange?: (checked: boolean) => void; disabled?: boolean }) {
   return (
     <Stack direction="row" alignItems="center" gap={1}>
-      <Switch
-        size="small"
-        checked={checked}
-        onChange={(e) => onChange?.(e.target.checked)}
-        disabled={disabled}
-      />
+      <Switch size="small" checked={checked} onChange={(e) => onChange?.(e.target.checked)} disabled={disabled} />
       <Typography variant="body2" color="text.secondary">
         {checked ? 'Enabled' : 'Disabled'}
       </Typography>
@@ -208,7 +201,7 @@ function ArtifactOverview({ artifact, artifactType, envId, componentId }: TabPro
         componentId,
         artifactType,
         artifactName: artifact.name?.toString() ?? '',
-        status: enabled ? 'inactive' : 'active'
+        status: enabled ? 'inactive' : 'active',
       });
     }
   };
@@ -241,11 +234,7 @@ function ArtifactOverview({ artifact, artifactType, envId, componentId }: TabPro
             <TableRow>
               <TableCell sx={labelSx}>Enable/Disable</TableCell>
               <TableCell sx={cellSx}>
-                <Toggle
-                  checked={artifactState === 'enabled'}
-                  onChange={() => handleToggle(artifactState === 'enabled')}
-                  disabled={toggleStatus.isPending || updateListenerState.isPending}
-                />
+                <Toggle checked={artifactState === 'enabled'} onChange={() => handleToggle(artifactState === 'enabled')} disabled={toggleStatus.isPending || updateListenerState.isPending} />
               </TableCell>
             </TableRow>
           )}
@@ -283,13 +272,7 @@ function ArtifactOverview({ artifact, artifactType, envId, componentId }: TabPro
       )}
 
       {/* Listener State Confirmation Dialog */}
-      <ListenerConfirmDialog
-        open={confirmDialog?.open ?? false}
-        action={confirmDialog?.action ?? 'START'}
-        listenerName={artifact.name?.toString() ?? ''}
-        onConfirm={handleConfirmListenerToggle}
-        onCancel={() => setConfirmDialog(null)}
-      />
+      <ListenerConfirmDialog open={confirmDialog?.open ?? false} action={confirmDialog?.action ?? 'START'} listenerName={artifact.name?.toString() ?? ''} onConfirm={handleConfirmListenerToggle} onCancel={() => setConfirmDialog(null)} />
     </Stack>
   );
 }
@@ -352,15 +335,11 @@ function ServiceResources({ artifact }: TabProps) {
           return (
             <Box key={i} sx={{ bgcolor: '#e8f5e9', p: 1.5, borderRadius: 1, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
               {methods.map((method, idx) => (
-                <Chip
-                  key={idx}
-                  label={method.toUpperCase()}
-                  size="small"
-                  sx={{ bgcolor: '#4caf50', color: 'white', fontWeight: 700 }}
-                />
+                <Chip key={idx} label={method.toUpperCase()} size="small" sx={{ bgcolor: '#4caf50', color: 'white', fontWeight: 700 }} />
               ))}
               <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                {basePath}{r.url ?? ''}
+                {basePath}
+                {r.url ?? ''}
               </Typography>
             </Box>
           );
@@ -513,7 +492,7 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
       });
     } else {
       // Direct toggle for other artifact types
-      toggleStatus.mutate({ envId, componentId, artifactType, artifactName: artifact.name, status: enabled ? 'inactive' : 'active' });
+      toggleStatus.mutate({ envId, componentId, artifactType, artifactName: artifact.name?.toString() ?? '', status: enabled ? 'inactive' : 'active' });
     }
   };
 
@@ -595,13 +574,7 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
       )}
 
       {/* Listener State Confirmation Dialog */}
-      <ListenerConfirmDialog
-        open={confirmDialog?.open ?? false}
-        action={confirmDialog?.action ?? 'START'}
-        listenerName={confirmDialog?.artifact?.name?.toString() ?? ''}
-        onConfirm={handleConfirmListenerToggle}
-        onCancel={() => setConfirmDialog(null)}
-      />
+      <ListenerConfirmDialog open={confirmDialog?.open ?? false} action={confirmDialog?.action ?? 'START'} listenerName={confirmDialog?.artifact?.name?.toString() ?? ''} onConfirm={handleConfirmListenerToggle} onCancel={() => setConfirmDialog(null)} />
     </>
   );
 }
@@ -677,16 +650,12 @@ function Environment({ env, componentId, onSelectArtifact }: { env: GqlEnvironme
             {env.name}
           </Typography>
           <Stack direction="row" alignItems="center" gap={1}>
-            <IconButton
-              size="small"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
+            <IconButton size="small" onClick={handleRefresh} disabled={isRefreshing}>
               <RefreshCw
                 size={16}
                 style={{
                   animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-                  transformOrigin: 'center'
+                  transformOrigin: 'center',
                 }}
               />
             </IconButton>
