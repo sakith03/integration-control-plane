@@ -731,12 +731,12 @@ function EntryPointsList({ envId, componentId, projectId, componentType, onOpenD
   const [selectedKey, setSelectedKey] = useState('');
   const isMI = componentType === 'MI';
 
-  const { data: apis = [], isLoading: loadingApis } = useArtifacts('RestApi', envId, componentId);
-  const { data: proxies = [], isLoading: loadingProxies } = useArtifacts('ProxyService', envId, componentId);
-  const { data: inboundEps = [], isLoading: loadingInbound } = useArtifacts('InboundEndpoint', envId, componentId);
-  const { data: tasks = [], isLoading: loadingTasks } = useArtifacts('Task', envId, componentId);
-  const { data: services = [], isLoading: loadingServices } = useArtifacts('Service', envId, componentId);
-  const { data: listeners = [], isLoading: loadingListeners } = useArtifacts('Listener', envId, componentId);
+  const { data: apis = [], isLoading: loadingApis } = useArtifacts('RestApi', envId, componentId, { enabled: isMI });
+  const { data: proxies = [], isLoading: loadingProxies } = useArtifacts('ProxyService', envId, componentId, { enabled: isMI });
+  const { data: inboundEps = [], isLoading: loadingInbound } = useArtifacts('InboundEndpoint', envId, componentId, { enabled: isMI });
+  const { data: tasks = [], isLoading: loadingTasks } = useArtifacts('Task', envId, componentId, { enabled: isMI });
+  const { data: services = [], isLoading: loadingServices } = useArtifacts('Service', envId, componentId, { enabled: !isMI });
+  const { data: listeners = [], isLoading: loadingListeners } = useArtifacts('Listener', envId, componentId, { enabled: !isMI });
 
   const isLoading = isMI ? loadingApis || loadingProxies || loadingInbound || loadingTasks : loadingServices || loadingListeners;
 
