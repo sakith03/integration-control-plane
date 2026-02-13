@@ -7,6 +7,8 @@ import { useProjects, type GqlProject } from '../api/queries';
 import EmptyListing from '../components/EmptyListing';
 import { formatDistanceToNow } from '../utils/time';
 import { resourceUrl, narrow, newProjectUrl, type OrgScope } from '../nav';
+import { useAccessControl } from '../contexts/AccessControlContext';
+import { Permissions } from '../constants/permissions';
 
 function ProjectCard({ project, onClick }: { project: GqlProject; onClick: () => void }) {
   return (
@@ -38,6 +40,8 @@ export default function Projects(scope: OrgScope): JSX.Element {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const { hasOrgPermission } = useAccessControl();
+  const canCreateProject = hasOrgPermission(Permissions.PROJECT_MANAGE);
   const { data: projects, isLoading, refetch } = useProjects();
 
   const filtered = (projects ?? []).filter((p) => !query || p.name.toLowerCase().includes(query.toLowerCase()));
@@ -67,9 +71,11 @@ export default function Projects(scope: OrgScope): JSX.Element {
 
       <Stack direction="row" gap={2} alignItems="center" sx={{ mb: 3 }}>
         <SearchField value={query} onChange={setQuery} placeholder="Search projects" fullWidth />
-        <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(newProjectUrl(scope))} sx={{ whiteSpace: 'nowrap' }}>
-          Create
-        </Button>
+        {canCreateProject && (
+          <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(newProjectUrl(scope))} sx={{ whiteSpace: 'nowrap' }}>
+            Create
+          </Button>
+        )}
       </Stack>
 
       {isLoading ? (
@@ -79,7 +85,7 @@ export default function Projects(scope: OrgScope): JSX.Element {
           icon={<Folder size={48} />}
           title="No projects found"
           description={query ? 'Try adjusting your search' : 'Create your first project to get started'}
-          showAction={!query}
+          showAction={!query && canCreateProject}
           actionLabel="Create Project"
           onAction={() => navigate(newProjectUrl(scope))}
         />

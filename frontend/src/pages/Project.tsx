@@ -31,6 +31,9 @@ import { useDeleteComponent } from '../api/mutations';
 import NotFound from '../components/NotFound';
 import { formatDistanceToNow } from '../utils/time';
 import { resourceUrl, narrow, broaden, newComponentUrl, type ProjectScope } from '../nav';
+import { useAccessControl } from '../contexts/AccessControlContext';
+import { Permissions } from '../constants/permissions';
+import { useLoadProjectPermissions } from '../hooks/usePermissionLoader';
 
 function DeleteDialog({ component, scope, onClose }: { component: GqlComponent; scope: ProjectScope; onClose: () => void }) {
   const [confirmation, setConfirmation] = useState('');
@@ -67,7 +70,7 @@ function DeleteDialog({ component, scope, onClose }: { component: GqlComponent; 
   );
 }
 
-function IntegrationsTable({ components, isLoading, scope, onSelect }: { components: GqlComponent[]; isLoading: boolean; scope: ProjectScope; onSelect: (handler: string) => void }) {
+function IntegrationsTable({ components, isLoading, scope, onSelect, canManageIntegrations }: { components: GqlComponent[]; isLoading: boolean; scope: ProjectScope; onSelect: (handler: string) => void; canManageIntegrations: boolean }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [deleting, setDeleting] = useState<GqlComponent | null>(null);
@@ -83,9 +86,11 @@ function IntegrationsTable({ components, isLoading, scope, onSelect }: { compone
           <RefreshCw size={16} />
         </IconButton>
         <SearchField value={query} onChange={setQuery} placeholder="Search" sx={{ flex: 1 }} />
-        <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => navigate(newComponentUrl(scope))}>
-          Create
-        </Button>
+        {canManageIntegrations && (
+          <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => navigate(newComponentUrl(scope))}>
+            Create
+          </Button>
+        )}
       </Stack>
 
       {isLoading ? (
@@ -99,7 +104,7 @@ function IntegrationsTable({ components, isLoading, scope, onSelect }: { compone
                 <ListingTable.Cell>Description</ListingTable.Cell>
                 <ListingTable.Cell>Type</ListingTable.Cell>
                 <ListingTable.Cell>Last Updated</ListingTable.Cell>
-                <ListingTable.Cell width={60} />
+                {canManageIntegrations && <ListingTable.Cell width={60} />}
               </ListingTable.Row>
             </ListingTable.Head>
             <ListingTable.Body>
@@ -122,6 +127,7 @@ function IntegrationsTable({ components, isLoading, scope, onSelect }: { compone
                       {formatDistanceToNow(c.lastBuildDate)}
                     </Typography>
                   </ListingTable.Cell>
+                  {canManageIntegrations && (
                   <ListingTable.Cell>
                     <IconButton
                       size="small"
@@ -133,6 +139,7 @@ function IntegrationsTable({ components, isLoading, scope, onSelect }: { compone
                       <Trash2 size={16} />
                     </IconButton>
                   </ListingTable.Cell>
+                )}
                 </ListingTable.Row>
               ))}
             </ListingTable.Body>
@@ -180,6 +187,9 @@ function IntegrationTypesCard({ components }: { components: GqlComponent[] }) {
 
 export default function Project(scope: ProjectScope): JSX.Element {
   const navigate = useNavigate();
+  useLoadProjectPermissions(scope.org, scope.project);
+  const { hasPermission } = useAccessControl();
+  const canManageIntegrations = hasPermission(Permissions.INTEGRATION_MANAGE, scope.project);
   const { data: project, isLoading: loadingProject } = useProject(scope.project);
   const { data: components = [], isLoading: loadingComponents } = useComponents(scope.org, scope.project);
 
@@ -210,7 +220,7 @@ export default function Project(scope: ProjectScope): JSX.Element {
 
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 8 }}>
-          <IntegrationsTable components={components} isLoading={loadingComponents} scope={scope} onSelect={(handler) => navigate(resourceUrl(narrow(scope, handler), 'overview'))} />
+          <IntegrationsTable components={components} isLoading={loadingComponents} scope={scope} onSelect={(handler) => navigate(resourceUrl(narrow(scope, handler), 'overview'))} canManageIntegrations={canManageIntegrations} />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
           <Stack gap={3}>
