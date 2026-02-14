@@ -36,7 +36,7 @@ import { useParams, useNavigate } from 'react-router';
 import SearchField from '../components/SearchField';
 import { useAuth } from '../auth/AuthContext';
 import { useAccessControl } from '../contexts/AccessControlContext';
-import { Permissions, ALL_USER_MGT_PERMISSIONS } from '../constants/permissions';
+import { Permissions, ALL_ROLE_MODIFY_PERMISSIONS } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 import { orgRoleDetailUrl, projectRoleDetailUrl, componentRoleDetailUrl, componentAccessControlUrl } from '../paths';
 import {
@@ -668,7 +668,7 @@ function AddUsersToGroupDialog({ orgHandler, groupId, existingUserIds, onClose }
 }
 
 function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, showUsers = true }: { orgHandler: string; projectId?: string; componentId?: string; group: Group; onBack: () => void; showUsers?: boolean }) {
-  const roleModifyPerms: string[] = [...ALL_USER_MGT_PERMISSIONS];
+  const roleModifyPerms: string[] = [...ALL_ROLE_MODIFY_PERMISSIONS];
   if (projectId) roleModifyPerms.push(Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE);
   if (componentId) roleModifyPerms.push(Permissions.INTEGRATION_EDIT, Permissions.INTEGRATION_MANAGE);
 

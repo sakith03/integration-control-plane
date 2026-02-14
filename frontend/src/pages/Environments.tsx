@@ -149,7 +149,7 @@ export default function Environments(scope: OrgScope | ProjectScope): JSX.Elemen
                     {env.createdAt ? formatDistanceToNow(env.createdAt) : '—'}
                   </Stack>
                 </TableCell>
-                <Authorized permissions={Permissions.ENVIRONMENT_MANAGE}>
+                <Authorized permissions={Permissions.ENVIRONMENT_MANAGE} fallback={<TableCell align="right" />}>
                   <TableCell align="right">
                     <IconButton size="small" onClick={() => setEditing(env)}>
                       <Pencil size={16} />

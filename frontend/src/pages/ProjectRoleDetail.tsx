@@ -33,7 +33,7 @@ import { useState, useMemo, useCallback, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import SearchField from '../components/SearchField';
 import { useRoleDetail, useRoleGroups, useGroups, useAddRolesToGroup, useRemoveRoleFromGroup } from '../api/authQueries';
-import { Permissions, ALL_USER_MGT_PERMISSIONS } from '../constants/permissions';
+import { Permissions, ALL_ROLE_MODIFY_PERMISSIONS } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 import type { RoleGroupMapping, Group } from '../api/auth';
 import { useAllEnvironments } from '../api/queries';
@@ -128,7 +128,7 @@ const envLabel = (m: { envUuid?: string | null }, environments: { id: string; na
 export default function ProjectRoleDetail(): JSX.Element {
   const { orgHandler = 'default', projectId = '', roleId = '' } = useParams();
   const navigate = useNavigate();
-  const roleModifyPerms = [...ALL_USER_MGT_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE];
+  const roleModifyPerms = [...ALL_ROLE_MODIFY_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE];
 
   const { data: role, isLoading: loadingRole } = useRoleDetail(orgHandler, roleId, projectId);
   const { data: roleGroups = [], isLoading: loadingGroups } = useRoleGroups(orgHandler, roleId, projectId);
