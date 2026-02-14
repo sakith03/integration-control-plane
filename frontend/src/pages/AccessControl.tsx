@@ -37,6 +37,7 @@ import SearchField from '../components/SearchField';
 import { useAuth } from '../auth/AuthContext';
 import { useAccessControl } from '../contexts/AccessControlContext';
 import { Permissions, ALL_USER_MGT_PERMISSIONS } from '../constants/permissions';
+import Authorized from '../components/Authorized';
 import { orgRoleDetailUrl, projectRoleDetailUrl, componentRoleDetailUrl, componentAccessControlUrl } from '../paths';
 import {
   useUsers,
@@ -195,10 +196,12 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
       </Stack>
       <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
         <SearchField value={search} onChange={setSearch} />
-        {!isSelf && canManageUsers && (
-          <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAssigning(true)}>
-            Assign Groups
-          </Button>
+        {!isSelf && (
+          <Authorized permissions={Permissions.USER_MANAGE_USERS}>
+            <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAssigning(true)}>
+              Assign Groups
+            </Button>
+          </Authorized>
         )}
       </Stack>
       <Table>
@@ -206,7 +209,7 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
           <TableRow>
             <TableCell>Group Name</TableCell>
             <TableCell>Description</TableCell>
-            {!isSelf && canManageUsers && <TableCell align="right">Action</TableCell>}
+            {!isSelf && <Authorized permissions={Permissions.USER_MANAGE_USERS}><TableCell align="right">Action</TableCell></Authorized>}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -221,12 +224,14 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
               <TableRow key={g.groupId}>
                 <TableCell>{g.groupName}</TableCell>
                 <TableCell>{g.groupDescription}</TableCell>
-                {!isSelf && canManageUsers && (
-                  <TableCell align="right">
-                    <IconButton size="small" onClick={() => setRemovingGroupId(g.groupId)}>
-                      <Trash2 size={16} />
-                    </IconButton>
-                  </TableCell>
+                {!isSelf && (
+                  <Authorized permissions={Permissions.USER_MANAGE_USERS}>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => setRemovingGroupId(g.groupId)}>
+                        <Trash2 size={16} />
+                      </IconButton>
+                    </TableCell>
+                  </Authorized>
                 )}
               </TableRow>
             ))
@@ -255,8 +260,6 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
 }
 
 function UsersTab({ orgHandler }: { orgHandler: string }) {
-  const { hasOrgPermission } = useAccessControl();
-  const canManageUsers = hasOrgPermission(Permissions.USER_MANAGE_USERS);
   const { data: users, isLoading } = useUsers(orgHandler);
   const deleteMutation = useDeleteUser(orgHandler);
   const [search, setSearch] = useState('');
@@ -273,11 +276,11 @@ function UsersTab({ orgHandler }: { orgHandler: string }) {
     <>
       <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
         <SearchField value={search} onChange={setSearch} />
-        {canManageUsers && (
+        <Authorized permissions={Permissions.USER_MANAGE_USERS}>
           <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setCreating(true)}>
             Create User
           </Button>
-        )}
+        </Authorized>
       </Stack>
       <Table>
         <TableHead>
@@ -303,8 +306,8 @@ function UsersTab({ orgHandler }: { orgHandler: string }) {
                 )}
               </TableCell>
               <TableCell align="right">
-                {!u.isSuperAdmin && canManageUsers && (
-                  <>
+                {!u.isSuperAdmin && (
+                  <Authorized permissions={Permissions.USER_MANAGE_USERS}>
                     <IconButton
                       size="small"
                       onClick={(e) => {
@@ -321,7 +324,7 @@ function UsersTab({ orgHandler }: { orgHandler: string }) {
                       }}>
                       <Trash2 size={16} />
                     </IconButton>
-                  </>
+                  </Authorized>
                 )}
               </TableCell>
             </TableRow>
@@ -661,18 +664,9 @@ function AddUsersToGroupDialog({ orgHandler, groupId, existingUserIds, onClose }
 }
 
 function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, showUsers = true }: { orgHandler: string; projectId?: string; componentId?: string; group: Group; onBack: () => void; showUsers?: boolean }) {
-  const { hasAnyPermission } = useAccessControl();
-  
-  // Check permissions for modifying role mappings
   const roleModifyPerms: string[] = [...ALL_USER_MGT_PERMISSIONS];
-  if (projectId) {
-    roleModifyPerms.push(Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE);
-  }
-  if (componentId) {
-    roleModifyPerms.push(Permissions.INTEGRATION_EDIT, Permissions.INTEGRATION_MANAGE);
-  }
-  const canManageGroups = hasAnyPermission([Permissions.USER_MANAGE_GROUPS]);
-  const canModifyRoles = hasAnyPermission(roleModifyPerms, projectId, componentId);
+  if (projectId) roleModifyPerms.push(Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE);
+  if (componentId) roleModifyPerms.push(Permissions.INTEGRATION_EDIT, Permissions.INTEGRATION_MANAGE);
   
   const { data: groupRoles = [], isLoading: loadingRoles } = useGroupRoles(orgHandler, group.groupId, projectId, componentId);
   const { data: groupUsers = [], isLoading: loadingUsers } = useGroupUsers(orgHandler, group.groupId, { enabled: showUsers });
@@ -717,11 +711,11 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
         <>
           <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
             <SearchField value={search} onChange={setSearch} />
-            {canManageGroups && (
+            <Authorized permissions={Permissions.USER_MANAGE_GROUPS}>
               <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAddingUsers(true)}>
                 Add Users
               </Button>
-            )}
+            </Authorized>
           </Stack>
           {loadingUsers ? (
             <Loading />
@@ -731,7 +725,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
                 <TableRow>
                   <TableCell>User</TableCell>
                   <TableCell>Username</TableCell>
-                  {canManageGroups && <TableCell align="right">Action</TableCell>}
+                  <Authorized permissions={Permissions.USER_MANAGE_GROUPS}><TableCell align="right">Action</TableCell></Authorized>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -739,13 +733,13 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
                   <TableRow key={u.userId}>
                     <TableCell>{u.displayName}</TableCell>
                     <TableCell>{u.username}</TableCell>
-                    {canManageGroups && (
+                    <Authorized permissions={Permissions.USER_MANAGE_GROUPS}>
                       <TableCell align="right">
                         <IconButton size="small" onClick={() => setRemovingUser(u)}>
                           <Trash2 size={16} />
                         </IconButton>
                       </TableCell>
-                    )}
+                    </Authorized>
                   </TableRow>
                 ))}
               </TableBody>
@@ -774,11 +768,11 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
         <>
           <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
             <SearchField value={search} onChange={setSearch} />
-            {canModifyRoles && (
+            <Authorized permissions={roleModifyPerms}>
               <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAddingRoles(true)}>
                 Add Roles
               </Button>
-            )}
+            </Authorized>
           </Stack>
           {loadingRoles ? (
             <Loading />
@@ -789,7 +783,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
                   <TableCell>Role Name</TableCell>
                   <TableCell>Mapping Level</TableCell>
                   <TableCell align="center">Applicable Environment</TableCell>
-                  {canModifyRoles && <TableCell align="right">Action</TableCell>}
+                  <Authorized permissions={roleModifyPerms}><TableCell align="right">Action</TableCell></Authorized>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -802,7 +796,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
                     <TableCell align="center">
                       <Chip label={envLabel(r, allEnvironments)} size="small" />
                     </TableCell>
-                    {canModifyRoles && (
+                    <Authorized permissions={roleModifyPerms}>
                       <TableCell align="right">
                         <Tooltip title={componentId ? (!r.integrationUuid ? 'Org/Project-level mapping' : '') : projectId && !r.projectUuid ? 'Org-level mapping' : ''} placement="right">
                           <span>
@@ -812,7 +806,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
                           </span>
                         </Tooltip>
                       </TableCell>
-                    )}
+                    </Authorized>
                   </TableRow>
                 ))}
               </TableBody>

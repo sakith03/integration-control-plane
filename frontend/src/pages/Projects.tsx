@@ -9,6 +9,7 @@ import { formatDistanceToNow } from '../utils/time';
 import { resourceUrl, narrow, newProjectUrl, type OrgScope } from '../nav';
 import { useAccessControl } from '../contexts/AccessControlContext';
 import { Permissions } from '../constants/permissions';
+import Authorized from '../components/Authorized';
 
 function ProjectCard({ project, onClick }: { project: GqlProject; onClick: () => void }) {
   return (
@@ -71,11 +72,11 @@ export default function Projects(scope: OrgScope): JSX.Element {
 
       <Stack direction="row" gap={2} alignItems="center" sx={{ mb: 3 }}>
         <SearchField value={query} onChange={setQuery} placeholder="Search projects" fullWidth />
-        {canCreateProject && (
+        <Authorized permissions={Permissions.PROJECT_MANAGE}>
           <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(newProjectUrl(scope))} sx={{ whiteSpace: 'nowrap' }}>
             Create
           </Button>
-        )}
+        </Authorized>
       </Stack>
 
       {isLoading ? (

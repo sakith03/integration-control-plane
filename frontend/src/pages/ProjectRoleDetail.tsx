@@ -33,8 +33,8 @@ import { useState, useMemo, useCallback, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import SearchField from '../components/SearchField';
 import { useRoleDetail, useRoleGroups, useGroups, useAddRolesToGroup, useRemoveRoleFromGroup } from '../api/authQueries';
-import { useAccessControl } from '../contexts/AccessControlContext';
 import { Permissions, ALL_USER_MGT_PERMISSIONS } from '../constants/permissions';
+import Authorized from '../components/Authorized';
 import type { RoleGroupMapping, Group } from '../api/auth';
 import { useAllEnvironments } from '../api/queries';
 import { projectAccessControlUrl } from '../paths';
@@ -128,12 +128,8 @@ const envLabel = (m: { envUuid?: string | null }, environments: { id: string; na
 export default function ProjectRoleDetail(): JSX.Element {
   const { orgHandler = 'default', projectId = '', roleId = '' } = useParams();
   const navigate = useNavigate();
-  const { hasAnyPermission } = useAccessControl();
-  
-  // Check permissions for modifying role mappings
-  const roleModifyPerms: string[] = [...ALL_USER_MGT_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE];
-  const canModifyRoles = hasAnyPermission(roleModifyPerms, projectId);
-  
+  const roleModifyPerms = [...ALL_USER_MGT_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE];
+
   const { data: role, isLoading: loadingRole } = useRoleDetail(orgHandler, roleId, projectId);
   const { data: roleGroups = [], isLoading: loadingGroups } = useRoleGroups(orgHandler, roleId, projectId);
   const { data: allEnvironments = [] } = useAllEnvironments();
@@ -191,11 +187,11 @@ export default function ProjectRoleDetail(): JSX.Element {
 
       <Stack direction="row" justifyContent="flex-end" gap={1} sx={{ mb: 2 }}>
         <SearchField value={search} onChange={setSearch} />
-        {canModifyRoles && (
+        <Authorized permissions={roleModifyPerms}>
           <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setAddingGroups(true)}>
             Add Group
           </Button>
-        )}
+        </Authorized>
       </Stack>
 
       {loadingGroups ? (
@@ -211,7 +207,7 @@ export default function ProjectRoleDetail(): JSX.Element {
               <TableCell>Group Name</TableCell>
               <TableCell>Mapping Level</TableCell>
               <TableCell align="center">Applicable Environment</TableCell>
-              {canModifyRoles && <TableCell width={80}>Actions</TableCell>}
+              <Authorized permissions={roleModifyPerms}><TableCell width={80}>Actions</TableCell></Authorized>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -224,8 +220,8 @@ export default function ProjectRoleDetail(): JSX.Element {
                 <TableCell align="center">
                   <Chip label={envLabel(g, allEnvironments)} size="small" />
                 </TableCell>
-                <TableCell>
-                  {canModifyRoles && (
+                <Authorized permissions={roleModifyPerms}>
+                  <TableCell>
                     <Tooltip title={!g.projectUuid ? 'Org-level mapping' : ''} placement="right">
                       <span>
                         <IconButton size="small" onClick={() => handleDeleteGroup(g)} disabled={removeMutation.isPending || Boolean(!g.projectUuid)}>
@@ -233,8 +229,8 @@ export default function ProjectRoleDetail(): JSX.Element {
                         </IconButton>
                       </span>
                     </Tooltip>
-                  )}
-                </TableCell>
+                  </TableCell>
+                </Authorized>
               </TableRow>
             ))}
           </TableBody>
