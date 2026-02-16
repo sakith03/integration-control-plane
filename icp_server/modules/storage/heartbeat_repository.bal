@@ -784,7 +784,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
     foreach types:Service serviceDetail in heartbeat.artifacts.services {
         if dbType == MSSQL {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_services AS target
+                MERGE INTO bi_service_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${serviceDetail.name}, ${serviceDetail.package}, 
                        ${serviceDetail.basePath}, ${serviceDetail.state})) 
                        AS source (runtime_id, service_name, service_package, base_path, state)
@@ -798,7 +798,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_services (
+                INSERT INTO bi_service_artifacts (
                     runtime_id, service_name, service_package, base_path, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${serviceDetail.name},
@@ -812,7 +812,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_services (
+                INSERT INTO bi_service_artifacts (
                     runtime_id, service_name, service_package, base_path, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${serviceDetail.name},
@@ -831,7 +831,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
             string methodsJson = resourceDetail.methods.toJsonString();
             if dbType == MSSQL {
                 _ = check dbClient->execute(`
-                    MERGE INTO service_resources AS target
+                    MERGE INTO bi_service_resource_artifacts AS target
                     USING (VALUES (${heartbeat.runtime}, ${serviceDetail.name}, ${resourceDetail.url}, ${methodsJson}))
                            AS source (runtime_id, service_name, resource_url, methods)
                     ON (target.runtime_id = source.runtime_id AND target.service_name = source.service_name 
@@ -844,7 +844,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
                 `);
             } else if dbType == POSTGRESQL {
                 _ = check dbClient->execute(`
-                    INSERT INTO service_resources (
+                    INSERT INTO bi_service_resource_artifacts (
                         runtime_id, service_name, resource_url, methods
                     ) VALUES (
                         ${heartbeat.runtime}, ${serviceDetail.name},
@@ -856,7 +856,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
                 `);
             } else {
                 _ = check dbClient->execute(`
-                    INSERT INTO service_resources (
+                    INSERT INTO bi_service_resource_artifacts (
                         runtime_id, service_name, resource_url, methods
                     ) VALUES (
                         ${heartbeat.runtime}, ${serviceDetail.name},
@@ -876,7 +876,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
         int? port = listenerDetail?.port;
         if dbType == MSSQL {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_listeners AS target
+                MERGE INTO bi_runtime_listener_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${listenerDetail.name}, ${listenerDetail.package}, 
                        ${listenerDetail.protocol}, ${host}, ${port}, ${listenerDetail.state})) 
                        AS source (runtime_id, listener_name, listener_package, protocol, listener_host, listener_port, state)
@@ -892,7 +892,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_listeners (
+                INSERT INTO bi_runtime_listener_artifacts (
                     runtime_id, listener_name, listener_package, protocol, listener_host, listener_port, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${listenerDetail.name},
@@ -910,7 +910,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_listeners (
+                INSERT INTO bi_runtime_listener_artifacts (
                     runtime_id, listener_name, listener_package, protocol, listener_host, listener_port, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${listenerDetail.name},
@@ -935,27 +935,27 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
 
 // Delete existing artifacts
 isolated function deleteExistingArtifacts(string runtimeId) returns error? {
-    _ = check dbClient->execute(`DELETE FROM runtime_services WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_listeners WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM service_resources WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_api_resources WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_apis WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_proxy_services WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_proxy_service_endpoints WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_endpoints WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_endpoint_attributes WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_inbound_endpoints WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_sequences WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_tasks WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_templates WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_message_stores WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_message_processors WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_local_entries WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_data_services WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_carbon_apps WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_data_sources WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_connectors WHERE runtime_id = ${runtimeId}`);
-    _ = check dbClient->execute(`DELETE FROM runtime_registry_resources WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM bi_service_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM bi_runtime_listener_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM bi_service_resource_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_api_resource_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_api_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_proxy_service_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_proxy_service_endpoint_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_endpoint_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_endpoint_attribute_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_inbound_endpoint_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_sequence_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_task_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_template_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_message_store_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_message_processor_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_local_entry_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_data_service_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_carbon_app_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_data_source_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_connector_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM mi_registry_resource_artifacts WHERE runtime_id = ${runtimeId}`);
 }
 
 // Insert MI artifacts
@@ -963,30 +963,32 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
     foreach types:RestApi api in <types:RestApi[]>heartbeat.artifacts.apis {
         string artifactId = uuid:createType4AsString();
         string? carbonApp = api?.carbonApp;
+        string urlsJson = api.urls.toJsonString();
         if dbType == MSSQL {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_apis AS target
-                USING (VALUES (${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url}, ${api.context},
+                MERGE INTO mi_api_artifacts AS target
+                USING (VALUES (${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url}, ${urlsJson}, ${api.context},
                        ${api.version}, ${api.state}, ${api.tracing}, ${api.statistics}, ${carbonApp}))
-                       AS source (runtime_id, api_name, artifact_id, url, context, version, state, tracing, [statistics], carbon_app)
+                       AS source (runtime_id, api_name, artifact_id, url, urls, context, version, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.api_name = source.api_name)
                 WHEN MATCHED THEN
-                    UPDATE SET url = source.url, context = source.context, version = source.version,
+                    UPDATE SET url = source.url, urls = source.urls, context = source.context, version = source.version,
                                state = source.state, tracing = source.tracing, [statistics] = source.[statistics], carbon_app = source.carbon_app, updated_at = CURRENT_TIMESTAMP
                 WHEN NOT MATCHED THEN
-                    INSERT (runtime_id, api_name, artifact_id, url, context, version, state, tracing, [statistics], carbon_app)
-                    VALUES (source.runtime_id, source.api_name, source.artifact_id, source.url, source.context, source.version, source.state, source.tracing, source.[statistics], source.carbon_app);
+                    INSERT (runtime_id, api_name, artifact_id, url, urls, context, version, state, tracing, [statistics], carbon_app)
+                    VALUES (source.runtime_id, source.api_name, source.artifact_id, source.url, source.urls, source.context, source.version, source.state, source.tracing, source.[statistics], source.carbon_app);
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_apis (
-                    runtime_id, api_name, url, context, version, state, tracing, statistics, carbon_app
+                INSERT INTO mi_api_artifacts (
+                    runtime_id, api_name, url, urls, context, version, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${api.name}, ${api.url},
+                    ${heartbeat.runtime}, ${api.name}, ${api.url}, ${urlsJson},
                     ${api.context}, ${api.version}, ${api.state}, ${api.tracing}, ${api.statistics}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, api_name) DO UPDATE SET
                     url = EXCLUDED.url,
+                    urls = EXCLUDED.urls,
                     context = EXCLUDED.context,
                     version = EXCLUDED.version,
                     state = EXCLUDED.state,
@@ -997,14 +999,15 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_apis (
-                    runtime_id, api_name, artifact_id, url, context, version, state, tracing, statistics, carbon_app
+                INSERT INTO mi_api_artifacts (
+                    runtime_id, api_name, artifact_id, url, urls, context, version, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url},
+                    ${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url}, ${urlsJson},
                     ${api.context}, ${api.version}, ${api.state}, ${api.tracing}, ${api.statistics}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
                     url = VALUES(url),
+                    urls = VALUES(urls),
                     context = VALUES(context),
                     version = VALUES(version),
                     state = VALUES(state),
@@ -1020,7 +1023,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             // MI sends methods as a single string (e.g., "POST"), store as-is
             if dbType == MSSQL {
                 _ = check dbClient->execute(`
-                    MERGE INTO runtime_api_resources AS target
+                    MERGE INTO mi_api_resource_artifacts AS target
                     USING (VALUES (${heartbeat.runtime}, ${api.name}, ${apiResource.path}, ${apiResource.methods})) 
                            AS source (runtime_id, api_name, resource_path, methods)
                     ON (target.runtime_id = source.runtime_id AND target.api_name = source.api_name 
@@ -1033,7 +1036,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 `);
             } else if dbType == POSTGRESQL {
                 _ = check dbClient->execute(`
-                    INSERT INTO runtime_api_resources (
+                    INSERT INTO mi_api_resource_artifacts (
                         runtime_id, api_name, resource_path, methods
                     ) VALUES (
                         ${heartbeat.runtime}, ${api.name},
@@ -1045,7 +1048,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 `);
             } else {
                 _ = check dbClient->execute(`
-                    INSERT INTO runtime_api_resources (
+                    INSERT INTO mi_api_resource_artifacts (
                         runtime_id, api_name, resource_path, methods
                     ) VALUES (
                         ${heartbeat.runtime}, ${api.name},
@@ -1064,7 +1067,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         string? carbonApp = proxy?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_proxy_services AS target
+                MERGE INTO mi_proxy_service_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}))
                        AS source (runtime_id, proxy_name, artifact_id, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.proxy_name = source.proxy_name)
@@ -1076,7 +1079,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_proxy_services (
+                INSERT INTO mi_proxy_service_artifacts (
                     runtime_id, proxy_name, artifact_id, state, tracing, statistics, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}
@@ -1090,7 +1093,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_proxy_services (
+                INSERT INTO mi_proxy_service_artifacts (
                     runtime_id, proxy_name, artifact_id, state, tracing, statistics, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}
@@ -1109,7 +1112,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             foreach string ep in <string[]>proxy.endpoints {
                 if isMSSQL() {
                     _ = check dbClient->execute(`
-                        MERGE INTO runtime_proxy_service_endpoints AS target
+                        MERGE INTO mi_proxy_service_endpoint_artifacts AS target
                         USING (VALUES (${heartbeat.runtime}, ${proxy.name}, ${ep}))
                                AS source (runtime_id, proxy_name, endpoint_url)
                         ON (target.runtime_id = source.runtime_id AND target.proxy_name = source.proxy_name AND target.endpoint_url = source.endpoint_url)
@@ -1121,7 +1124,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                     `);
                 } else if dbType == POSTGRESQL {
                     _ = check dbClient->execute(`
-                        INSERT INTO runtime_proxy_service_endpoints (
+                        INSERT INTO mi_proxy_service_endpoint_artifacts (
                             runtime_id, proxy_name, endpoint_url
                         ) VALUES (
                             ${heartbeat.runtime}, ${proxy.name}, ${ep}
@@ -1131,7 +1134,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                     `);
                 } else {
                     _ = check dbClient->execute(`
-                        INSERT INTO runtime_proxy_service_endpoints (
+                        INSERT INTO mi_proxy_service_endpoint_artifacts (
                             runtime_id, proxy_name, endpoint_url
                         ) VALUES (
                             ${heartbeat.runtime}, ${proxy.name}, ${ep}
@@ -1149,7 +1152,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         string? carbonApp = endpoint?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_endpoints AS target
+                MERGE INTO mi_endpoint_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type}, ${endpoint.state}, ${endpoint.tracing}, ${endpoint.statistics}, ${carbonApp}))
                        AS source (runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.endpoint_name = source.endpoint_name)
@@ -1161,7 +1164,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_endpoints (
+                INSERT INTO mi_endpoint_artifacts (
                     runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing, statistics, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
@@ -1177,7 +1180,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_endpoints (
+                INSERT INTO mi_endpoint_artifacts (
                     runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing, statistics, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
@@ -1199,7 +1202,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             foreach types:EndpointAttribute attr in attrsVal {
                 if isMSSQL() {
                     _ = check dbClient->execute(`
-                        MERGE INTO runtime_endpoint_attributes AS target
+                        MERGE INTO mi_endpoint_attribute_artifacts AS target
                         USING (VALUES (${heartbeat.runtime}, ${endpoint.name}, ${attr.name}, ${attr?.value}))
                                AS source (runtime_id, endpoint_name, attribute_name, attribute_value)
                         ON (target.runtime_id = source.runtime_id AND target.endpoint_name = source.endpoint_name AND target.attribute_name = source.attribute_name)
@@ -1211,7 +1214,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                     `);
                 } else if dbType == POSTGRESQL {
                     _ = check dbClient->execute(`
-                        INSERT INTO runtime_endpoint_attributes (
+                        INSERT INTO mi_endpoint_attribute_artifacts (
                             runtime_id, endpoint_name, attribute_name, attribute_value
                         ) VALUES (
                             ${heartbeat.runtime}, ${endpoint.name}, ${attr.name}, ${attr?.value}
@@ -1222,7 +1225,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                     `);
                 } else {
                     _ = check dbClient->execute(`
-                        INSERT INTO runtime_endpoint_attributes (
+                        INSERT INTO mi_endpoint_attribute_artifacts (
                             runtime_id, endpoint_name, attribute_name, attribute_value
                         ) VALUES (
                             ${heartbeat.runtime}, ${endpoint.name}, ${attr.name}, ${attr?.value}
@@ -1244,7 +1247,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = inbound?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_inbound_endpoints AS target
+                MERGE INTO mi_inbound_endpoint_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${inbound.name}, ${artifactId}, ${inbound.protocol}, ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}, ${carbonApp}))
                        AS source (runtime_id, inbound_name, artifact_id, protocol, sequence, state, [statistics], on_error, tracing, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.inbound_name = source.inbound_name)
@@ -1256,7 +1259,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_inbound_endpoints (
+                INSERT INTO mi_inbound_endpoint_artifacts (
                     runtime_id, inbound_name, protocol, sequence, state, statistics, on_error, tracing, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${inbound.name}, ${inbound.protocol},
@@ -1274,7 +1277,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_inbound_endpoints (
+                INSERT INTO mi_inbound_endpoint_artifacts (
                     runtime_id, inbound_name, artifact_id, protocol, sequence, state, statistics, on_error, tracing, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${inbound.name}, ${artifactId}, ${inbound.protocol},
@@ -1298,7 +1301,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = sequence?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_sequences AS target
+                MERGE INTO mi_sequence_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${sequence.name}, ${artifactId}, ${sequence.'type}, ${sequence.container}, ${sequence.state}, ${sequence.tracing}, ${sequence.statistics}, ${carbonApp}))
                        AS source (runtime_id, sequence_name, artifact_id, sequence_type, container, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.sequence_name = source.sequence_name)
@@ -1310,7 +1313,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_sequences (
+                INSERT INTO mi_sequence_artifacts (
                     runtime_id, sequence_name, sequence_type, container, state, tracing, statistics, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${sequence.name}, ${sequence.'type},
@@ -1327,7 +1330,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_sequences (
+                INSERT INTO mi_sequence_artifacts (
                     runtime_id, sequence_name, artifact_id, sequence_type, container, state, tracing, statistics, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${sequence.name}, ${artifactId}, ${sequence.'type},
@@ -1350,7 +1353,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = task?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_tasks AS target
+                MERGE INTO mi_task_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${task.name}, ${artifactId}, ${task.'class}, ${task.group}, ${task.state}, ${carbonApp}))
                        AS source (runtime_id, task_name, artifact_id, task_class, task_group, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.task_name = source.task_name)
@@ -1362,7 +1365,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_tasks (
+                INSERT INTO mi_task_artifacts (
                     runtime_id, task_name, task_class, task_group, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${task.name}, ${task.'class},
@@ -1377,7 +1380,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_tasks (
+                INSERT INTO mi_task_artifacts (
                     runtime_id, task_name, artifact_id, task_class, task_group, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${task.name}, ${artifactId}, ${task.'class},
@@ -1397,7 +1400,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = template?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_templates AS target
+                MERGE INTO mi_template_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${template.name}, ${template.'type}, ${carbonApp}))
                        AS source (runtime_id, template_name, template_type, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.template_name = source.template_name)
@@ -1409,7 +1412,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_templates (
+                INSERT INTO mi_template_artifacts (
                     runtime_id, template_name, template_type, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${template.name}, ${template.'type}, ${carbonApp}
@@ -1421,7 +1424,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_templates (
+                INSERT INTO mi_template_artifacts (
                     runtime_id, template_name, template_type, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${template.name}, ${template.'type}, ${carbonApp}
@@ -1438,7 +1441,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = store?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_message_stores AS target
+                MERGE INTO mi_message_store_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}))
                        AS source (runtime_id, store_name, store_type, size, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.store_name = source.store_name)
@@ -1450,7 +1453,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_message_stores (
+                INSERT INTO mi_message_store_artifacts (
                     runtime_id, store_name, store_type, size, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}
@@ -1463,7 +1466,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_message_stores (
+                INSERT INTO mi_message_store_artifacts (
                     runtime_id, store_name, store_type, size, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}
@@ -1482,7 +1485,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = processor?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_message_processors AS target
+                MERGE INTO mi_message_processor_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${processor.name}, ${artifactId}, ${processor.'type}, ${processor.'class}, ${processor.state}, ${carbonApp}))
                        AS source (runtime_id, processor_name, artifact_id, processor_type, processor_class, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.processor_name = source.processor_name)
@@ -1494,7 +1497,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_message_processors (
+                INSERT INTO mi_message_processor_artifacts (
                     runtime_id, processor_name, processor_type, processor_class, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${processor.name}, ${processor.'type},
@@ -1509,7 +1512,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_message_processors (
+                INSERT INTO mi_message_processor_artifacts (
                     runtime_id, processor_name, artifact_id, processor_type, processor_class, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${processor.name}, ${artifactId}, ${processor.'type},
@@ -1530,7 +1533,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = entry?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_local_entries AS target
+                MERGE INTO mi_local_entry_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${entry.name}, ${artifactId}, ${entry.'type}, ${entry.value}, ${entry.state}, ${carbonApp}))
                        AS source (runtime_id, entry_name, artifact_id, entry_type, entry_value, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.entry_name = source.entry_name)
@@ -1542,7 +1545,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_local_entries (
+                INSERT INTO mi_local_entry_artifacts (
                     runtime_id, entry_name, entry_type, entry_value, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${entry.name}, ${entry.'type},
@@ -1557,7 +1560,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_local_entries (
+                INSERT INTO mi_local_entry_artifacts (
                     runtime_id, entry_name, artifact_id, entry_type, entry_value, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${entry.name}, ${artifactId}, ${entry.'type},
@@ -1578,7 +1581,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string? carbonApp = dataService?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_data_services AS target
+                MERGE INTO mi_data_service_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${dataService.name}, ${artifactId}, ${dataService.description}, ${dataService.wsdl}, ${dataService.state}, ${carbonApp}))
                        AS source (runtime_id, service_name, artifact_id, description, wsdl, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.service_name = source.service_name)
@@ -1590,7 +1593,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_data_services (
+                INSERT INTO mi_data_service_artifacts (
                     runtime_id, service_name, description, wsdl, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${dataService.name}, ${dataService.description},
@@ -1605,7 +1608,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_data_services (
+                INSERT INTO mi_data_service_artifacts (
                     runtime_id, service_name, artifact_id, description, wsdl, state, carbon_app
                 ) VALUES (
                     ${heartbeat.runtime}, ${dataService.name}, ${artifactId}, ${dataService.description},
@@ -1627,7 +1630,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             : ();
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_carbon_apps AS target
+                MERGE INTO mi_carbon_app_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}))
                        AS source (runtime_id, app_name, version, state, artifacts)
                 ON (target.runtime_id = source.runtime_id AND target.app_name = source.app_name)
@@ -1639,7 +1642,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_carbon_apps (
+                INSERT INTO mi_carbon_app_artifacts (
                     runtime_id, app_name, version, state, artifacts
                 ) VALUES (
                     ${heartbeat.runtime}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}
@@ -1652,7 +1655,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_carbon_apps (
+                INSERT INTO mi_carbon_app_artifacts (
                     runtime_id, app_name, version, state, artifacts
                 ) VALUES (
                     ${heartbeat.runtime}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}
@@ -1669,7 +1672,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     foreach types:DataSource dataSource in <types:DataSource[]>heartbeat.artifacts.dataSources {
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_data_sources AS target
+                MERGE INTO mi_data_source_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver}, ${dataSource.url}, ${dataSource.username}, ${dataSource.state}))
                        AS source (runtime_id, datasource_name, datasource_type, driver, url, username, state)
                 ON (target.runtime_id = source.runtime_id AND target.datasource_name = source.datasource_name)
@@ -1681,7 +1684,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_data_sources (
+                INSERT INTO mi_data_source_artifacts (
                     runtime_id, datasource_name, datasource_type, driver, url, username, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver},
@@ -1697,7 +1700,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_data_sources (
+                INSERT INTO mi_data_source_artifacts (
                     runtime_id, datasource_name, datasource_type, driver, url, username, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver},
@@ -1718,7 +1721,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         string artifactId = uuid:createType4AsString();
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_connectors AS target
+                MERGE INTO mi_connector_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${connector.name}, ${artifactId}, ${connector.package}, ${connector.version}, ${connector.state}))
                        AS source (runtime_id, connector_name, artifact_id, package, version, state)
                 ON (target.runtime_id = source.runtime_id AND target.connector_name = source.connector_name)
@@ -1730,7 +1733,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_connectors (
+                INSERT INTO mi_connector_artifacts (
                     runtime_id, connector_name, package, version, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${connector.name}, ${connector.package},
@@ -1743,7 +1746,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_connectors (
+                INSERT INTO mi_connector_artifacts (
                     runtime_id, connector_name, artifact_id, package, version, state
                 ) VALUES (
                     ${heartbeat.runtime}, ${connector.name}, ${artifactId}, ${connector.package},
@@ -1760,7 +1763,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
     foreach types:RegistryResource registryResource in <types:RegistryResource[]>heartbeat.artifacts.registryResources {
         if isMSSQL() {
             _ = check dbClient->execute(`
-                MERGE INTO runtime_registry_resources AS target
+                MERGE INTO mi_registry_resource_artifacts AS target
                 USING (VALUES (${heartbeat.runtime}, ${registryResource.name}, ${registryResource.'type}))
                        AS source (runtime_id, resource_name, resource_type)
                 ON (target.runtime_id = source.runtime_id AND target.resource_name = source.resource_name)
@@ -1772,7 +1775,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else if dbType == POSTGRESQL {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_registry_resources (
+                INSERT INTO mi_registry_resource_artifacts (
                     runtime_id, resource_name, resource_type
                 ) VALUES (
                     ${heartbeat.runtime}, ${registryResource.name}, ${registryResource.'type}
@@ -1782,7 +1785,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
             `);
         } else {
             _ = check dbClient->execute(`
-                INSERT INTO runtime_registry_resources (
+                INSERT INTO mi_registry_resource_artifacts (
                     runtime_id, resource_name, resource_type
                 ) VALUES (
                     ${heartbeat.runtime}, ${registryResource.name}, ${registryResource.'type}
