@@ -88,9 +88,7 @@ export function useUpdateArtifactToggleStatus(kind: ArtifactToggleKind) {
       const scope = (q: { queryKey: readonly unknown[] }) => q.queryKey[2] === input.envId && q.queryKey[3] === input.componentId;
       await qc.cancelQueries({ queryKey: ['artifacts', input.artifactType], predicate: scope });
       const newValue = input.value === 'enable' ? 'enabled' : 'disabled';
-      qc.setQueriesData<GqlArtifact[]>({ queryKey: ['artifacts', input.artifactType], predicate: scope }, (old) =>
-        old?.map((a) => (a.name === input.artifactName ? { ...a, [config.cacheField]: newValue } : a))
-      );
+      qc.setQueriesData<GqlArtifact[]>({ queryKey: ['artifacts', input.artifactType], predicate: scope }, (old) => old?.map((a) => (a.name === input.artifactName ? { ...a, [config.cacheField]: newValue } : a)));
     },
   });
 }
