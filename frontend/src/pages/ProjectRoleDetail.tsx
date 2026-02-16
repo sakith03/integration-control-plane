@@ -36,7 +36,7 @@ import { useRoleDetail, useRoleGroups, useGroups, useAddRolesToGroup, useRemoveR
 import { Permissions, ALL_ROLE_MODIFY_PERMISSIONS } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 import type { RoleGroupMapping, Group } from '../api/auth';
-import { useAllEnvironments } from '../api/queries';
+import { useAllEnvironments, useProjectByHandler } from '../api/queries';
 import { projectAccessControlUrl } from '../paths';
 
 function Loading() {
@@ -126,8 +126,10 @@ const envLabel = (m: { envUuid?: string | null }, environments: { id: string; na
 };
 
 export default function ProjectRoleDetail(): JSX.Element {
-  const { orgHandler = 'default', projectId = '', roleId = '' } = useParams();
+  const { orgHandler = 'default', projectHandler = '', roleId = '' } = useParams();
   const navigate = useNavigate();
+  const { data: projectData, isLoading: loadingProject } = useProjectByHandler(projectHandler);
+  const projectId = projectData?.id ?? '';
   const roleModifyPerms = [...ALL_ROLE_MODIFY_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE];
 
   const { data: role, isLoading: loadingRole } = useRoleDetail(orgHandler, roleId, projectId);
@@ -145,7 +147,7 @@ export default function ProjectRoleDetail(): JSX.Element {
     return roleGroups.filter((g) => getSearchStr(g).toLowerCase().includes(s));
   }, [roleGroups, search, getSearchStr]);
 
-  const onBack = () => navigate(projectAccessControlUrl(orgHandler, projectId, 'roles'));
+  const onBack = () => navigate(projectAccessControlUrl(orgHandler, projectHandler, 'roles'));
   const handleDeleteGroup = (group: RoleGroupMapping) => {
     setDeletingGroup(group);
   };
@@ -155,7 +157,7 @@ export default function ProjectRoleDetail(): JSX.Element {
     }
   };
 
-  if (loadingRole)
+  if (loadingProject || loadingRole)
     return (
       <PageContent>
         <Loading />
@@ -175,7 +177,7 @@ export default function ProjectRoleDetail(): JSX.Element {
       </PageTitle>
       <Tabs value={0} sx={{ mb: 3 }}>
         <Tab label="Roles" />
-        <Tab label="Groups" onClick={() => navigate(projectAccessControlUrl(orgHandler, projectId, 'groups'))} />
+        <Tab label="Groups" onClick={() => navigate(projectAccessControlUrl(orgHandler, projectHandler, 'groups'))} />
       </Tabs>
       <Button startIcon={<ArrowLeft size={16} />} onClick={onBack} sx={{ mb: 2 }}>
         Back to Role List

@@ -1,7 +1,7 @@
 import { Button, Checkbox, Chip, CircularProgress, FormControlLabel, List, ListItemButton, ListItemText, MenuItem, PageContent, Select, Stack, Typography } from '@wso2/oxygen-ui';
 import { RefreshCw, ScrollText } from '@wso2/oxygen-ui-icons-react';
 import { useMemo, useState, type JSX } from 'react';
-import { useComponentByHandler, useComponents, useEnvironments, useRuntimes } from '../api/queries';
+import { useProjectByHandler, useComponentByHandler, useComponents, useEnvironments, useRuntimes } from '../api/queries';
 import { useLogs, type LogsRequest } from '../api/logs';
 import EmptyListing from '../components/EmptyListing';
 import NotFound from '../components/NotFound';
@@ -24,9 +24,11 @@ function levelColor(level: string): 'info' | 'warning' | 'error' | 'default' {
 }
 
 export default function RuntimeLogs(scope: ProjectScope | ComponentScope): JSX.Element {
-  const { data: singleComponent, isLoading: loadingComponent } = useComponentByHandler(scope.project, hasComponent(scope) ? scope.component : undefined);
-  const { data: allComponents = [], isLoading: loadingComponents } = useComponents(scope.org, scope.project);
-  const { data: environments = [], isLoading: loadingEnvironments } = useEnvironments(scope.project);
+  const { data: project, isLoading: loadingProject } = useProjectByHandler(scope.project);
+  const projectId = project?.id ?? '';
+  const { data: singleComponent, isLoading: loadingComponent } = useComponentByHandler(projectId, hasComponent(scope) ? scope.component : undefined);
+  const { data: allComponents = [], isLoading: loadingComponents } = useComponents(scope.org, projectId);
+  const { data: environments = [], isLoading: loadingEnvironments } = useEnvironments(projectId);
 
   const componentIds = hasComponent(scope) ? (singleComponent ? [singleComponent.id] : []) : allComponents.map((c) => c.id);
 
@@ -42,7 +44,7 @@ export default function RuntimeLogs(scope: ProjectScope | ComponentScope): JSX.E
   const selectedEnv = environments.find((e) => e.id === effectiveEnvId);
   const componentIdsKey = componentIds.join(',');
 
-  const { data: runtimes = [] } = useRuntimes(effectiveEnvId, scope.project, hasComponent(scope) && singleComponent ? singleComponent.id : '');
+  const { data: runtimes = [] } = useRuntimes(effectiveEnvId, projectId, hasComponent(scope) && singleComponent ? singleComponent.id : '');
 
   const logsRequest = useMemo<LogsRequest | null>(() => {
     if (componentIds.length === 0 || !selectedEnv) return null;
@@ -76,7 +78,7 @@ export default function RuntimeLogs(scope: ProjectScope | ComponentScope): JSX.E
     });
 
   const loadingContext = hasComponent(scope) ? loadingComponent : loadingComponents;
-  if (loadingContext || loadingEnvironments) {
+  if (loadingProject || loadingContext || loadingEnvironments) {
     return (
       <PageContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
         <CircularProgress />

@@ -94,7 +94,7 @@ export default function Projects(scope: OrgScope): JSX.Element {
         <Grid container spacing={2}>
           {filtered.map((p) => (
             <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
-              <ProjectCard project={p} onClick={() => navigate(resourceUrl(narrow(scope, p.id), 'overview'))} />
+              <ProjectCard project={p} onClick={() => navigate(resourceUrl(narrow(scope, p.handler), 'overview'))} />
             </Grid>
           ))}
         </Grid>

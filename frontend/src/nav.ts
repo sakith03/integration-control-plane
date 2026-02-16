@@ -52,7 +52,7 @@ const LEVEL_CHAIN: Level[] = ['organizations', 'projects', 'components'];
 
 const LEVEL_PARAMS: Record<Level, string> = {
   organizations: ':orgHandler',
-  projects: ':projectId',
+  projects: ':projectHandler',
   components: ':componentHandler',
 };
 
@@ -153,9 +153,9 @@ export function useResource(): Resource | null {
   return ctx.resource;
 }
 
-function resolveScope(orgHandler: string, projectId?: string, componentHandler?: string): Scope {
-  if (componentHandler && projectId) return { level: 'components', org: orgHandler, project: projectId, component: componentHandler };
-  if (projectId) return { level: 'projects', org: orgHandler, project: projectId };
+function resolveScope(orgHandler: string, projectHandler?: string, componentHandler?: string): Scope {
+  if (componentHandler && projectHandler) return { level: 'components', org: orgHandler, project: projectHandler, component: componentHandler };
+  if (projectHandler) return { level: 'projects', org: orgHandler, project: projectHandler };
   return { level: 'organizations', org: orgHandler };
 }
 
@@ -174,9 +174,9 @@ function resolveResource(pathname: string, scope: Scope): Resource | null {
 }
 
 export function ScopeResolver(): JSX.Element {
-  const { orgHandler = 'default', projectId, componentHandler } = useParams();
+  const { orgHandler = 'default', projectHandler, componentHandler } = useParams();
   const { pathname } = useLocation();
-  const scope = resolveScope(orgHandler, projectId, componentHandler);
+  const scope = resolveScope(orgHandler, projectHandler, componentHandler);
   const resource = resolveResource(pathname, scope);
   return createElement(NavContext.Provider, { value: { scope, resource } }, createElement(Outlet));
 }

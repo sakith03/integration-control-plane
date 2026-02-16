@@ -46,7 +46,7 @@ import type { JSX } from 'react';
 import { useNavigate, Outlet, Link as NavLink } from 'react-router';
 import Logo from '../components/Logo';
 import { BarChart3, Bell, Building, ChevronRight, Layers, LayoutDashboard, LogOut, ScrollText, Settings, Shield, User as UserIcon, X } from '@wso2/oxygen-ui-icons-react';
-import { useProject, useProjects, useComponents } from '../api/queries';
+import { useProjectByHandler, useProjects, useComponents } from '../api/queries';
 import { mockNotifications } from '../mock-data/mockNotifications';
 import { useScope, useResource, resourceUrl, broaden, narrow, sidebarItems, hasProject, hasComponent, type Resource } from '../nav';
 import { loginUrl } from '../paths';
@@ -82,13 +82,34 @@ export default function AppLayout(): JSX.Element {
     return notifications;
   };
 
-  const { data: project } = useProject(hasProject(scope) ? scope.project : '');
+  const { data: project } = useProjectByHandler(hasProject(scope) ? scope.project : '');
+  const projectId = project?.id ?? '';
   const { data: projects = [] } = useProjects();
-  const { data: components = [] } = useComponents(scope.org, hasProject(scope) ? scope.project : '');
+  const { data: components = [] } = useComponents(scope.org, projectId);
 
   // Find component UUID for permission checks
   const currentComponent = hasComponent(scope) ? components.find((c) => c.handler === scope.component) : undefined;
   const componentId = currentComponent?.id;
+
+  /** Returns the resource if the user has permission at the target scope, or 'overview' as fallback. */
+  const canAccessResource = (targetScope: Parameters<typeof hasProject>[0], target: Resource): Resource => {
+    switch (target) {
+      case 'overview':
+        return 'overview';
+      case 'access-control': {
+        const perms: string[] = [...ALL_USER_MGT_PERMISSIONS];
+        if (hasProject(targetScope)) perms.push(Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE);
+        if (hasComponent(targetScope)) perms.push(Permissions.INTEGRATION_EDIT, Permissions.INTEGRATION_MANAGE);
+        return hasAnyPermission(perms, projectId || undefined, componentId) ? 'access-control' : 'overview';
+      }
+      case 'logs':
+        return 'logs';
+      case 'runtimes':
+        return 'runtimes';
+      case 'environments':
+        return 'environments';
+    }
+  };
 
   const accessControlPerms: string[] = [...ALL_USER_MGT_PERMISSIONS];
   if (hasProject(scope)) {
@@ -97,7 +118,7 @@ export default function AppLayout(): JSX.Element {
   if (hasComponent(scope)) {
     accessControlPerms.push(Permissions.INTEGRATION_EDIT, Permissions.INTEGRATION_MANAGE);
   }
-  const canSeeAccessControl = hasAnyPermission(accessControlPerms, hasProject(scope) ? scope.project : undefined, componentId);
+  const canSeeAccessControl = hasAnyPermission(accessControlPerms, projectId || undefined, componentId);
   const items = sidebarItems(scope, resource).filter((item) => item.resource !== 'access-control' || canSeeAccessControl);
 
   return (
@@ -138,19 +159,26 @@ export default function AppLayout(): JSX.Element {
                   value={scope.project}
                   onChange={(e) => {
                     const newScope = narrow({ level: 'organizations', org: scope.org }, String(e.target.value));
-                    navigate(resourceUrl(newScope, resource ?? 'overview'));
+                    const target = resource ?? 'overview';
+                    navigate(resourceUrl(newScope, canAccessResource(newScope, target)));
                   }}
                   size="small"
                   sx={{ minWidth: 160 }}
                   renderValue={() => <ComplexSelect.MenuItem.Text primary={project?.name ?? scope.project} secondary="Project" />}
                   label="Projects">
                   {projects.map((p) => (
-                    <ComplexSelect.MenuItem key={p.id} value={p.id}>
+                    <ComplexSelect.MenuItem key={p.handler} value={p.handler}>
                       <ComplexSelect.MenuItem.Text primary={p.name} secondary={p.description} />
                     </ComplexSelect.MenuItem>
                   ))}
                 </ComplexSelect>
-                <IconButton size="small" onClick={() => navigate(resourceUrl({ level: 'organizations', org: scope.org }, resource ?? 'overview'))}>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    const orgScope = { level: 'organizations' as const, org: scope.org };
+                    const target = resource ?? 'overview';
+                    navigate(resourceUrl(orgScope, canAccessResource(orgScope, target)));
+                  }}>
                   <X size={14} />
                 </IconButton>
               </Stack>
@@ -161,7 +189,8 @@ export default function AppLayout(): JSX.Element {
                   value={scope.component}
                   onChange={(e) => {
                     const newScope = narrow({ level: 'projects', org: scope.org, project: scope.project }, String(e.target.value));
-                    navigate(resourceUrl(newScope, resource ?? 'overview'));
+                    const target = resource ?? 'overview';
+                    navigate(resourceUrl(newScope, canAccessResource(newScope, target)));
                   }}
                   size="small"
                   sx={{ minWidth: 160 }}
@@ -173,7 +202,13 @@ export default function AppLayout(): JSX.Element {
                     </ComplexSelect.MenuItem>
                   ))}
                 </ComplexSelect>
-                <IconButton size="small" onClick={() => navigate(resourceUrl(broaden(scope)!, resource ?? 'overview'))}>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    const projectScope = broaden(scope)!;
+                    const target = resource ?? 'overview';
+                    navigate(resourceUrl(projectScope, canAccessResource(projectScope, target)));
+                  }}>
                   <X size={14} />
                 </IconButton>
               </Stack>

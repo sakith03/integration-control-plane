@@ -228,9 +228,9 @@ public isolated function getProjectById(string projectId) returns types:Project|
 }
 
 // Get project ID by handler
-public isolated function getProjectIdByHandler(string projectHandler) returns string|error {
+public isolated function getProjectIdByHandler(string projectHandler, int orgId) returns string|error {
     stream<record {|string project_id;|}, sql:Error?> projectStream = dbClient->query(`
-        SELECT project_id FROM projects WHERE handler = ${projectHandler}
+        SELECT project_id FROM projects WHERE handler = ${projectHandler} AND org_id = ${orgId} 
     `);
 
     record {|string project_id;|}[] projectRecords = check from record {|string project_id;|} project in projectStream
@@ -358,3 +358,4 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
         alternateHandlerCandidate: alternateCandidate
     };
 }
+    

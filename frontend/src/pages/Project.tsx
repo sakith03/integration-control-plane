@@ -26,7 +26,7 @@ import { Clock, Plus, RefreshCw, Trash2 } from '@wso2/oxygen-ui-icons-react';
 import SearchField from '../components/SearchField';
 import { useNavigate } from 'react-router';
 import { useState, type JSX } from 'react';
-import { useProject, useComponents, type GqlComponent } from '../api/queries';
+import { useProjectByHandler, useComponents, type GqlComponent } from '../api/queries';
 import { useDeleteComponent } from '../api/mutations';
 import NotFound from '../components/NotFound';
 import { formatDistanceToNow } from '../utils/time';
@@ -35,13 +35,13 @@ import { Permissions } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 import { useLoadProjectPermissions } from '../hooks/usePermissionLoader';
 
-function DeleteDialog({ component, scope, onClose }: { component: GqlComponent; scope: ProjectScope; onClose: () => void }) {
+function DeleteDialog({ component, scope, projectId, onClose }: { component: GqlComponent; scope: ProjectScope; projectId: string; onClose: () => void }) {
   const [confirmation, setConfirmation] = useState('');
   const mutation = useDeleteComponent();
   const confirmed = confirmation === component.displayName;
 
   const handleDelete = () => {
-    mutation.mutate({ orgHandler: scope.org, componentId: component.id, projectId: scope.project }, { onSuccess: onClose });
+    mutation.mutate({ orgHandler: scope.org, componentId: component.id, projectId }, { onSuccess: onClose });
   };
 
   return (
@@ -70,7 +70,7 @@ function DeleteDialog({ component, scope, onClose }: { component: GqlComponent; 
   );
 }
 
-function IntegrationsTable({ components, isLoading, scope, onSelect }: { components: GqlComponent[]; isLoading: boolean; scope: ProjectScope; onSelect: (handler: string) => void }) {
+function IntegrationsTable({ components, isLoading, scope, projectId, onSelect }: { components: GqlComponent[]; isLoading: boolean; scope: ProjectScope; projectId: string; onSelect: (handler: string) => void }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [deleting, setDeleting] = useState<GqlComponent | null>(null);
@@ -149,7 +149,7 @@ function IntegrationsTable({ components, isLoading, scope, onSelect }: { compone
         </ListingTable.Container>
       )}
 
-      {deleting && <DeleteDialog component={deleting} scope={scope} onClose={() => setDeleting(null)} />}
+      {deleting && <DeleteDialog component={deleting} scope={scope} projectId={projectId} onClose={() => setDeleting(null)} />}
     </section>
   );
 }
@@ -189,9 +189,10 @@ function IntegrationTypesCard({ components }: { components: GqlComponent[] }) {
 
 export default function Project(scope: ProjectScope): JSX.Element {
   const navigate = useNavigate();
-  useLoadProjectPermissions(scope.org, scope.project);
-  const { data: project, isLoading: loadingProject } = useProject(scope.project);
-  const { data: components = [], isLoading: loadingComponents } = useComponents(scope.org, scope.project);
+  const { data: project, isLoading: loadingProject } = useProjectByHandler(scope.project);
+  const projectId = project?.id ?? '';
+  useLoadProjectPermissions(scope.org, projectId);
+  const { data: components = [], isLoading: loadingComponents } = useComponents(scope.org, projectId);
 
   if (loadingProject) {
     return (
@@ -220,7 +221,7 @@ export default function Project(scope: ProjectScope): JSX.Element {
 
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 8 }}>
-          <IntegrationsTable components={components} isLoading={loadingComponents} scope={scope} onSelect={(handler) => navigate(resourceUrl(narrow(scope, handler), 'overview'))} />
+          <IntegrationsTable components={components} isLoading={loadingComponents} scope={scope} projectId={projectId} onSelect={(handler) => navigate(resourceUrl(narrow(scope, handler), 'overview'))} />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
           <Stack gap={3}>

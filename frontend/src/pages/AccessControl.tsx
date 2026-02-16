@@ -59,7 +59,7 @@ import {
   useRemoveUserFromGroup,
 } from '../api/authQueries';
 import type { User, Group, Permission, Role } from '../api/auth';
-import { useAllEnvironments, useComponentByHandler } from '../api/queries';
+import { useAllEnvironments, useProjectByHandler, useComponentByHandler } from '../api/queries';
 import type { ComponentScope } from '../nav';
 
 function Loading() {
@@ -442,7 +442,7 @@ function CreateRoleDialog({ orgHandler, allPermissions, onClose }: { orgHandler:
   );
 }
 
-export function RolesTab({ orgHandler, projectId, componentHandler, readOnly }: { orgHandler: string; projectId?: string; componentHandler?: string; readOnly?: boolean }) {
+export function RolesTab({ orgHandler, projectId, projectHandler, componentHandler, readOnly }: { orgHandler: string; projectId?: string; projectHandler?: string; componentHandler?: string; readOnly?: boolean }) {
   const navigate = useNavigate();
   const { hasOrgPermission } = useAccessControl();
   const canManageRoles = hasOrgPermission(Permissions.USER_MANAGE_ROLES);
@@ -458,8 +458,8 @@ export function RolesTab({ orgHandler, projectId, componentHandler, readOnly }: 
   const filtered = useFiltered(roles ?? [], search, (r) => r.roleName);
 
   const getRoleDetailUrl = (roleId: string) => {
-    if (componentHandler && projectId) return componentRoleDetailUrl(orgHandler, projectId, componentHandler, roleId);
-    if (projectId) return projectRoleDetailUrl(orgHandler, projectId, roleId);
+    if (componentHandler && projectHandler) return componentRoleDetailUrl(orgHandler, projectHandler, componentHandler, roleId);
+    if (projectHandler) return projectRoleDetailUrl(orgHandler, projectHandler, roleId);
     return orgRoleDetailUrl(orgHandler, roleId);
   };
 
@@ -855,7 +855,7 @@ function CreateGroupDialog({ orgHandler, onClose }: { orgHandler: string; onClos
   );
 }
 
-export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }: { orgHandler: string; projectId?: string; componentHandler?: string; readOnly?: boolean }) {
+export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }: { orgHandler: string; projectId?: string; projectHandler?: string; componentHandler?: string; readOnly?: boolean }) {
   const { hasOrgPermission } = useAccessControl();
   const canManageGroups = hasOrgPermission(Permissions.USER_MANAGE_GROUPS);
   const effectiveReadOnly = readOnly || !canManageGroups;
@@ -993,8 +993,17 @@ export function OrgAccessControl({ org }: { org: string }): JSX.Element {
 export function ProjectAccessControl({ org, project }: { org: string; project: string }): JSX.Element {
   const { tab = 'roles' } = useParams();
   const navigate = useNavigate();
+  const { data: projectData, isLoading } = useProjectByHandler(project);
+  const projectId = projectData?.id ?? '';
   const tabIndex = PROJECT_TABS.indexOf(tab as string as (typeof PROJECT_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
+
+  if (isLoading)
+    return (
+      <PageContent>
+        <Loading />
+      </PageContent>
+    );
 
   return (
     <PageContent>
@@ -1005,8 +1014,8 @@ export function ProjectAccessControl({ org, project }: { org: string; project: s
         <Tab label="Roles" />
         <Tab label="Groups" />
       </Tabs>
-      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={project} readOnly />}
-      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={project} readOnly />}
+      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={projectId} projectHandler={project} readOnly />}
+      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={projectId} projectHandler={project} readOnly />}
     </PageContent>
   );
 }
@@ -1015,11 +1024,13 @@ export function ProjectAccessControl({ org, project }: { org: string; project: s
 export function ComponentAccessControl({ org, project, component }: ComponentScope): JSX.Element {
   const { tab = 'roles' } = useParams();
   const navigate = useNavigate();
-  const { data: componentData, isLoading } = useComponentByHandler(project, component);
+  const { data: projectData, isLoading: loadingProject } = useProjectByHandler(project);
+  const projectId = projectData?.id ?? '';
+  const { data: componentData, isLoading: loadingComponent } = useComponentByHandler(projectId, component);
   const tabIndex = PROJECT_TABS.indexOf(tab as string as (typeof PROJECT_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
 
-  if (isLoading)
+  if (loadingProject || loadingComponent)
     return (
       <PageContent>
         <Loading />
@@ -1041,8 +1052,8 @@ export function ComponentAccessControl({ org, project, component }: ComponentSco
         <Tab label="Roles" />
         <Tab label="Groups" />
       </Tabs>
-      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={project} componentHandler={component} readOnly />}
-      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={project} componentHandler={component} readOnly />}
+      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={projectId} projectHandler={project} componentHandler={component} readOnly />}
+      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={projectId} projectHandler={project} componentHandler={component} readOnly />}
     </PageContent>
   );
 }

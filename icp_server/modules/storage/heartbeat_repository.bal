@@ -251,7 +251,7 @@ isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error
     }
     heartbeat.environment = envId;
 
-    string|error projectId = getProjectIdByHandler(heartbeat.project);
+    string|error projectId = getProjectIdByHandler(heartbeat.project, DEFAULT_ORG_ID);
     if projectId is error {
         return error(string `Invalid project configuration detected: ${heartbeat.project}`, projectId);
     }
