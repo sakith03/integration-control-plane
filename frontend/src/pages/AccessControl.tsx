@@ -31,12 +31,12 @@ import {
   Typography,
 } from '@wso2/oxygen-ui';
 import { ArrowLeft, ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from '@wso2/oxygen-ui-icons-react';
-import { useState, useMemo, useCallback, type JSX } from 'react';
+import { useState, useMemo, useCallback, useEffect, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import SearchField from '../components/SearchField';
 import { useAuth } from '../auth/AuthContext';
 import { useAccessControl } from '../contexts/AccessControlContext';
-import { Permissions, ALL_ROLE_MODIFY_PERMISSIONS } from '../constants/permissions';
+import { Permissions, ALL_ROLE_MODIFY_PERMISSIONS, ALL_USER_MGT_PERMISSIONS } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 import { orgRoleDetailUrl, projectRoleDetailUrl, componentRoleDetailUrl, componentAccessControlUrl } from '../paths';
 import {
@@ -59,7 +59,7 @@ import {
   useRemoveUserFromGroup,
 } from '../api/authQueries';
 import type { User, Group, Permission, Role } from '../api/auth';
-import { useAllEnvironments, useComponentByHandler } from '../api/queries';
+import { useAllEnvironments, useProjectByHandler, useComponentByHandler } from '../api/queries';
 import type { ComponentScope } from '../nav';
 
 function Loading() {
@@ -442,7 +442,7 @@ function CreateRoleDialog({ orgHandler, allPermissions, onClose }: { orgHandler:
   );
 }
 
-export function RolesTab({ orgHandler, projectId, componentHandler, readOnly }: { orgHandler: string; projectId?: string; componentHandler?: string; readOnly?: boolean }) {
+export function RolesTab({ orgHandler, projectId, projectHandler, componentHandler, readOnly }: { orgHandler: string; projectId?: string; projectHandler?: string; componentHandler?: string; readOnly?: boolean }) {
   const navigate = useNavigate();
   const { hasOrgPermission } = useAccessControl();
   const canManageRoles = hasOrgPermission(Permissions.USER_MANAGE_ROLES);
@@ -458,8 +458,8 @@ export function RolesTab({ orgHandler, projectId, componentHandler, readOnly }: 
   const filtered = useFiltered(roles ?? [], search, (r) => r.roleName);
 
   const getRoleDetailUrl = (roleId: string) => {
-    if (componentHandler && projectId) return componentRoleDetailUrl(orgHandler, projectId, componentHandler, roleId);
-    if (projectId) return projectRoleDetailUrl(orgHandler, projectId, roleId);
+    if (componentHandler && projectHandler) return componentRoleDetailUrl(orgHandler, projectHandler, componentHandler, roleId);
+    if (projectHandler) return projectRoleDetailUrl(orgHandler, projectHandler, roleId);
     return orgRoleDetailUrl(orgHandler, roleId);
   };
 
@@ -855,7 +855,7 @@ function CreateGroupDialog({ orgHandler, onClose }: { orgHandler: string; onClos
   );
 }
 
-export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }: { orgHandler: string; projectId?: string; componentHandler?: string; readOnly?: boolean }) {
+export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }: { orgHandler: string; projectId?: string; projectHandler?: string; componentHandler?: string; readOnly?: boolean }) {
   const { hasOrgPermission } = useAccessControl();
   const canManageGroups = hasOrgPermission(Permissions.USER_MANAGE_GROUPS);
   const effectiveReadOnly = readOnly || !canManageGroups;
@@ -947,6 +947,17 @@ const PROJECT_TABS = ['roles', 'groups'] as const;
 export default function AccessControl(): JSX.Element {
   const { orgHandler = 'default', tab = 'users' } = useParams();
   const navigate = useNavigate();
+  const { hasAnyPermission } = useAccessControl();
+
+  const accessControlPerms: string[] = [...ALL_USER_MGT_PERMISSIONS];
+  const canSeeAccessControl = hasAnyPermission(accessControlPerms);
+
+  useEffect(() => {
+    if (!canSeeAccessControl) {
+      navigate(`/organizations/${orgHandler}`);
+    }
+  }, [canSeeAccessControl, navigate, orgHandler]);
+
   const tabIndex = ORG_TABS.indexOf(tab as string as (typeof ORG_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
   return (
@@ -970,6 +981,17 @@ export default function AccessControl(): JSX.Element {
 export function OrgAccessControl({ org }: { org: string }): JSX.Element {
   const { tab = 'users' } = useParams();
   const navigate = useNavigate();
+  const { hasAnyPermission } = useAccessControl();
+
+  const accessControlPerms: string[] = [...ALL_USER_MGT_PERMISSIONS];
+  const canSeeAccessControl = hasAnyPermission(accessControlPerms);
+
+  useEffect(() => {
+    if (!canSeeAccessControl) {
+      navigate(`/organizations/${org}`);
+    }
+  }, [canSeeAccessControl, navigate, org]);
+
   const tabIndex = ORG_TABS.indexOf(tab as string as (typeof ORG_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
   return (
@@ -993,8 +1015,28 @@ export function OrgAccessControl({ org }: { org: string }): JSX.Element {
 export function ProjectAccessControl({ org, project }: { org: string; project: string }): JSX.Element {
   const { tab = 'roles' } = useParams();
   const navigate = useNavigate();
+  const { hasAnyPermission } = useAccessControl();
+  const { data: projectData, isLoading } = useProjectByHandler(project);
+  const projectId = projectData?.id ?? '';
+
+  const accessControlPerms: string[] = [...ALL_USER_MGT_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE];
+  const canSeeAccessControl = hasAnyPermission(accessControlPerms, projectId || undefined);
+
+  useEffect(() => {
+    if (!isLoading && projectId && !canSeeAccessControl) {
+      navigate(`/organizations/${org}/projects/${project}`);
+    }
+  }, [canSeeAccessControl, isLoading, projectId, navigate, org, project]);
+
   const tabIndex = PROJECT_TABS.indexOf(tab as string as (typeof PROJECT_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
+
+  if (isLoading)
+    return (
+      <PageContent>
+        <Loading />
+      </PageContent>
+    );
 
   return (
     <PageContent>
@@ -1005,8 +1047,8 @@ export function ProjectAccessControl({ org, project }: { org: string; project: s
         <Tab label="Roles" />
         <Tab label="Groups" />
       </Tabs>
-      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={project} readOnly />}
-      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={project} readOnly />}
+      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={projectId} projectHandler={project} readOnly />}
+      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={projectId} projectHandler={project} readOnly />}
     </PageContent>
   );
 }
@@ -1015,14 +1057,34 @@ export function ProjectAccessControl({ org, project }: { org: string; project: s
 export function ComponentAccessControl({ org, project, component }: ComponentScope): JSX.Element {
   const { tab = 'roles' } = useParams();
   const navigate = useNavigate();
-  const { data: componentData, isLoading } = useComponentByHandler(project, component);
+  const { hasAnyPermission } = useAccessControl();
+  const { data: projectData, isLoading: loadingProject } = useProjectByHandler(project);
+  const projectId = projectData?.id ?? '';
+  const { data: componentData, isLoading: loadingComponent } = useComponentByHandler(projectId, component);
+  const componentId = componentData?.id;
+
+  const accessControlPerms: string[] = [...ALL_USER_MGT_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE, Permissions.INTEGRATION_EDIT, Permissions.INTEGRATION_MANAGE];
+  const canSeeAccessControl = hasAnyPermission(accessControlPerms, projectId || undefined, componentId);
+
+  useEffect(() => {
+    if (!loadingProject && !loadingComponent && componentId && !canSeeAccessControl) {
+      navigate(`/organizations/${org}/projects/${project}/integrations/${component}`);
+    }
+  }, [canSeeAccessControl, loadingProject, loadingComponent, componentId, navigate, org, project, component]);
+
   const tabIndex = PROJECT_TABS.indexOf(tab as string as (typeof PROJECT_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
 
-  if (isLoading)
+  if (loadingProject || loadingComponent)
     return (
       <PageContent>
         <Loading />
+      </PageContent>
+    );
+  if (!projectData)
+    return (
+      <PageContent>
+        <Typography>Project not found</Typography>
       </PageContent>
     );
   if (!componentData)
@@ -1041,8 +1103,8 @@ export function ComponentAccessControl({ org, project, component }: ComponentSco
         <Tab label="Roles" />
         <Tab label="Groups" />
       </Tabs>
-      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={project} componentHandler={component} readOnly />}
-      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={project} componentHandler={component} readOnly />}
+      {safeIndex === 0 && <RolesTab orgHandler={org} projectId={projectId} projectHandler={project} componentHandler={component} readOnly />}
+      {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={projectId} projectHandler={project} componentHandler={component} readOnly />}
     </PageContent>
   );
 }

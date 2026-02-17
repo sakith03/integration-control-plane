@@ -4,7 +4,7 @@ import SearchField from '../components/SearchField';
 import { useState, type JSX } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { gql } from '../api/graphql';
-import { useEnvironments, useComponentByHandler, RUNTIMES_QUERY, PROJECT_RUNTIMES_QUERY, type GqlRuntime } from '../api/queries';
+import { useProjectByHandler, useEnvironments, useComponentByHandler, RUNTIMES_QUERY, PROJECT_RUNTIMES_QUERY, type GqlRuntime } from '../api/queries';
 import { useDeleteRuntime } from '../api/mutations';
 import { hasComponent, type ProjectScope, type ComponentScope } from '../nav';
 
@@ -18,9 +18,11 @@ function formatDate(iso: string): string {
 }
 
 export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Element {
-  const { data: component } = useComponentByHandler(scope.project, hasComponent(scope) ? scope.component : undefined);
+  const { data: project } = useProjectByHandler(scope.project);
+  const projectId = project?.id ?? '';
+  const { data: component } = useComponentByHandler(projectId, hasComponent(scope) ? scope.component : undefined);
   const componentId = component?.id;
-  const { data: environments = [] } = useEnvironments(scope.project);
+  const { data: environments = [] } = useEnvironments(projectId);
 
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -30,9 +32,8 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
 
   const runtimeQueries = useQueries({
     queries: environments.map((env) => ({
-      queryKey: componentId ? ['runtimes', env.id, scope.project, componentId] : ['runtimes', env.id, scope.project],
-      queryFn: () =>
-        gql<{ runtimes: GqlRuntime[] }>(componentId ? RUNTIMES_QUERY : PROJECT_RUNTIMES_QUERY, componentId ? { environmentId: env.id, projectId: scope.project, componentId } : { environmentId: env.id, projectId: scope.project }).then((d) => d.runtimes),
+      queryKey: componentId ? ['runtimes', env.id, projectId, componentId] : ['runtimes', env.id, projectId],
+      queryFn: () => gql<{ runtimes: GqlRuntime[] }>(componentId ? RUNTIMES_QUERY : PROJECT_RUNTIMES_QUERY, componentId ? { environmentId: env.id, projectId, componentId } : { environmentId: env.id, projectId }).then((d) => d.runtimes),
     })),
   });
 

@@ -31,7 +31,7 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
       orgHandler: scope.org,
     };
     mutation.mutate(input, {
-      onSuccess: (project) => navigate(resourceUrl(narrow(scope, project.id), 'overview')),
+      onSuccess: (project) => navigate(resourceUrl(narrow(scope, project.handler), 'overview')),
     });
   };
 

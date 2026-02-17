@@ -3,6 +3,7 @@ import { ArrowLeft, Edit } from '@wso2/oxygen-ui-icons-react';
 import { useState, type JSX } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { useCreateComponent, type CreateComponentInput } from '../api/mutations';
+import { useProjectByHandler } from '../api/queries';
 import { resourceUrl, narrow, type ProjectScope } from '../nav';
 
 function toHandler(name: string) {
@@ -14,6 +15,8 @@ function toHandler(name: string) {
 
 export default function CreateComponent(scope: ProjectScope): JSX.Element {
   const navigate = useNavigate();
+  const { data: project } = useProjectByHandler(scope.project);
+  const projectId = project?.id ?? '';
 
   const [displayName, setDisplayName] = useState('');
   const [handler, setHandler] = useState('');
@@ -30,7 +33,7 @@ export default function CreateComponent(scope: ProjectScope): JSX.Element {
       name: effectiveHandler,
       description,
       orgHandler: scope.org,
-      projectId: scope.project,
+      projectId,
       componentType,
     };
     mutation.mutate(input, {

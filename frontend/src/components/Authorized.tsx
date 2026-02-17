@@ -1,7 +1,7 @@
 import type { ReactNode, JSX } from 'react';
 import { useAccessControl } from '../contexts/AccessControlContext';
 import { useScope, hasProject, hasComponent } from '../nav';
-import { useComponents } from '../api/queries';
+import { useProjectByHandler, useComponents } from '../api/queries';
 
 interface AuthorizedProps {
   permissions: string | string[];
@@ -13,7 +13,8 @@ export default function Authorized({ permissions, children, fallback }: Authoriz
   const { hasAnyPermission } = useAccessControl();
   const scope = useScope();
 
-  const projectId = hasProject(scope) ? scope.project : undefined;
+  const { data: project } = useProjectByHandler(hasProject(scope) ? scope.project : '');
+  const projectId = project?.id;
   const { data: components = [] } = useComponents(scope.org, projectId ?? '');
   const currentComponent = hasComponent(scope) ? components.find((c) => c.handler === scope.component) : undefined;
   const componentId = currentComponent?.id;

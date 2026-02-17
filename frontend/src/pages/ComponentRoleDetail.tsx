@@ -36,7 +36,7 @@ import { useRoleDetail, useRoleGroups, useGroups, useAddRolesToGroup, useRemoveR
 import { Permissions, ALL_USER_MGT_PERMISSIONS } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 import type { RoleGroupMapping, Group } from '../api/auth';
-import { useAllEnvironments, useComponentByHandler } from '../api/queries';
+import { useAllEnvironments, useProjectByHandler, useComponentByHandler } from '../api/queries';
 import { componentAccessControlUrl } from '../paths';
 
 function Loading() {
@@ -155,8 +155,10 @@ const envLabel = (m: { envUuid?: string | null }, environments: { id: string; na
 };
 
 export default function ComponentRoleDetail(): JSX.Element {
-  const { orgHandler = 'default', projectId = '', componentHandler = '', roleId = '' } = useParams();
+  const { orgHandler = 'default', projectHandler = '', componentHandler = '', roleId = '' } = useParams();
   const navigate = useNavigate();
+  const { data: projectData, isLoading: loadingProject } = useProjectByHandler(projectHandler);
+  const projectId = projectData?.id ?? '';
   const { data: component, isLoading: loadingComponent } = useComponentByHandler(projectId, componentHandler);
   const componentId = component?.id;
   const roleModifyPerms = [...ALL_USER_MGT_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE, Permissions.INTEGRATION_EDIT, Permissions.INTEGRATION_MANAGE];
@@ -176,7 +178,7 @@ export default function ComponentRoleDetail(): JSX.Element {
     return roleGroups.filter((g) => getSearchStr(g).toLowerCase().includes(s));
   }, [roleGroups, search, getSearchStr]);
 
-  const onBack = () => navigate(componentAccessControlUrl(orgHandler, projectId, componentHandler, 'roles'));
+  const onBack = () => navigate(componentAccessControlUrl(orgHandler, projectHandler, componentHandler, 'roles'));
   const handleDeleteGroup = (group: RoleGroupMapping) => {
     setDeletingGroup(group);
   };
@@ -186,7 +188,7 @@ export default function ComponentRoleDetail(): JSX.Element {
     }
   };
 
-  if (loadingComponent || loadingRole)
+  if (loadingProject || loadingComponent || loadingRole)
     return (
       <PageContent>
         <Loading />
@@ -212,7 +214,7 @@ export default function ComponentRoleDetail(): JSX.Element {
       </PageTitle>
       <Tabs value={0} sx={{ mb: 3 }}>
         <Tab label="Roles" />
-        <Tab label="Groups" onClick={() => navigate(componentAccessControlUrl(orgHandler, projectId, componentHandler, 'groups'))} />
+        <Tab label="Groups" onClick={() => navigate(componentAccessControlUrl(orgHandler, projectHandler, componentHandler, 'groups'))} />
       </Tabs>
       <Button startIcon={<ArrowLeft size={16} />} onClick={onBack} sx={{ mb: 2 }}>
         Back to Role List

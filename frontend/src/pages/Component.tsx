@@ -38,6 +38,7 @@ import { Globe, Link2, ListOrdered, Clock, FolderArchive, Package, Plug, FileTex
 import SearchField from '../components/SearchField';
 import { useEffect, useState, type JSX } from 'react';
 import {
+  useProjectByHandler,
   useComponentByHandler,
   useEnvironments,
   useArtifactTypes,
@@ -941,13 +942,16 @@ function Environment({
 }
 
 export default function Component(scope: ComponentScope): JSX.Element {
-  const { data: component, isLoading } = useComponentByHandler(scope.project, scope.component);
-  const { data: environments = [] } = useEnvironments(scope.project);
+  const { data: project, isLoading: loadingProject } = useProjectByHandler(scope.project);
+  const projectId = project?.id ?? '';
+  const { data: component, isLoading: loadingComponent } = useComponentByHandler(projectId, scope.component);
+  const { data: environments = [] } = useEnvironments(projectId);
   const [selectedArtifact, setSelectedArtifact] = useState<SelectedArtifact | null>(null);
 
   // Load component permissions using the UUID - only when component is loaded
-  useLoadComponentPermissions(scope.org, scope.project, component?.id || '');
+  useLoadComponentPermissions(scope.org, projectId, component?.id || '');
 
+  const isLoading = loadingProject || loadingComponent;
   if (isLoading)
     return (
       <PageContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
@@ -982,10 +986,10 @@ export default function Component(scope: ComponentScope): JSX.Element {
               key={env.id}
               env={env}
               componentId={component.id}
-              projectId={scope.project}
+              projectId={projectId}
               componentType={component.componentType}
-              onSelectArtifact={(a, type, envId) => setSelectedArtifact({ artifact: a, artifactType: type, envId, componentId: component.id, projectId: scope.project })}
-              onOpenDrawerForTab={(a, type, envId, tab) => setSelectedArtifact({ artifact: a, artifactType: type, envId, componentId: component.id, projectId: scope.project, initialTab: tab })}
+              onSelectArtifact={(a, type, envId) => setSelectedArtifact({ artifact: a, artifactType: type, envId, componentId: component.id, projectId })}
+              onOpenDrawerForTab={(a, type, envId, tab) => setSelectedArtifact({ artifact: a, artifactType: type, envId, componentId: component.id, projectId, initialTab: tab })}
             />
           ))}
         </PageContent>

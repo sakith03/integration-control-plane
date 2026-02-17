@@ -37,20 +37,20 @@ export function editOrgUrl(orgId: string): string {
   return `/organizations/${orgId}/edit`;
 }
 
-export function projectUrl(orgHandler: string, projectId: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}`;
+export function projectUrl(orgHandler: string, projectHandler: string): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}`;
 }
 
-export function componentUrl(orgHandler: string, projectId: string, componentHandler: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/components/${componentHandler}`;
+export function componentUrl(orgHandler: string, projectHandler: string, componentHandler: string): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}/components/${componentHandler}`;
 }
 
-export function newComponentUrl(orgHandler: string, projectId: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/components/new`;
+export function newComponentUrl(orgHandler: string, projectHandler: string): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}/components/new`;
 }
 
-export function editComponentUrl(orgHandler: string, projectId: string, componentId: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/components/${componentId}/edit`;
+export function editComponentUrl(orgHandler: string, projectHandler: string, componentId: string): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}/components/${componentId}/edit`;
 }
 
 export function orgAccessControlUrl(orgHandler: string, tab: 'users' | 'roles' | 'groups' = 'users'): string {
@@ -61,20 +61,20 @@ export function orgRoleDetailUrl(orgHandler: string, roleId: string): string {
   return `/organizations/${orgHandler}/settings/access-control/roles/${roleId}`;
 }
 
-export function projectAccessControlUrl(orgHandler: string, projectId: string, tab: 'roles' | 'groups' = 'roles'): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/settings/access-control/${tab}`;
+export function projectAccessControlUrl(orgHandler: string, projectHandler: string, tab: 'roles' | 'groups' = 'roles'): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}/settings/access-control/${tab}`;
 }
 
-export function projectRoleDetailUrl(orgHandler: string, projectId: string, roleId: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/settings/access-control/roles/${roleId}`;
+export function projectRoleDetailUrl(orgHandler: string, projectHandler: string, roleId: string): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}/settings/access-control/roles/${roleId}`;
 }
 
-export function componentAccessControlUrl(orgHandler: string, projectId: string, componentHandler: string, tab: 'roles' | 'groups' = 'roles'): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/components/${componentHandler}/settings/access-control/${tab}`;
+export function componentAccessControlUrl(orgHandler: string, projectHandler: string, componentHandler: string, tab: 'roles' | 'groups' = 'roles'): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}/components/${componentHandler}/settings/access-control/${tab}`;
 }
 
-export function componentRoleDetailUrl(orgHandler: string, projectId: string, componentHandler: string, roleId: string): string {
-  return `/organizations/${orgHandler}/projects/${projectId}/components/${componentHandler}/settings/access-control/roles/${roleId}`;
+export function componentRoleDetailUrl(orgHandler: string, projectHandler: string, componentHandler: string, roleId: string): string {
+  return `/organizations/${orgHandler}/projects/${projectHandler}/components/${componentHandler}/settings/access-control/roles/${roleId}`;
 }
 
 export function orgAnalyticsUrl(orgHandler: string): string {

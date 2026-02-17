@@ -45,6 +45,14 @@ const PROJECT_QUERY = `
     }
   }`;
 
+const PROJECT_BY_HANDLER_QUERY = `
+  query GetProjectByHandler($projectHandler: String!) {
+    projectByHandler(orgId: 1, projectHandler: $projectHandler) {
+      id, orgId, name, handler, description, version,
+      createdDate, updatedAt, region, type
+    }
+  }`;
+
 const COMPONENTS_QUERY = `
   query GetComponents($orgHandler: String!, $projectId: String!) {
     components(orgHandler: $orgHandler, projectId: $projectId) {
@@ -66,6 +74,14 @@ export function useProject(projectId: string) {
     queryKey: ['project', projectId],
     queryFn: () => gql<{ project: GqlProject }>(PROJECT_QUERY, { projectId }).then((d) => d.project),
     enabled: !!projectId,
+  });
+}
+
+export function useProjectByHandler(handler: string) {
+  return useQuery({
+    queryKey: ['project', 'handler', handler],
+    queryFn: () => gql<{ projectByHandler: GqlProject }>(PROJECT_BY_HANDLER_QUERY, { projectHandler: handler }).then((d) => d.projectByHandler),
+    enabled: !!handler,
   });
 }
 
