@@ -69,7 +69,7 @@ isolated function getRuntimeStatusMap(string[] runtimeIds) returns map<string>|e
 isolated function shouldReplaceArtifact(string newRuntimeId, string existingRuntimeId, map<string> statusMap) returns boolean {
     string newStatus = statusMap[newRuntimeId] ?: "UNKNOWN";
     string existingStatus = statusMap[existingRuntimeId] ?: "UNKNOWN";
-    
+    log:printDebug("Evaluating artifact replacement - New runtime: " + newRuntimeId + " (" + newStatus + "), Existing runtime: " + existingRuntimeId + " (" + existingStatus + ")");
     // Replace if new runtime is RUNNING and existing is not
     return newStatus == "RUNNING" && existingStatus != "RUNNING";
 }
@@ -165,6 +165,7 @@ public isolated function getServicesByEnvironmentAndComponent(string environment
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = serviceSourceRuntime[hash] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printDebug("Replacing service artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);  
                     serviceMap[hash] = 'service;
                     serviceSourceRuntime[hash] = runtimeId;
                 }
@@ -225,6 +226,7 @@ public isolated function getListenersByEnvironmentAndComponent(string environmen
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = listenerSourceRuntime[hash] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing listener artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     listenerMap[hash] = listenerRecord;
                     listenerSourceRuntime[hash] = runtimeId;
                 }
@@ -285,6 +287,7 @@ public isolated function getRestApisByEnvironmentAndComponent(string environment
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = apiSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing REST API artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     apiMap[key] = api;
                     apiSourceRuntime[key] = runtimeId;
                 }
@@ -345,6 +348,7 @@ public isolated function getCarbonAppsByEnvironmentAndComponent(string environme
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = appSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing Carbon App artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     appMap[key] = app;
                     appSourceRuntime[key] = runtimeId;
                 }
@@ -405,6 +409,7 @@ public isolated function getInboundEndpointsByEnvironmentAndComponent(string env
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = inboundSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing inbound endpoint artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     inboundMap[key] = inbound;
                     inboundSourceRuntime[key] = runtimeId;
                 }
@@ -465,6 +470,7 @@ public isolated function getEndpointsByEnvironmentAndComponent(string environmen
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = endpointSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing endpoint artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     endpointMap[key] = endpoint;
                     endpointSourceRuntime[key] = runtimeId;
                 }
@@ -525,6 +531,7 @@ public isolated function getSequencesByEnvironmentAndComponent(string environmen
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = sequenceSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing sequence artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     sequenceMap[key] = sequence;
                     sequenceSourceRuntime[key] = runtimeId;
                 }
@@ -605,6 +612,7 @@ public isolated function getProxyServicesByEnvironmentAndComponent(string enviro
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = proxySourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing proxy service artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     proxy.endpoints = merged;
                     proxyMap[key] = proxy;
                     proxySourceRuntime[key] = runtimeId;
@@ -669,6 +677,7 @@ public isolated function getTasksByEnvironmentAndComponent(string environmentId,
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = taskSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing task artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     taskMap[key] = task;
                     taskSourceRuntime[key] = runtimeId;
                 }
@@ -729,6 +738,7 @@ public isolated function getTemplatesByEnvironmentAndComponent(string environmen
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = templateSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing template artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     templateMap[key] = template;
                     templateSourceRuntime[key] = runtimeId;
                 }
@@ -789,6 +799,7 @@ public isolated function getMessageStoresByEnvironmentAndComponent(string enviro
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = storeSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing message store artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     storeMap[key] = store;
                     storeSourceRuntime[key] = runtimeId;
                 }
@@ -849,6 +860,7 @@ public isolated function getMessageProcessorsByEnvironmentAndComponent(string en
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = processorSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing message processor artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     processorMap[key] = proc;
                     processorSourceRuntime[key] = runtimeId;
                 }
@@ -909,6 +921,7 @@ public isolated function getLocalEntriesByEnvironmentAndComponent(string environ
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = entrySourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing local entry artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     entryMap[key] = entry;
                     entrySourceRuntime[key] = runtimeId;
                 }
@@ -969,6 +982,7 @@ public isolated function getDataServicesByEnvironmentAndComponent(string environ
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = dsSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing data service artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     dataServiceMap[key] = ds;
                     dsSourceRuntime[key] = runtimeId;
                 }
@@ -1029,6 +1043,7 @@ public isolated function getDataSourcesByEnvironmentAndComponent(string environm
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = sourceSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing data source artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     sourceMap[key] = ds;
                     sourceSourceRuntime[key] = runtimeId;
                 }
@@ -1089,6 +1104,7 @@ public isolated function getRegistryResourcesByEnvironmentAndComponent(string en
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = resourceSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing registry resource artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     resourceMap[key] = res;
                     resourceSourceRuntime[key] = runtimeId;
                 }
@@ -1149,6 +1165,7 @@ public isolated function getConnectorsByEnvironmentAndComponent(string environme
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = connectorSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
+                    log:printInfo("Replacing connector artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     connectorMap[key] = conn;
                     connectorSourceRuntime[key] = runtimeId;
                 }
