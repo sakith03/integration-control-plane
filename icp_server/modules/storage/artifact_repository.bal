@@ -317,7 +317,7 @@ public isolated function getAutomationsByEnvironmentAndComponent(string environm
         // Find all runtime IDs that have this automation package and collect execution timestamps
         string[] rids = [];
         map<string[]> runtimeExecutionMap = {};
-        
+
         foreach string runtimeId in runtimeIds {
             // Get all execution timestamps for this runtime and automation package
             sql:ParameterizedQuery timestampQuery = `
@@ -335,7 +335,7 @@ public isolated function getAutomationsByEnvironmentAndComponent(string environm
                 do {
                     timestamps.push(ts.execution_timestamp);
                 };
-            
+
             if timestamps.length() > 0 {
                 rids.push(runtimeId);
                 runtimeExecutionMap[runtimeId] = timestamps;
