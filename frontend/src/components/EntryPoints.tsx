@@ -22,9 +22,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useArtifacts, useRefreshEnvironmentArtifacts, type GqlArtifact, type GqlEnvironment } from '../api/queries';
 import { useUpdateArtifactTracingStatus, useUpdateArtifactStatisticsStatus } from '../api/artifactToggleMutations';
-import { ArtifactApiDefinition, ServiceResources } from './ArtifactTabs';
+import { ArtifactApiDefinition, ServiceResources, AutomationExecutions } from './ArtifactTabs';
 import { ArtifactTypeSelector } from './ArtifactDetail';
-import { ARTIFACT_TABS, DEFAULT_ARTIFACT_TABS, ENTRY_POINT_CONFIG, ENTRY_POINT_DETAIL_TABS, type SelectedArtifact, type TabProps } from './artifact-config';
+import { ENTRY_POINT_CONFIG, ENTRY_POINT_DETAIL_TABS, type SelectedArtifact, type TabProps } from './artifact-config';
 
 function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArtifact; onOpenDrawerTab: (tab: string) => void }) {
   const [tracingEnabled, setTracingEnabled] = useState(false);
@@ -37,9 +37,9 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
   const config = ENTRY_POINT_CONFIG[artifactType];
   const tabProps: TabProps = { artifact, artifactType, envId, componentId, projectId };
   const carbonApp = artifact.carbonApp?.toString();
-  const drawerTabs = ARTIFACT_TABS[artifactType] ?? DEFAULT_ARTIFACT_TABS;
   const overviewFields = (config?.overviewFields ?? '').split(', ').filter(Boolean);
   const showTracingToggle = ['RestApi', 'ProxyService', 'InboundEndpoint'].includes(artifactType);
+  const showRuntimesButton = true; // Show View Runtimes button for all entry points
   const showStatisticsToggle = ['RestApi', 'ProxyService', 'InboundEndpoint'].includes(artifactType);
   const toEnabled = (value: unknown) => {
     if (typeof value === 'boolean') return value;
@@ -47,7 +47,8 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
     return normalized === 'enabled' || normalized === 'active' || normalized === 'true';
   };
 
-  const artifactKey = `${artifactType}-${artifact.name}`;
+  const artifactName = artifactType === 'Automation' ? (artifact.packageName?.toString() ?? '') : (artifact.name?.toString() ?? '');
+  const artifactKey = `${artifactType}-${artifactName}`;
   useEffect(() => {
     setTracingEnabled(toEnabled(artifact.tracing));
     setStatisticsEnabled(toEnabled(artifact.statistics));
@@ -70,7 +71,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
       const previousValue = tracingEnabled;
       setTracingEnabled(pendingToggle.checked);
       updateTracingStatus.mutate(
-        { envId, componentId, artifactType, artifactName: artifact.name?.toString() ?? '', trace: pendingToggle.checked ? 'enable' : 'disable' },
+        { envId, componentId, artifactType, artifactName, trace: pendingToggle.checked ? 'enable' : 'disable' },
         {
           onError: () => setTracingEnabled(previousValue),
           onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
@@ -80,7 +81,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
       const previousValue = statisticsEnabled;
       setStatisticsEnabled(pendingToggle.checked);
       updateStatisticsStatus.mutate(
-        { envId, componentId, artifactType, artifactName: artifact.name?.toString() ?? '', statistics: pendingToggle.checked ? 'enable' : 'disable' },
+        { envId, componentId, artifactType, artifactName, statistics: pendingToggle.checked ? 'enable' : 'disable' },
         {
           onError: () => setStatisticsEnabled(previousValue),
           onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
@@ -101,7 +102,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to {toggleAction} {toggleLabel} for <strong>{artifact.name?.toString()}</strong>?
+            Are you sure you want to {toggleAction} {toggleLabel} for <strong>{artifactName}</strong>?
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -133,13 +134,11 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
               <Switch size="small" checked={statisticsEnabled} onChange={(e) => handleToggleStatistics(e.target.checked)} disabled={updateStatisticsStatus.isPending} aria-label="Enable statistics" />
             </Stack>
           )}
-          <Stack direction="row" gap={1} sx={{ ml: 'auto' }}>
-            {drawerTabs.map((tab) => (
-              <Button key={tab} variant="outlined" size="small" onClick={() => onOpenDrawerTab(tab)}>
-                View {tab}
-              </Button>
-            ))}
-          </Stack>
+          {showRuntimesButton && (
+            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Runtimes')} sx={{ ml: 'auto' }}>
+              View Runtimes
+            </Button>
+          )}
         </Stack>
         {/* Overview columns */}
         {overviewFields.length > 0 && (
@@ -167,6 +166,11 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
           </Box>
         )}
         {(ENTRY_POINT_DETAIL_TABS[artifactType] ?? []).includes('Resources') && <Box sx={{ px: 2, py: 1.5 }}>{artifactType === 'RestApi' ? <ArtifactApiDefinition {...tabProps} /> : <ServiceResources {...tabProps} />}</Box>}
+        {artifactType === 'Automation' && (
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <AutomationExecutions {...tabProps} />
+          </Box>
+        )}
       </Box>
     </>
   );
@@ -182,21 +186,34 @@ function EntryPointsList({ envId, componentId, projectId, componentType, onOpenD
   const { data: tasks = [], isLoading: loadingTasks } = useArtifacts('Task', envId, componentId, { enabled: isMI });
   const { data: services = [], isLoading: loadingServices } = useArtifacts('Service', envId, componentId, { enabled: !isMI });
   const { data: listeners = [], isLoading: loadingListeners } = useArtifacts('Listener', envId, componentId, { enabled: !isMI });
+  const { data: automations = [], isLoading: loadingAutomations } = useArtifacts('Automation', envId, componentId, { enabled: !isMI });
 
-  const isLoading = isMI ? loadingApis || loadingProxies || loadingInbound || loadingTasks : loadingServices || loadingListeners;
+  const isLoading = isMI ? loadingApis || loadingProxies || loadingInbound || loadingTasks : loadingServices || loadingListeners || loadingAutomations;
 
   const allEntryPoints = useMemo(
     () =>
       isMI
         ? [...apis.map((a) => ({ artifact: a, type: 'RestApi' })), ...proxies.map((a) => ({ artifact: a, type: 'ProxyService' })), ...inboundEps.map((a) => ({ artifact: a, type: 'InboundEndpoint' })), ...tasks.map((a) => ({ artifact: a, type: 'Task' }))]
-        : [...services.map((a) => ({ artifact: a, type: 'Service' })), ...listeners.map((a) => ({ artifact: a, type: 'Listener' }))],
-    [isMI, apis, proxies, inboundEps, tasks, services, listeners],
+        : [...services.map((a) => ({ artifact: a, type: 'Service' })), ...listeners.map((a) => ({ artifact: a, type: 'Listener' })), ...automations.map((a) => ({ artifact: a, type: 'Automation' }))],
+    [isMI, apis, proxies, inboundEps, tasks, services, listeners, automations],
   );
 
-  const allKeys = new Set(allEntryPoints.map(({ artifact: a, type }) => `${type}::${a.name}`));
-  const firstKey = allEntryPoints.length > 0 ? `${allEntryPoints[0].type}::${allEntryPoints[0].artifact.name}` : '';
+  const allKeys = new Set(
+    allEntryPoints.map(({ artifact: a, type }) => {
+      const artifactKey = type === 'Automation' ? a.packageName : a.name;
+      return `${type}::${artifactKey}`;
+    }),
+  );
+  const firstKey = allEntryPoints.length > 0 ? `${allEntryPoints[0].type}::${allEntryPoints[0].type === 'Automation' ? allEntryPoints[0].artifact.packageName : allEntryPoints[0].artifact.name}` : '';
   const activeKey = selectedKey && allKeys.has(selectedKey) ? selectedKey : firstKey;
-  const selectedEntry = useMemo(() => allEntryPoints.find(({ artifact: a, type }) => `${type}::${a.name}` === activeKey), [allEntryPoints, activeKey]);
+  const selectedEntry = useMemo(
+    () =>
+      allEntryPoints.find(({ artifact: a, type }) => {
+        const artifactKey = type === 'Automation' ? a.packageName : a.name;
+        return `${type}::${artifactKey}` === activeKey;
+      }),
+    [allEntryPoints, activeKey],
+  );
 
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (allEntryPoints.length === 0)
@@ -210,21 +227,36 @@ function EntryPointsList({ envId, componentId, projectId, componentType, onOpenD
     <>
       <Autocomplete
         value={selectedEntry ?? null}
-        onChange={(_, newValue) => setSelectedKey(newValue ? `${newValue.type}::${newValue.artifact.name}` : '')}
+        onChange={(_, newValue) => {
+          if (!newValue) {
+            setSelectedKey('');
+            return;
+          }
+          const artifactKey = newValue.type === 'Automation' ? newValue.artifact.packageName : newValue.artifact.name;
+          setSelectedKey(`${newValue.type}::${artifactKey}`);
+        }}
         options={allEntryPoints}
         autoHighlight
         fullWidth
-        getOptionLabel={(option) => option.artifact.name?.toString() ?? ''}
-        isOptionEqualToValue={(a, b) => a.type === b.type && a.artifact.name === b.artifact.name}
+        getOptionLabel={(option) => {
+          const displayName = option.type === 'Automation' ? option.artifact.packageName : option.artifact.name;
+          return displayName?.toString() ?? '';
+        }}
+        isOptionEqualToValue={(a, b) => {
+          const aName = a.type === 'Automation' ? a.artifact.packageName : a.artifact.name;
+          const bName = b.type === 'Automation' ? b.artifact.packageName : b.artifact.name;
+          return a.type === b.type && aName === bName;
+        }}
         renderOption={(props, { artifact: a, type }) => {
           const { key, ...optionProps } = props;
           const cfg = ENTRY_POINT_CONFIG[type];
           const meta = cfg?.metaField ? a[cfg.metaField]?.toString() : undefined;
+          const displayName = type === 'Automation' ? a.packageName?.toString() : a.name?.toString();
           return (
             <Box key={key} component="li" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} {...optionProps}>
               <Chip label={cfg?.label} size="small" sx={{ bgcolor: cfg?.bgColor, color: cfg?.color, fontWeight: 700, fontSize: 11, minWidth: 60, justifyContent: 'center' }} />
               <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }}>
-                {a.name?.toString()}
+                {displayName}
               </Typography>
               {meta && (
                 <Typography variant="body2" color="text.secondary">

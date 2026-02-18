@@ -46,7 +46,7 @@ import { useEffect, useState } from 'react';
 import { useArtifactTypes, useArtifacts, ARTIFACT_QUERY_MAP, type GqlArtifact } from '../api/queries';
 import { useUpdateArtifactStatus, useUpdateListenerState } from '../api/mutations';
 import SearchField from './SearchField';
-import { ArtifactSource, ArtifactApiDefinition, ArtifactEndpoints, ArtifactWsdl, ArtifactValue, ArtifactCarbonArtifacts, ArtifactRuntimes } from './ArtifactTabs';
+import { ArtifactSource, ArtifactApiDefinition, ArtifactEndpoints, ArtifactWsdl, ArtifactValue, ArtifactCarbonArtifacts, ArtifactRuntimes, AutomationExecutions } from './ArtifactTabs';
 import { ARTIFACT_ICONS, ARTIFACT_TABS, DEFAULT_ARTIFACT_TABS, ENTRY_POINT_TYPE_SET, formatArtifactTypeName, typePlural, type SelectedArtifact, type TabProps } from './artifact-config';
 
 function ListenerConfirmDialog({ open, action, listenerName, onConfirm, onCancel }: { open: boolean; action: 'START' | 'STOP'; listenerName: string; onConfirm: () => void; onCancel: () => void }) {
@@ -80,7 +80,19 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
   if (!artifactMapping) return null;
 
   const columns = artifactMapping.fields.split(', ').filter((f) => f !== 'state' && f !== 'container');
-  const filtered = artifacts.filter((a) => !query || a.name?.toString().toLowerCase().includes(query.toLowerCase()));
+  const filtered = artifacts.filter((a) => {
+    if (!query) return true;
+    const searchQuery = query.toLowerCase();
+    // For Automation artifacts, search across packageOrg, packageName, and packageVersion
+    if (artifactType === 'Automation') {
+      const packageOrg = a.packageOrg?.toString().toLowerCase() ?? '';
+      const packageName = a.packageName?.toString().toLowerCase() ?? '';
+      const packageVersion = a.packageVersion?.toString().toLowerCase() ?? '';
+      return packageOrg.includes(searchQuery) || packageName.includes(searchQuery) || packageVersion.includes(searchQuery);
+    }
+    // For other artifacts, search by name
+    return a.name?.toString().toLowerCase().includes(searchQuery);
+  });
   const supportsToggle = ['Endpoint', 'Listener'].includes(artifactType);
   const hasStateField = ['Connector', 'Listener'].includes(artifactType);
   const maxPage = Math.max(0, Math.ceil(filtered.length / rowsPerPage) - 1);
@@ -263,6 +275,9 @@ export function ArtifactDetail({ selected, onClose }: { selected: SelectedArtifa
 
   const tabProps: TabProps = { artifact, artifactType, envId, componentId, projectId: selected.projectId };
 
+  // For Automation artifacts, use packageName as the display name
+  const displayName = artifact.name?.toString() ?? (artifactType === 'Automation' && artifact.packageName ? artifact.packageName.toString() : 'Unnamed Artifact');
+
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'Source':
@@ -279,6 +294,8 @@ export function ArtifactDetail({ selected, onClose }: { selected: SelectedArtifa
         return <ArtifactCarbonArtifacts {...tabProps} />;
       case 'Runtimes':
         return <ArtifactRuntimes {...tabProps} />;
+      case 'Executions':
+        return <AutomationExecutions {...tabProps} />;
       default:
         return null;
     }
@@ -288,7 +305,7 @@ export function ArtifactDetail({ selected, onClose }: { selected: SelectedArtifa
     <Drawer anchor="right" open onClose={onClose} variant="persistent" sx={drawerSx}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={headerSx}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-          {artifact.name?.toString()}
+          {displayName}
         </Typography>
         <Stack direction="row" gap={0.5}>
           <IconButton size="small" aria-label="maximize" disabled>

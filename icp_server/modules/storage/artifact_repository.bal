@@ -161,11 +161,11 @@ public isolated function getServicesByEnvironmentAndComponent(string environment
                 string[] existing = <string[]>serviceRuntimeMap[hash];
                 existing.push(runtimeId);
                 serviceRuntimeMap[hash] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = serviceSourceRuntime[hash] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
-                    log:printDebug("Replacing service artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);  
+                    log:printDebug("Replacing service artifact from runtime " + sourceRuntimeId + " with runtime " + runtimeId);
                     serviceMap[hash] = 'service;
                     serviceSourceRuntime[hash] = runtimeId;
                 }
@@ -222,7 +222,7 @@ public isolated function getListenersByEnvironmentAndComponent(string environmen
                 string[] existing = <string[]>listenerRuntimeMap[hash];
                 existing.push(runtimeId);
                 listenerRuntimeMap[hash] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = listenerSourceRuntime[hash] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -249,6 +249,96 @@ public isolated function getListenersByEnvironmentAndComponent(string environmen
     }
     log:printDebug("Listeners processed: " + listenerList.length().toString());
     return listenerList;
+}
+
+// Get automation artifacts for a specific environment and component
+public isolated function getAutomationsByEnvironmentAndComponent(string environmentId, string componentId) returns types:Automation[]|error {
+    map<types:Automation> automationMap = {};
+
+    // Get all runtime IDs for this environment and component
+    string[] runtimeIds = check getRuntimeIdsByEnvironmentAndComponent(environmentId, componentId);
+
+    // If no runtimes found, return empty array
+    if runtimeIds.length() == 0 {
+        return [];
+    }
+
+    // Build status map for runtime info
+    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+
+    // Build IN clause for runtime IDs
+    sql:ParameterizedQuery inClause = `(`;
+    foreach int i in 0 ..< runtimeIds.length() {
+        if i > 0 {
+            inClause = sql:queryConcat(inClause, `, `);
+        }
+        inClause = sql:queryConcat(inClause, `${runtimeIds[i]}`);
+    }
+    inClause = sql:queryConcat(inClause, `)`);
+
+    // Query for all automation artifacts and collect data in one pass
+    sql:ParameterizedQuery query = sql:queryConcat(`
+        SELECT 
+            runtime_id,
+            package_org,
+            package_name,
+            package_version,
+            execution_timestamp
+        FROM bi_automation_artifacts
+        WHERE runtime_id IN `, inClause, `
+        ORDER BY package_org, package_name, package_version, execution_timestamp DESC
+    `);
+
+    // Use a record type that includes runtime_id to capture all fields
+    stream<record {|string runtime_id; string package_org; string package_name; string package_version; string execution_timestamp;|}, sql:Error?> automationStream = dbClient->query(query);
+
+    // Build nested map: automationKey -> runtimeId -> execution_timestamps[]
+    map<map<string[]>> automationRuntimeExecutions = {};
+
+    check from record {|string runtime_id; string package_org; string package_name; string package_version; string execution_timestamp;|} row in automationStream
+        do {
+            // Create a unique key for each package (org + name + version)
+            string key = string `${row.package_org}:${row.package_name}:${row.package_version}`;
+
+            // Store the first occurrence as the representative automation
+            if !automationMap.hasKey(key) {
+                automationMap[key] = {
+                    packageOrg: row.package_org,
+                    packageName: row.package_name,
+                    packageVersion: row.package_version,
+                    executionTimestamp: row.execution_timestamp
+                };
+                automationRuntimeExecutions[key] = {};
+            }
+
+            // Get or create the runtime executions map for this automation
+            map<string[]> runtimeExecs = automationRuntimeExecutions[key] ?: {};
+            string[] existingTimestamps = runtimeExecs[row.runtime_id] ?: [];
+            existingTimestamps.push(row.execution_timestamp);
+            runtimeExecs[row.runtime_id] = existingTimestamps;
+            automationRuntimeExecutions[key] = runtimeExecs;
+        };
+
+    // Convert map to array and attach runtime info using the pre-collected data
+    types:Automation[] automationList = [];
+    foreach [string, types:Automation] [key, automation] in automationMap.entries() {
+        map<string[]> runtimeExecs = automationRuntimeExecutions[key] ?: {};
+        string[] rids = runtimeExecs.keys();
+
+        automation.runtimeIds = rids;
+        types:AutomationRuntimeInfo[] infos = [];
+        foreach string rid in rids {
+            string st = statusMap[rid] ?: "UNKNOWN";
+            string[] execTimestamps = runtimeExecs[rid] ?: [];
+            types:AutomationRuntimeInfo info = {runtimeId: rid, status: st, executionTimestamps: execTimestamps};
+            infos.push(info);
+        }
+        automation.runtimes = infos;
+        automationList.push(automation);
+    }
+
+    log:printDebug("Automations processed: " + automationList.length().toString());
+    return automationList;
 }
 
 // Get REST APIs for a specific environment and component
@@ -283,7 +373,7 @@ public isolated function getRestApisByEnvironmentAndComponent(string environment
                 string[] existing = <string[]>apiRuntimeMap[key];
                 existing.push(runtimeId);
                 apiRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = apiSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -344,7 +434,7 @@ public isolated function getCarbonAppsByEnvironmentAndComponent(string environme
                 string[] existing = <string[]>appRuntimeMap[key];
                 existing.push(runtimeId);
                 appRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = appSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -405,7 +495,7 @@ public isolated function getInboundEndpointsByEnvironmentAndComponent(string env
                 string[] existing = <string[]>inboundRuntimeMap[key];
                 existing.push(runtimeId);
                 inboundRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = inboundSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -466,7 +556,7 @@ public isolated function getEndpointsByEnvironmentAndComponent(string environmen
                 string[] existing = <string[]>endpointRuntimeMap[key];
                 existing.push(runtimeId);
                 endpointRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = endpointSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -527,7 +617,7 @@ public isolated function getSequencesByEnvironmentAndComponent(string environmen
                 string[] existing = <string[]>sequenceRuntimeMap[key];
                 existing.push(runtimeId);
                 sequenceRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = sequenceSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -588,7 +678,7 @@ public isolated function getProxyServicesByEnvironmentAndComponent(string enviro
                 string[] existing = <string[]>proxyRuntimeMap[key];
                 existing.push(runtimeId);
                 proxyRuntimeMap[key] = existing;
-                
+
                 // Merge endpoints across all runtimes
                 types:ProxyService existingProxy = proxyMap[key] ?: proxy;
                 string[] existingEndpoints = existingProxy.endpoints ?: [];
@@ -608,7 +698,7 @@ public isolated function getProxyServicesByEnvironmentAndComponent(string enviro
                         merged.push(ep);
                     }
                 }
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = proxySourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -673,7 +763,7 @@ public isolated function getTasksByEnvironmentAndComponent(string environmentId,
                 string[] existing = <string[]>taskRuntimeMap[key];
                 existing.push(runtimeId);
                 taskRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = taskSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -734,7 +824,7 @@ public isolated function getTemplatesByEnvironmentAndComponent(string environmen
                 string[] existing = <string[]>templateRuntimeMap[key];
                 existing.push(runtimeId);
                 templateRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = templateSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -795,7 +885,7 @@ public isolated function getMessageStoresByEnvironmentAndComponent(string enviro
                 string[] existing = <string[]>storeRuntimeMap[key];
                 existing.push(runtimeId);
                 storeRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = storeSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -856,7 +946,7 @@ public isolated function getMessageProcessorsByEnvironmentAndComponent(string en
                 string[] existing = <string[]>processorRuntimeMap[key];
                 existing.push(runtimeId);
                 processorRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = processorSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -917,7 +1007,7 @@ public isolated function getLocalEntriesByEnvironmentAndComponent(string environ
                 string[] existing = <string[]>entryRuntimeMap[key];
                 existing.push(runtimeId);
                 entryRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = entrySourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -978,7 +1068,7 @@ public isolated function getDataServicesByEnvironmentAndComponent(string environ
                 string[] existing = <string[]>dsRuntimeMap[key];
                 existing.push(runtimeId);
                 dsRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = dsSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -1039,7 +1129,7 @@ public isolated function getDataSourcesByEnvironmentAndComponent(string environm
                 string[] existing = <string[]>sourceRuntimeMap[key];
                 existing.push(runtimeId);
                 sourceRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = sourceSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -1100,7 +1190,7 @@ public isolated function getRegistryResourcesByEnvironmentAndComponent(string en
                 string[] existing = <string[]>resourceRuntimeMap[key];
                 existing.push(runtimeId);
                 resourceRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = resourceSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {
@@ -1161,7 +1251,7 @@ public isolated function getConnectorsByEnvironmentAndComponent(string environme
                 string[] existing = <string[]>connectorRuntimeMap[key];
                 existing.push(runtimeId);
                 connectorRuntimeMap[key] = existing;
-                
+
                 // Replace artifact instance if new runtime is RUNNING and existing source is not
                 string sourceRuntimeId = connectorSourceRuntime[key] ?: "";
                 if shouldReplaceArtifact(runtimeId, sourceRuntimeId, statusMap) {

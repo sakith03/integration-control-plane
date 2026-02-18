@@ -775,6 +775,25 @@ CREATE INDEX idx_bi_runtime_listener_artifacts_protocol ON bi_runtime_listener_a
 
 CREATE INDEX idx_bi_runtime_listener_artifacts_state ON bi_runtime_listener_artifacts (state);
 
+-- Automation artifacts (main function) for BI integrations
+CREATE TABLE bi_automation_artifacts (
+    runtime_id VARCHAR(100) NOT NULL,
+    package_org VARCHAR(200) NOT NULL,
+    package_name VARCHAR(200) NOT NULL,
+    package_version VARCHAR(50) NOT NULL,
+    execution_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (runtime_id, execution_timestamp),
+    CONSTRAINT fk_bi_automation_artifacts_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_bi_automation_artifacts_runtime_id ON bi_automation_artifacts (runtime_id);
+
+CREATE INDEX idx_bi_automation_artifacts_package_name ON bi_automation_artifacts (package_name);
+
+CREATE INDEX idx_bi_automation_artifacts_execution_timestamp ON bi_automation_artifacts (execution_timestamp);
+
 -- ============================================================================
 -- MI-SPECIFIC ARTIFACT TABLES
 -- ============================================================================

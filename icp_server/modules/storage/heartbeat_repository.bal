@@ -30,6 +30,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
     check validateHeartbeatData(heartbeat);
 
     boolean isNewRegistration = false;
+    boolean fullHeartbeatRequired = false;
     types:ControlCommand[] pendingCommands = [];
 
     // Upsert runtime record
@@ -80,7 +81,10 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
         // Create audit log entry
         string action = isNewRegistration ? "REGISTER" : "HEARTBEAT";
         int totalArtifacts = countTotalArtifacts(heartbeat.artifacts);
-
+        if (totalArtifacts == 0) {
+            fullHeartbeatRequired = true;
+            log:printWarn(string `No artifacts reported in heartbeat for runtime ${heartbeat.runtime}`);
+        }
         _ = check dbClient->execute(`
             INSERT INTO audit_logs (
                 runtime_id, action, details
@@ -108,6 +112,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
 
     return {
         acknowledged: true,
+        fullHeartbeatRequired: fullHeartbeatRequired,
         commands: pendingCommands
     };
 }
@@ -929,6 +934,59 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
         }
     }
 
+    // Handle automation artifacts for BI integrations (main function)
+    // Only store automation when runtime type is BI, there are no listeners or services, and main artifact exists
+    if heartbeat.runtimeType == "BI" && heartbeat.artifacts.listeners.length() == 0 && heartbeat.artifacts.services.length() == 0 {
+        types:Main? mainArtifact = heartbeat.artifacts.main;
+        if mainArtifact is types:Main {
+            string executionTimeStr = check convertUtcToDbDateTime(heartbeat.timestamp);
+            if dbType == MSSQL {
+                _ = check dbClient->execute(`
+                    MERGE INTO bi_automation_artifacts AS target
+                    USING (VALUES (${heartbeat.runtime}, ${mainArtifact.packageOrg}, ${mainArtifact.packageName}, 
+                           ${mainArtifact.packageVersion}, ${executionTimeStr})) 
+                           AS source (runtime_id, package_org, package_name, package_version, execution_timestamp)
+                    ON (target.runtime_id = source.runtime_id AND target.execution_timestamp = source.execution_timestamp)
+                    WHEN NOT MATCHED THEN
+                        INSERT (runtime_id, package_org, package_name, package_version, execution_timestamp)
+                        VALUES (source.runtime_id, source.package_org, source.package_name, source.package_version, source.execution_timestamp);
+                `);
+            } else if dbType == POSTGRESQL {
+                _ = check dbClient->execute(`
+                    INSERT INTO bi_automation_artifacts (
+                        runtime_id, package_org, package_name, package_version, execution_timestamp
+                    ) VALUES (
+                        ${heartbeat.runtime}, ${mainArtifact.packageOrg}, ${mainArtifact.packageName},
+                        ${mainArtifact.packageVersion}, ${executionTimeStr}::timestamp
+                    )
+                    ON CONFLICT (runtime_id, execution_timestamp) DO NOTHING
+                `);
+            } else {
+                _ = check dbClient->execute(`
+                    INSERT INTO bi_automation_artifacts (
+                        runtime_id, package_org, package_name, package_version, execution_timestamp
+                    ) VALUES (
+                        ${heartbeat.runtime}, ${mainArtifact.packageOrg}, ${mainArtifact.packageName},
+                        ${mainArtifact.packageVersion}, ${executionTimeStr}
+                    )
+                    ON DUPLICATE KEY UPDATE
+                        package_org = VALUES(package_org),
+                        package_name = VALUES(package_name),
+                        package_version = VALUES(package_version),
+                        updated_at = CURRENT_TIMESTAMP
+                `);
+            }
+        } else {
+            // If runtime type is BI but main artifact is absent, clean up any existing automation artifacts
+            _ = check dbClient->execute(`DELETE FROM bi_automation_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
+        }
+    } else {
+        // If runtime type is not BI, or listeners/services are present, clean up any existing automation artifacts
+        // This handles the case where runtime transitions from automation mode to listener/service mode
+        // or when a non-BI runtime has stale automation data
+        _ = check dbClient->execute(`DELETE FROM bi_automation_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
+    }
+
     check insertMIArtifacts(heartbeat);
     check insertAdditionalMIArtifacts(heartbeat);
 }
@@ -938,6 +996,7 @@ isolated function deleteExistingArtifacts(string runtimeId) returns error? {
     _ = check dbClient->execute(`DELETE FROM bi_service_artifacts WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM bi_runtime_listener_artifacts WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM bi_service_resource_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM bi_automation_artifacts WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM mi_api_resource_artifacts WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM mi_api_artifacts WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM mi_proxy_service_artifacts WHERE runtime_id = ${runtimeId}`);

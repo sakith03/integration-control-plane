@@ -1116,6 +1116,37 @@ BEGIN
 END;
 GO
 
+-- Automation artifacts (main function) for BI integrations
+CREATE TABLE bi_automation_artifacts (
+    runtime_id VARCHAR(100) NOT NULL,
+    package_org NVARCHAR (200) NOT NULL,
+    package_name NVARCHAR (200) NOT NULL,
+    package_version NVARCHAR (50) NOT NULL,
+    execution_timestamp DATETIME2 NOT NULL DEFAULT GETDATE (),
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE (),
+    updated_at DATETIME2 NOT NULL DEFAULT GETDATE (),
+    PRIMARY KEY (runtime_id, execution_timestamp),
+    CONSTRAINT fk_bi_automation_artifacts_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
+    INDEX idx_runtime_id (runtime_id),
+    INDEX idx_package_name (package_name),
+    INDEX idx_execution_timestamp (execution_timestamp)
+);
+GO
+
+CREATE TRIGGER trg_bi_automation_artifacts_updated_at
+ON bi_automation_artifacts
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE bi_automation_artifacts
+    SET updated_at = GETDATE()
+    FROM bi_automation_artifacts ba
+    INNER JOIN inserted i ON ba.runtime_id = i.runtime_id 
+        AND ba.execution_timestamp = i.execution_timestamp;
+END;
+GO
+
 -- ============================================================================
 -- MI-SPECIFIC ARTIFACT TABLES
 -- ============================================================================

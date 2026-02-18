@@ -93,9 +93,16 @@ public type Resource record {
     string[] methods = [];
 };
 
+public type Main record {
+    string packageOrg;
+    string packageName;
+    string packageVersion;
+};
+
 public type Artifacts record {
     Listener[] listeners = [];
     Service[] services = [];
+    Main? main;
     // MI-specific artifact types that may be present in heartbeat payloads
     RestApi[] apis = [];
     ProxyService[] proxyServices = [];
@@ -670,6 +677,27 @@ public type Listener record {
     ArtifactState state = "enabled"; // "ENABLED", "DISABLED"
     string[] runtimeIds?;
     ArtifactRuntimeInfo[]? runtimes?;
+};
+
+public type Automation record {
+    @sql:Column {
+        name: "package_org"
+    }
+    string packageOrg;
+    @sql:Column {
+        name: "package_name"
+    }
+    string packageName;
+    @sql:Column {
+        name: "package_version"
+    }
+    string packageVersion;
+    @sql:Column {
+        name: "execution_timestamp"
+    }
+    string executionTimestamp;
+    string[] runtimeIds?;
+    AutomationRuntimeInfo[]? runtimes?;
 };
 
 // MI Runtime specific artifact types
@@ -1637,6 +1665,13 @@ public type ComponentInDB record {
 public type ArtifactRuntimeInfo record {
     string runtimeId;
     string status;
+};
+
+// Runtime info for automation artifacts with execution timestamps
+public type AutomationRuntimeInfo record {
+    string runtimeId;
+    string status;
+    string[] executionTimestamps;
 };
 
 // === Observability Related Types ===

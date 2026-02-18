@@ -274,7 +274,7 @@ public isolated function getApisForRuntime(string runtimeId) returns types:RestA
         do {
             // Get resources for this API
             types:ApiResource[] resources = check getApiResourcesForRuntime(runtimeId, apiRecord.api_name);
-            
+
             // Parse urls JSON string to array
             string[] urlsArray = [];
             string? urlsStr = apiRecord.urls;
@@ -282,7 +282,7 @@ public isolated function getApisForRuntime(string runtimeId) returns types:RestA
                 json urlsJson = check urlsStr.fromJsonString();
                 urlsArray = check urlsJson.cloneWithType();
             }
-            
+
             types:RestApi api = {
                 name: apiRecord.api_name,
                 url: apiRecord.url,
@@ -774,6 +774,7 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
         artifacts: {
             listeners: listenerList,
             services: serviceList,
+            main: (),
             apis: apiList,
             proxyServices: proxyList,
             endpoints: endpointList,
