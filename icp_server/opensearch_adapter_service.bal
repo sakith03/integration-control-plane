@@ -434,6 +434,8 @@ service /observability on openSerachObservabilityListener {
 
 // Helper function to build OpenSearch query based on request parameters
 function buildLogQuery(types:LogEntryRequest logRequest) returns json {
+    log:printDebug("Building OpenSearch query");
+        
     json[] mustClauses = [];
 
     // Filter by runtime IDs if specified
@@ -451,7 +453,7 @@ function buildLogQuery(types:LogEntryRequest logRequest) returns json {
     if (levels is string[] && levels.length() > 0) {
         mustClauses.push({
             "terms": {
-                "level.keyword": levels
+                "level": levels
             }
         });
     }
@@ -460,7 +462,7 @@ function buildLogQuery(types:LogEntryRequest logRequest) returns json {
     string? searchPhrase = logRequest.searchPhrase;
     if (searchPhrase is string && searchPhrase.length() > 0) {
         mustClauses.push({
-            "match": {
+            "match_phrase": {
                 "message": searchPhrase
             }
         });
