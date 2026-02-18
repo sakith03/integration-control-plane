@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Globe, Link2, ListOrdered, Clock, FolderArchive, Package, Plug, FileText, Radio, Server, Wifi, Layers } from '@wso2/oxygen-ui-icons-react';
+import { Globe, Link2, ListOrdered, Clock, FolderArchive, Package, Plug, FileText, Radio, Server, Wifi, Layers, Zap } from '@wso2/oxygen-ui-icons-react';
 import type { JSX } from 'react';
 import type { GqlArtifact } from '../api/queries';
 
@@ -43,6 +43,7 @@ export const ARTIFACT_ICONS: Record<string, JSX.Element> = {
   RegistryResource: <FolderArchive size={18} />,
   Listener: <Wifi size={18} />,
   Service: <Layers size={18} />,
+  Automation: <Zap size={18} />,
 };
 
 export const ARTIFACT_TABS: Record<string, string[]> = {
@@ -55,6 +56,7 @@ export const ARTIFACT_TABS: Record<string, string[]> = {
   RegistryResource: ['Runtimes'],
   Listener: ['Runtimes'],
   Service: ['Runtimes'],
+  Automation: ['Executions', 'Runtimes'],
 };
 export const DEFAULT_ARTIFACT_TABS = ['Source', 'Runtimes'];
 
@@ -65,6 +67,7 @@ export const ENTRY_POINT_CONFIG: Record<string, { label: string; detailLabel: st
   Task: { label: 'Task', detailLabel: 'TASK', color: '#00695c', bgColor: '#e0f2f1', overviewFields: 'group' },
   Service: { label: 'Service', detailLabel: 'SERVICE', color: '#4a148c', bgColor: '#f3e5f5', metaField: 'basePath', overviewFields: 'package, basePath, type' },
   Listener: { label: 'Listener', detailLabel: 'LISTENER', color: '#bf360c', bgColor: '#fbe9e7', overviewFields: 'package, protocol, host, port' },
+  Automation: { label: 'Automation', detailLabel: 'AUTOMATION', color: '#f57c00', bgColor: '#fff3e0', metaField: 'packageVersion', overviewFields: 'packageOrg, packageName, packageVersion' },
 };
 
 export const ENTRY_POINT_DETAIL_TABS: Record<string, string[]> = {

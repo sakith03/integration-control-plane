@@ -129,3 +129,40 @@ export function ArtifactRuntimes({ artifact }: TabProps) {
     />
   );
 }
+
+export function AutomationExecutions({ artifact }: TabProps) {
+  const runtimes = (artifact.runtimes as Array<{ runtimeId: string; status: string; executionTimestamps: string[] }> | undefined) ?? [];
+  const allExecutions: Array<{ runtimeId: string; timestamp: string; status: string }> = [];
+
+  runtimes.forEach((runtime) => {
+    const timestamps = runtime.executionTimestamps ?? [];
+    timestamps.forEach((timestamp) => {
+      allExecutions.push({
+        runtimeId: runtime.runtimeId,
+        timestamp,
+        status: runtime.status,
+      });
+    });
+  });
+
+  // Sort by timestamp descending (most recent first)
+  allExecutions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return (
+    <DataTable
+      headers={['Timestamp', 'Runtime ID', 'Status']}
+      rows={allExecutions.map((exec) => [
+        <Typography key="timestamp" variant="body2">
+          {exec.timestamp}
+        </Typography>,
+        <Typography key="runtimeId" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {exec.runtimeId}
+        </Typography>,
+        <Typography key="status" variant="body2" color={exec.status === 'ONLINE' ? 'success.main' : 'text.secondary'} sx={{ fontWeight: 600 }}>
+          {exec.status}
+        </Typography>,
+      ])}
+      emptyMsg="No executions found."
+    />
+  );
+}

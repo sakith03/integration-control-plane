@@ -254,7 +254,6 @@ public isolated function getListenersByEnvironmentAndComponent(string environmen
 // Get automation artifacts for a specific environment and component
 public isolated function getAutomationsByEnvironmentAndComponent(string environmentId, string componentId) returns types:Automation[]|error {
     map<types:Automation> automationMap = {};
-    map<string[]> automationRuntimeMap = {};
 
     // Get all runtime IDs for this environment and component
     string[] runtimeIds = check getRuntimeIdsByEnvironmentAndComponent(environmentId, componentId);
@@ -277,8 +276,7 @@ public isolated function getAutomationsByEnvironmentAndComponent(string environm
     }
     inClause = sql:queryConcat(inClause, `)`);
 
-    // Query for automation artifacts with latest execution per package
-    // Group by package_org, package_name, package_version and get the latest execution_timestamp
+    // Query for all automation artifacts and collect data in one pass
     sql:ParameterizedQuery query = sql:queryConcat(`
         SELECT 
             runtime_id,
@@ -288,65 +286,50 @@ public isolated function getAutomationsByEnvironmentAndComponent(string environm
             execution_timestamp
         FROM bi_automation_artifacts
         WHERE runtime_id IN `, inClause, `
-        ORDER BY execution_timestamp DESC
+        ORDER BY package_org, package_name, package_version, execution_timestamp DESC
     `);
 
-    stream<types:Automation, sql:Error?> automationStream = dbClient->query(query);
+    // Use a record type that includes runtime_id to capture all fields
+    stream<record {|string runtime_id; string package_org; string package_name; string package_version; string execution_timestamp;|}, sql:Error?> automationStream = dbClient->query(query);
 
-    check from types:Automation automation in automationStream
+    // Build nested map: automationKey -> runtimeId -> execution_timestamps[]
+    map<map<string[]>> automationRuntimeExecutions = {};
+
+    check from record {|string runtime_id; string package_org; string package_name; string package_version; string execution_timestamp;|} row in automationStream
         do {
             // Create a unique key for each package (org + name + version)
-            string key = string `${automation.packageOrg}:${automation.packageName}:${automation.packageVersion}`;
+            string key = string `${row.package_org}:${row.package_name}:${row.package_version}`;
 
-            // Track runtime IDs per automation package
-            if !automationRuntimeMap.hasKey(key) {
-                automationMap[key] = automation;
-                automationRuntimeMap[key] = [automation.executionTimestamp];
-            } else {
-                // Add this execution timestamp to the list (we're ordering by DESC, so latest first)
-                string[] executions = automationRuntimeMap[key] ?: [];
-                executions.push(automation.executionTimestamp);
-                automationRuntimeMap[key] = executions;
+            // Store the first occurrence as the representative automation
+            if !automationMap.hasKey(key) {
+                automationMap[key] = {
+                    packageOrg: row.package_org,
+                    packageName: row.package_name,
+                    packageVersion: row.package_version,
+                    executionTimestamp: row.execution_timestamp
+                };
+                automationRuntimeExecutions[key] = {};
             }
+
+            // Get or create the runtime executions map for this automation
+            map<string[]> runtimeExecs = automationRuntimeExecutions[key] ?: {};
+            string[] existingTimestamps = runtimeExecs[row.runtime_id] ?: [];
+            existingTimestamps.push(row.execution_timestamp);
+            runtimeExecs[row.runtime_id] = existingTimestamps;
+            automationRuntimeExecutions[key] = runtimeExecs;
         };
 
-    // Convert map to array and attach runtime info
-    // For automations, we'll collect all runtimes that have this automation with their execution timestamps
+    // Convert map to array and attach runtime info using the pre-collected data
     types:Automation[] automationList = [];
-    foreach [string, types:Automation] [_, automation] in automationMap.entries() {
-        // Find all runtime IDs that have this automation package and collect execution timestamps
-        string[] rids = [];
-        map<string[]> runtimeExecutionMap = {};
-
-        foreach string runtimeId in runtimeIds {
-            // Get all execution timestamps for this runtime and automation package
-            sql:ParameterizedQuery timestampQuery = `
-                SELECT execution_timestamp
-                FROM bi_automation_artifacts
-                WHERE runtime_id = ${runtimeId}
-                    AND package_org = ${automation.packageOrg}
-                    AND package_name = ${automation.packageName}
-                    AND package_version = ${automation.packageVersion}
-                ORDER BY execution_timestamp DESC
-            `;
-            stream<record {|string execution_timestamp;|}, sql:Error?> timestampStream = dbClient->query(timestampQuery);
-            string[] timestamps = [];
-            check from record {|string execution_timestamp;|} ts in timestampStream
-                do {
-                    timestamps.push(ts.execution_timestamp);
-                };
-
-            if timestamps.length() > 0 {
-                rids.push(runtimeId);
-                runtimeExecutionMap[runtimeId] = timestamps;
-            }
-        }
+    foreach [string, types:Automation] [key, automation] in automationMap.entries() {
+        map<string[]> runtimeExecs = automationRuntimeExecutions[key] ?: {};
+        string[] rids = runtimeExecs.keys();
 
         automation.runtimeIds = rids;
         types:AutomationRuntimeInfo[] infos = [];
         foreach string rid in rids {
             string st = statusMap[rid] ?: "UNKNOWN";
-            string[] execTimestamps = runtimeExecutionMap[rid] ?: [];
+            string[] execTimestamps = runtimeExecs[rid] ?: [];
             types:AutomationRuntimeInfo info = {runtimeId: rid, status: st, executionTimestamps: execTimestamps};
             infos.push(info);
         }

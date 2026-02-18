@@ -249,6 +249,12 @@ const ARTIFACT_QUERY_MAP: Record<string, { queryName: string; field: string; fie
     fields: 'name, package, basePath, type',
     gqlFields: 'name, package, basePath, type, runtimes { runtimeId, status }, resources { path, method, url, methods }',
   },
+  Automation: {
+    queryName: 'automationsByEnvironmentAndComponent',
+    field: 'automationsByEnvironmentAndComponent',
+    fields: 'packageOrg, packageName, packageVersion',
+    gqlFields: 'packageOrg, packageName, packageVersion, runtimeIds, runtimes { runtimeId, status, executionTimestamps }, executionTimestamp',
+  },
 };
 
 export function useArtifacts(artifactType: string, envId: string, componentId: string, options?: { enabled?: boolean }) {
@@ -322,6 +328,7 @@ export const ARTIFACT_TYPE_TO_SOURCE_TYPE: Record<string, string> = {
   RegistryResource: 'registry-resource',
   Listener: 'listener',
   Service: 'service',
+  Automation: 'automation',
 };
 
 // ── Refresh environment artifacts ──

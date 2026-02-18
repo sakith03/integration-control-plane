@@ -935,8 +935,8 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
     }
 
     // Handle automation artifacts for BI integrations (main function)
-    // Only store automation when there are no listeners or services defined
-    if heartbeat.artifacts.listeners.length() == 0 && heartbeat.artifacts.services.length() == 0 {
+    // Only store automation when runtime type is BI, there are no listeners or services, and main artifact exists
+    if heartbeat.runtimeType == "BI" && heartbeat.artifacts.listeners.length() == 0 && heartbeat.artifacts.services.length() == 0 {
         types:Main? mainArtifact = heartbeat.artifacts.main;
         if mainArtifact is types:Main {
             string executionTimeStr = check convertUtcToDbDateTime(heartbeat.timestamp);
@@ -976,10 +976,14 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
                         updated_at = CURRENT_TIMESTAMP
                 `);
             }
+        } else {
+            // If runtime type is BI but main artifact is absent, clean up any existing automation artifacts
+            _ = check dbClient->execute(`DELETE FROM bi_automation_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
         }
     } else {
-        // If listeners or services are present, clean up any existing automation artifacts
+        // If runtime type is not BI, or listeners/services are present, clean up any existing automation artifacts
         // This handles the case where runtime transitions from automation mode to listener/service mode
+        // or when a non-BI runtime has stale automation data
         _ = check dbClient->execute(`DELETE FROM bi_automation_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
     }
 
