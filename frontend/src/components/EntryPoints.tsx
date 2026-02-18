@@ -16,9 +16,10 @@
  * under the License.
  */
 
-import { Autocomplete, Box, Button, Card, CardContent, Chip, CircularProgress, Divider, IconButton, InputAdornment, Stack, Switch, TextField, Typography } from '@wso2/oxygen-ui';
+import { Autocomplete, Box, Button, Card, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, IconButton, InputAdornment, Stack, Switch, TextField, Typography } from '@wso2/oxygen-ui';
 import { RefreshCw, ListFilter, LayoutGrid } from '@wso2/oxygen-ui-icons-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useArtifacts, useRefreshEnvironmentArtifacts, type GqlArtifact, type GqlEnvironment } from '../api/queries';
 import { useUpdateArtifactTracingStatus, useUpdateArtifactStatisticsStatus } from '../api/artifactToggleMutations';
 import { ArtifactApiDefinition, ServiceResources } from './ArtifactTabs';
@@ -28,7 +29,9 @@ import { ARTIFACT_TABS, DEFAULT_ARTIFACT_TABS, ENTRY_POINT_CONFIG, ENTRY_POINT_D
 function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArtifact; onOpenDrawerTab: (tab: string) => void }) {
   const [tracingEnabled, setTracingEnabled] = useState(false);
   const [statisticsEnabled, setStatisticsEnabled] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState<{ type: 'tracing' | 'statistics'; checked: boolean } | null>(null);
   const { artifact, artifactType, envId, componentId, projectId } = selected;
+  const queryClient = useQueryClient();
   const updateTracingStatus = useUpdateArtifactTracingStatus();
   const updateStatisticsStatus = useUpdateArtifactStatisticsStatus();
   const config = ENTRY_POINT_CONFIG[artifactType];
@@ -52,86 +55,120 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
 
   const handleToggleTracing = (checked: boolean) => {
     if (!showTracingToggle) return;
-    setTracingEnabled(checked);
-    updateTracingStatus.mutate({
-      envId,
-      componentId,
-      artifactType,
-      artifactName: artifact.name?.toString() ?? '',
-      trace: checked ? 'enable' : 'disable',
-    });
+    setPendingToggle({ type: 'tracing', checked });
   };
 
   const handleToggleStatistics = (checked: boolean) => {
     if (!showStatisticsToggle) return;
-    setStatisticsEnabled(checked);
-    updateStatisticsStatus.mutate({
-      envId,
-      componentId,
-      artifactType,
-      artifactName: artifact.name?.toString() ?? '',
-      statistics: checked ? 'enable' : 'disable',
-    });
+    setPendingToggle({ type: 'statistics', checked });
   };
 
+  const handleConfirmToggle = () => {
+    if (!pendingToggle) return;
+    const artifactQueryKey = ['artifacts', artifactType, envId, componentId];
+    if (pendingToggle.type === 'tracing') {
+      const previousValue = tracingEnabled;
+      setTracingEnabled(pendingToggle.checked);
+      updateTracingStatus.mutate(
+        { envId, componentId, artifactType, artifactName: artifact.name?.toString() ?? '', trace: pendingToggle.checked ? 'enable' : 'disable' },
+        {
+          onError: () => setTracingEnabled(previousValue),
+          onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
+        },
+      );
+    } else {
+      const previousValue = statisticsEnabled;
+      setStatisticsEnabled(pendingToggle.checked);
+      updateStatisticsStatus.mutate(
+        { envId, componentId, artifactType, artifactName: artifact.name?.toString() ?? '', statistics: pendingToggle.checked ? 'enable' : 'disable' },
+        {
+          onError: () => setStatisticsEnabled(previousValue),
+          onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
+        },
+      );
+    }
+    setPendingToggle(null);
+  };
+
+  const toggleLabel = pendingToggle?.type === 'tracing' ? 'tracing' : 'statistics';
+  const toggleAction = pendingToggle?.checked ? 'enable' : 'disable';
+
   return (
-    <Box sx={{ mt: 2 }}>
-      {/* Header row */}
-      <Stack direction="row" alignItems="center" gap={1.5} sx={{ px: 2, py: 1.5 }}>
-        {carbonApp && <Chip label={`C-App: ${carbonApp}`} size="small" variant="outlined" sx={{ bgcolor: '#e8eaf6', color: '#3949ab', fontSize: 11 }} />}
-        {carbonApp && <Divider orientation="vertical" flexItem />}
-        {showTracingToggle && (
-          <Stack direction="row" alignItems="center" gap={1}>
-            <Typography variant="body2" color="text.secondary">
-              Tracing
-            </Typography>
-            <Switch size="small" checked={tracingEnabled} onChange={(e) => handleToggleTracing(e.target.checked)} disabled={updateTracingStatus.isPending} aria-label="Enable tracing" />
-          </Stack>
-        )}
-        {showTracingToggle && showStatisticsToggle && <Divider orientation="vertical" flexItem />}
-        {showStatisticsToggle && (
-          <Stack direction="row" alignItems="center" gap={1}>
-            <Typography variant="body2" color="text.secondary">
-              Statistics
-            </Typography>
-            <Switch size="small" checked={statisticsEnabled} onChange={(e) => handleToggleStatistics(e.target.checked)} disabled={updateStatisticsStatus.isPending} aria-label="Enable statistics" />
-          </Stack>
-        )}
-        <Stack direction="row" gap={1} sx={{ ml: 'auto' }}>
-          {drawerTabs.map((tab) => (
-            <Button key={tab} variant="outlined" size="small" onClick={() => onOpenDrawerTab(tab)}>
-              View {tab}
-            </Button>
-          ))}
-        </Stack>
-      </Stack>
-      {/* Overview columns */}
-      {overviewFields.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${overviewFields.length}, 1fr)` }}>
-          {overviewFields.map((f, i) => (
-            <Box key={f} sx={{ px: 2, py: 1.5, ...(i < overviewFields.length - 1 && { borderRight: '1px solid', borderColor: 'divider' }) }}>
-              <Typography variant="overline" color="text.secondary" sx={{ fontSize: 10, fontWeight: 600, display: 'block' }}>
-                {f.toUpperCase()}
+    <>
+      <Dialog open={pendingToggle !== null} onClose={() => setPendingToggle(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          Confirm {toggleAction === 'enable' ? 'Enable' : 'Disable'} {toggleLabel.charAt(0).toUpperCase() + toggleLabel.slice(1)}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to {toggleAction} {toggleLabel} for <strong>{artifact.name?.toString()}</strong>?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingToggle(null)}>Cancel</Button>
+          <Button variant="contained" onClick={handleConfirmToggle}>
+            {toggleAction === 'enable' ? 'Enable' : 'Disable'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Box sx={{ mt: 2 }}>
+        {/* Header row */}
+        <Stack direction="row" alignItems="center" gap={1.5} sx={{ px: 2, py: 1.5 }}>
+          {carbonApp && <Chip label={`C-App: ${carbonApp}`} size="small" variant="outlined" sx={{ bgcolor: '#e8eaf6', color: '#3949ab', fontSize: 11 }} />}
+          {carbonApp && <Divider orientation="vertical" flexItem />}
+          {showTracingToggle && (
+            <Stack direction="row" alignItems="center" gap={1}>
+              <Typography variant="body2" color="text.secondary">
+                Tracing
               </Typography>
-              {f === 'state' ? (
-                <Chip
-                  label={artifact[f] ? artifact[f].toString().charAt(0).toUpperCase() + artifact[f].toString().slice(1).toLowerCase() : '—'}
-                  size="small"
-                  variant="outlined"
-                  color={artifact[f]?.toString().toLowerCase() === 'enabled' ? 'success' : 'default'}
-                  sx={{ mt: 0.5, fontSize: 13 }}
-                />
-              ) : (
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {artifact[f] ? artifact[f].toString() : '—'}
+              <Switch size="small" checked={tracingEnabled} onChange={(e) => handleToggleTracing(e.target.checked)} disabled={updateTracingStatus.isPending} aria-label="Enable tracing" />
+            </Stack>
+          )}
+          {showTracingToggle && showStatisticsToggle && <Divider orientation="vertical" flexItem />}
+          {showStatisticsToggle && (
+            <Stack direction="row" alignItems="center" gap={1}>
+              <Typography variant="body2" color="text.secondary">
+                Statistics
+              </Typography>
+              <Switch size="small" checked={statisticsEnabled} onChange={(e) => handleToggleStatistics(e.target.checked)} disabled={updateStatisticsStatus.isPending} aria-label="Enable statistics" />
+            </Stack>
+          )}
+          <Stack direction="row" gap={1} sx={{ ml: 'auto' }}>
+            {drawerTabs.map((tab) => (
+              <Button key={tab} variant="outlined" size="small" onClick={() => onOpenDrawerTab(tab)}>
+                View {tab}
+              </Button>
+            ))}
+          </Stack>
+        </Stack>
+        {/* Overview columns */}
+        {overviewFields.length > 0 && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${overviewFields.length}, 1fr)` }}>
+            {overviewFields.map((f, i) => (
+              <Box key={f} sx={{ px: 2, py: 1.5, ...(i < overviewFields.length - 1 && { borderRight: '1px solid', borderColor: 'divider' }) }}>
+                <Typography variant="overline" color="text.secondary" sx={{ fontSize: 10, fontWeight: 600, display: 'block' }}>
+                  {f.toUpperCase()}
                 </Typography>
-              )}
-            </Box>
-          ))}
-        </Box>
-      )}
-      {(ENTRY_POINT_DETAIL_TABS[artifactType] ?? []).includes('Resources') && <Box sx={{ px: 2, py: 1.5 }}>{artifactType === 'RestApi' ? <ArtifactApiDefinition {...tabProps} /> : <ServiceResources {...tabProps} />}</Box>}
-    </Box>
+                {f === 'state' ? (
+                  <Chip
+                    label={artifact[f] ? artifact[f].toString().charAt(0).toUpperCase() + artifact[f].toString().slice(1).toLowerCase() : '—'}
+                    size="small"
+                    variant="outlined"
+                    color={artifact[f]?.toString().toLowerCase() === 'enabled' ? 'success' : 'default'}
+                    sx={{ mt: 0.5, fontSize: 13 }}
+                  />
+                ) : (
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {artifact[f] ? artifact[f].toString() : '—'}
+                  </Typography>
+                )}
+              </Box>
+            ))}
+          </Box>
+        )}
+        {(ENTRY_POINT_DETAIL_TABS[artifactType] ?? []).includes('Resources') && <Box sx={{ px: 2, py: 1.5 }}>{artifactType === 'RestApi' ? <ArtifactApiDefinition {...tabProps} /> : <ServiceResources {...tabProps} />}</Box>}
+      </Box>
+    </>
   );
 }
 
