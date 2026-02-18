@@ -434,6 +434,8 @@ service /observability on openSerachObservabilityListener {
 
 // Helper function to build OpenSearch query based on request parameters
 function buildLogQuery(types:LogEntryRequest logRequest) returns json {
+    log:printDebug("Building OpenSearch query");
+        
     json[] mustClauses = [];
 
     // Filter by runtime IDs if specified
