@@ -108,8 +108,8 @@ export function useUpdateArtifactTracingStatus() {
 
   return {
     ...mutation,
-    mutate: (input: ArtifactTracingInput) => mutation.mutate({ ...input, value: input.trace }),
-    mutateAsync: (input: ArtifactTracingInput) => mutation.mutateAsync({ ...input, value: input.trace }),
+    mutate: (input: ArtifactTracingInput, options?: Parameters<typeof mutation.mutate>[1]) => mutation.mutate({ ...input, value: input.trace }, options),
+    mutateAsync: (input: ArtifactTracingInput, options?: Parameters<typeof mutation.mutateAsync>[1]) => mutation.mutateAsync({ ...input, value: input.trace }, options),
   };
 }
 
@@ -118,7 +118,7 @@ export function useUpdateArtifactStatisticsStatus() {
 
   return {
     ...mutation,
-    mutate: (input: ArtifactStatisticsInput) => mutation.mutate({ ...input, value: input.statistics }),
-    mutateAsync: (input: ArtifactStatisticsInput) => mutation.mutateAsync({ ...input, value: input.statistics }),
+    mutate: (input: ArtifactStatisticsInput, options?: Parameters<typeof mutation.mutate>[1]) => mutation.mutate({ ...input, value: input.statistics }, options),
+    mutateAsync: (input: ArtifactStatisticsInput, options?: Parameters<typeof mutation.mutateAsync>[1]) => mutation.mutateAsync({ ...input, value: input.statistics }, options),
   };
 }
