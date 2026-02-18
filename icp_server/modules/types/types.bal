@@ -93,9 +93,16 @@ public type Resource record {
     string[] methods = [];
 };
 
+public type Main record {
+    string packageOrg;
+    string packageName;
+    string packageVersion;
+};
+
 public type Artifacts record {
     Listener[] listeners = [];
     Service[] services = [];
+    Main? main = ();
     // MI-specific artifact types that may be present in heartbeat payloads
     RestApi[] apis = [];
     ProxyService[] proxyServices = [];

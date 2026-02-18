@@ -623,6 +623,22 @@ CREATE TABLE bi_runtime_listener_artifacts (
     INDEX idx_state (state)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
+-- Automation artifacts (main function) for BI integrations
+CREATE TABLE bi_automation_artifacts (
+    runtime_id VARCHAR(100) NOT NULL,
+    package_org VARCHAR(200) NOT NULL,
+    package_name VARCHAR(200) NOT NULL,
+    package_version VARCHAR(50) NOT NULL,
+    execution_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (runtime_id, execution_timestamp),
+    CONSTRAINT fk_bi_automation_artifacts_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
+    INDEX idx_runtime_id (runtime_id),
+    INDEX idx_package_name (package_name),
+    INDEX idx_execution_timestamp (execution_timestamp)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
 -- ============================================================================
 -- MI-SPECIFIC ARTIFACT TABLES
 -- ============================================================================
