@@ -22,7 +22,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  base: '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
