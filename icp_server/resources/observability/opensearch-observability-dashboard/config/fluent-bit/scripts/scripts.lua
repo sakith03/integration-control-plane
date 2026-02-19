@@ -118,20 +118,43 @@ function enrich_mi_logs(tag, timestamp, record)
     return 1, timestamp, record
 end
 
--- Simple hash function for generating document IDs
+-- Dual hash function for generating document IDs with ~62 bits of entropy
 -- This helps prevent duplicates when Fluent Bit restarts without offset state
+-- Uses two independent 31-bit hashes to minimize collision probability
 function simple_hash(str)
-    local hash = 0
+    -- First hash with multiplier 31 and prime modulus 2147483647 (2^31 - 1)
+    local hash1 = 0
     for i = 1, #str do
-        hash = (hash * 31 + string.byte(str, i)) % 2147483647
+        hash1 = (hash1 * 31 + string.byte(str, i)) % 2147483647
     end
-    return string.format("%x", hash)
+    
+    -- Second hash with multiplier 37 and different seed
+    local hash2 = 5381  -- DJB2 initial seed
+    for i = 1, #str do
+        hash2 = (hash2 * 37 + string.byte(str, i)) % 2147483647
+    end
+    
+    -- Concatenate both hashes in hex format for wider ID space (~62 bits)
+    return string.format("%x%x", hash1, hash2)
 end
 
 function generate_document_id(tag, timestamp, record)
     -- Generate a consistent document ID based on key fields
     -- This ensures that duplicate log entries overwrite instead of creating new documents
-    local timestamp_str = tostring(timestamp)
+    
+    -- Use high-precision timestamp from record if available, otherwise build from timestamp table
+    local timestamp_str
+    if record["time"] then
+        -- Use the parsed high-precision time field (includes milliseconds/nanoseconds)
+        timestamp_str = tostring(record["time"])
+    elseif type(timestamp) == "table" then
+        -- Timestamp is a table with sec and nsec components - preserve full precision
+        timestamp_str = string.format("%d.%09d", timestamp.sec or timestamp[1] or 0, timestamp.nsec or timestamp[2] or 0)
+    else
+        -- Fallback to string conversion (loses precision but shouldn't happen)
+        timestamp_str = tostring(timestamp)
+    end
+    
     local message = record["message"] or ""
     local level = record["level"] or ""
     local runtime_id = record["icp_runtimeId"] or ""

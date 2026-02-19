@@ -488,7 +488,7 @@ modules = [
 [[package]]
 org = "ballerinax"
 name = "cdc"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
 	{org = "ballerina", name = "crypto"},
 	{org = "ballerina", name = "data.jsondata"},
