@@ -24,6 +24,20 @@ import { useNavigate } from 'react-router';
 import { resourceUrl } from '../nav';
 import { useAuth } from '../auth/AuthContext';
 
+function friendlyLoginError(err: unknown, isSso = false): string {
+  const message = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  const status = (err as Record<string, unknown>)?.status as number | undefined;
+
+  if (status === 401 || message.includes('invalid credentials') || message.includes('unauthorized')) return 'Incorrect username or password. Please try again.';
+  if (status === 403 || message.includes('locked') || message.includes('disabled') || message.includes('forbidden')) return 'Your account has been locked or disabled. Please contact your administrator.';
+  if (status === 404 || message.includes('not found')) return 'Account not found. Please check your username and try again.';
+  if (status === 429 || message.includes('too many') || message.includes('rate limit')) return 'Too many sign-in attempts. Please wait a moment and try again.';
+  if (message.includes('failed to fetch') || message.includes('networkerror') || err instanceof TypeError) return 'Unable to connect to the server. Please check your connection and try again.';
+  if ((status && status >= 500) || message.includes('internal') || message.includes('server error')) return 'Something went wrong on our end. Please try again later.';
+  if (isSso) return 'Single sign-on is currently unavailable. Please try again later or use username and password.';
+  return 'Sign-in failed. Please try again or contact your administrator.';
+}
+
 export default function LoginForm(): JSX.Element {
   const navigate = useNavigate();
   const { login, loginWithOIDC } = useAuth();
@@ -51,7 +65,7 @@ export default function LoginForm(): JSX.Element {
     try {
       await loginWithOIDC();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'SSO login failed');
+      setError(friendlyLoginError(err, true));
       setSsoLoading(false);
     }
   };
@@ -64,7 +78,7 @@ export default function LoginForm(): JSX.Element {
       await login(username, password);
       navigate(resourceUrl({ level: 'organizations', org: 'default' }, 'overview'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(friendlyLoginError(err));
     } finally {
       setLoading(false);
     }
