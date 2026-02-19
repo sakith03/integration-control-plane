@@ -67,7 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     });
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(body || `Login failed (${res.status})`);
+      const err: Error & { status?: number } = new Error(body || `Login failed (${res.status})`);
+      err.status = res.status;
+      throw err;
     }
     const data: { userId: string; token: string; expiresIn: number; refreshToken: string; refreshTokenExpiresIn: number; username: string; displayName: string; permissions: string[]; isOidcUser: boolean; requirePasswordChange?: boolean } = await res.json();
     saveTokens({ token: data.token, expiresIn: data.expiresIn, refreshToken: data.refreshToken, refreshTokenExpiresIn: data.refreshTokenExpiresIn });
@@ -84,7 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     const res = await fetch(`${oidcAuthorizeApiUrl()}?state=${encodeURIComponent(state)}`);
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(body || `Failed to get OIDC authorization URL (${res.status})`);
+      const err: Error & { status?: number } = new Error(body || `SSO login failed (${res.status})`);
+      err.status = res.status;
+      throw err;
     }
     const data: { authorizationUrl: string } = await res.json();
     window.location.href = data.authorizationUrl;
