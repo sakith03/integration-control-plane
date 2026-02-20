@@ -15,6 +15,14 @@ export function profileUrl(): string {
   return '/profile';
 }
 
+export function privacyPolicyUrl(): string {
+  return '/privacy-policy';
+}
+
+export function cookiePolicyUrl(): string {
+  return '/cookie-policy';
+}
+
 export function forceChangePasswordUrl(): string {
   return '/change-password';
 }

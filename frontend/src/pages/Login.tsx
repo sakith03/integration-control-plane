@@ -18,16 +18,18 @@
 
 import { Box, Divider, Grid, Link, Stack, Typography } from '@wso2/oxygen-ui';
 import { type JSX } from 'react';
+import { Link as NavLink } from 'react-router';
 import LoginForm from '../components/LoginForm';
+import { cookiePolicyUrl, privacyPolicyUrl } from '../paths';
 
 const Footer = () => (
   <Box component="footer" sx={{ mt: 4 }}>
     <Stack direction="row" justifyContent="center" spacing={1}>
-      <Link href="#" underline="hover" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
+      <Link component={NavLink} to={privacyPolicyUrl()} underline="hover" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
         Privacy Policy
       </Link>
       <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-      <Link href="#" underline="hover" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
+      <Link component={NavLink} to={cookiePolicyUrl()} underline="hover" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
         Cookie Policy
       </Link>
     </Stack>
