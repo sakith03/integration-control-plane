@@ -15,6 +15,7 @@ BEGIN
         username NVARCHAR(255) NOT NULL UNIQUE,
         display_name NVARCHAR(200) NOT NULL,
         password_hash NVARCHAR(255) NOT NULL,
+        password_salt NVARCHAR(255) NULL,
         created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
         updated_at DATETIME2 NOT NULL DEFAULT GETDATE()
     );

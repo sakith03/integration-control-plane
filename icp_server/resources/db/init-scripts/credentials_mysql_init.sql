@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS user_credentials (
     username VARCHAR(255) NOT NULL UNIQUE,
     display_name VARCHAR(200) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    password_salt VARCHAR(255),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_user_credentials_username (username)
