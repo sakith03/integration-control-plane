@@ -300,8 +300,8 @@ export default function PrivacyPolicy(): JSX.Element {
             <Typography variant="body1" paragraph>
               Please contact WSO2 if you have any questions or concerns regarding this privacy policy.
             </Typography>
-            <Link href="https://wso2.com/contact/" target="_blank" rel="noopener noreferrer" color="primary" sx={{ textDecoration: 'underline' }}>
-              https://wso2.com/contact/
+            <Link href={external.wso2Contact} target="_blank" rel="noopener noreferrer" color="primary" sx={{ textDecoration: 'underline' }}>
+              {external.wso2Contact}
             </Link>
           </section>
 
