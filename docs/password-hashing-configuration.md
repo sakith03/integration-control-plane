@@ -25,7 +25,7 @@ below **before** starting the service for the first time against that credential
 | `sha-256` or `sha256` | SHA-256 + Base64 | Yes | v1 compatible |
 | `sha-512` or `sha512` | SHA-512 + Base64 | Yes | v1 compatible |
 | `sha-384` or `sha384` | SHA-384 + Base64 | Yes | v1 compatible |
-| `sha-1` or `sha1` or `sha` | SHA-1 + Base64 | Yes | v1 compatible — not recommended for new deployments |
+| `sha-1` or `sha1` or `sha` (`sha` resolves to SHA-1, not SHA-256) | SHA-1 + Base64 | Yes | v1 compatible — not recommended for new deployments |
 | `md5` | MD5 + Base64 | Yes | v1 compatible — not recommended for new deployments |
 | `plain_text` or `plaintext` | No hashing | No | **Do not use in production** |
 
@@ -74,7 +74,7 @@ print(ph.hash('admin'))
 ```
 
 Example output (yours will differ — Argon2 embeds a random salt):
-```
+```text
 $argon2id$v=19$m=65536,t=3,p=4$...
 ```
 
@@ -91,18 +91,95 @@ WHERE user_id = '550e8400-e29b-41d4-a716-446655440000';
 
 ### pbkdf2
 
+> **Format compatibility warning**: The service uses the `ballerina/crypto` library whose
+> `verifyPbkdf2` function expects the Modular Crypt Format (MCF) string:
+> ```text
+> $pbkdf2-sha256$i=<iterations>$<salt>$<hash>
+> ```
+> passlib emits a slightly different MCF — it omits the `i=` prefix on the iteration field:
+> ```text
+> $pbkdf2-sha256$<iterations>$<salt>$<hash>
+> ```
+> These two strings are **not interchangeable**. Use one of the options below to produce a
+> compatible hash.
+
+> **OWASP 2023 iteration-count guidance**: OWASP recommends **≥ 600,000 iterations** for
+> PBKDF2-HMAC-SHA256 in new deployments. The service internally calls
+> `crypto:hashPbkdf2(password)` with the library default of **10,000 iterations** and there
+> is currently no `Config.toml` setting to override this.
+>
+> - **New deployments**: 10,000 iterations is below the current recommendation. Consider
+>   using `bcrypt` (default) or `argon2` instead.
+> - **v1 migration only**: 10,000 is acceptable when re-seeding the admin hash to match an
+>   existing v1 credential database that was already using PBKDF2 with 10,000 iterations.
+
+#### Option A — Ballerina native (recommended)
+
+Generate the hash with a small Ballerina script so the MCF format is guaranteed to be
+compatible:
+
+```bash
+# From the icp_server directory
+bal run - <<'EOF'
+import ballerina/crypto;
+import ballerina/io;
+
+public function main() returns error? {
+    string hash = check crypto:hashPbkdf2("admin");
+    io:println(hash);
+}
+EOF
+```
+
+The output will be a string in the exact format `verifyPbkdf2` expects.
+
+#### Option B — Pure Python (no third-party libraries)
+
+```bash
+python3 - <<'EOF'
+import hashlib, base64, os
+
+PASSWORD  = "admin"
+ROUNDS    = 10000   # match the service default; see OWASP note above
+SALT_LEN  = 16
+
+raw_salt = os.urandom(SALT_LEN)
+dk = hashlib.pbkdf2_hmac("sha256", PASSWORD.encode("utf-8"), raw_salt, ROUNDS)
+
+# Ballerina's crypto uses standard Base64 (with padding) for both salt and hash
+salt_b64 = base64.b64encode(raw_salt).decode()
+hash_b64  = base64.b64encode(dk).decode()
+
+print(f"$pbkdf2-sha256$i={ROUNDS}${salt_b64}${hash_b64}")
+EOF
+```
+
+#### Option C — passlib with MCF string fix
+
+If you must use passlib, patch the iteration field after generation:
+
 ```bash
 # Requires: pip install passlib
-python3 -c "
+python3 - <<'EOF'
+import re
 from passlib.hash import pbkdf2_sha256
-print(pbkdf2_sha256.using(rounds=10000).hash('admin'))
-"
+
+ROUNDS = 10000   # see OWASP note above
+
+raw = pbkdf2_sha256.using(rounds=ROUNDS).hash("admin")
+# passlib emits  $pbkdf2-sha256$10000$...
+# Ballerina wants $pbkdf2-sha256$i=10000$...
+fixed = re.sub(r"(\$pbkdf2-sha256\$)(\d+\$)", r"\1i=\2", raw)
+print(fixed)
+EOF
 ```
+
+---
 
 SQL (no separate salt):
 ```sql
 UPDATE user_credentials
-SET password_hash = '<pbkdf2 hash from above>',
+SET password_hash = '<hash string from whichever option above>',
     password_salt = NULL,
     updated_at    = CURRENT_TIMESTAMP
 WHERE user_id = '550e8400-e29b-41d4-a716-446655440000';
