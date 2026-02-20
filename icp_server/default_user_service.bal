@@ -32,7 +32,6 @@ type PasswordHash record {|
 
 configurable int authServicePort = 9447;
 configurable string authServiceHost = "0.0.0.0";
-configurable string apiKey = "default-api-key";
 configurable string passwordHashingAlgorithm = "bcrypt";
 
 // Credentials DB
@@ -226,13 +225,7 @@ service / on defaultAuthServiceListener {
         };
     }
 
-    resource function post users(@http:Header {name: "X-API-Key"} string? apiKeyHeader, types:CreateUserInput request) returns http:Created|http:BadRequest|http:Unauthorized|http:InternalServerError|error {
-
-        // Validate API key
-        if apiKeyHeader is () || apiKeyHeader != apiKey {
-            log:printWarn("User creation attempt with invalid API key");
-            return utils:createUnauthorizedError("Invalid API key");
-        }
+    resource function post users(types:CreateUserInput request) returns http:Created|http:BadRequest|http:Unauthorized|http:InternalServerError|error {
 
         // Validate input
         if request.username.trim().length() == 0 {
