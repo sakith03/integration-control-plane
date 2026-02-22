@@ -383,10 +383,15 @@ service /observability on openSerachObservabilityListener {
             }
         }
 
-        log:printInfo("Returning " + metrics.length().toString() + " metric entries");
+        // Split into inbound (service/worker entries) and outbound (client remote calls)
+        types:MetricEntry[] inboundMetrics = metrics.filter(m => m.tags["src_client_remote"] != "true" && m.tags["url"] != null);
+        types:MetricEntry[] outboundMetrics = metrics.filter(m => m.tags["src_client_remote"] == "true");
+
+        log:printInfo("Returning " + inboundMetrics.length().toString() + " inbound and " + outboundMetrics.length().toString() + " outbound metric entries");
 
         return {
-            metrics: metrics
+            inboundMetrics: inboundMetrics,
+            outboundMetrics: outboundMetrics
         };
     }
 }
