@@ -63,7 +63,7 @@ export const ARTIFACT_TABS: Record<string, string[]> = {
   Listener: ['Runtimes'],
   Service: ['Runtimes'],
   Automation: ['Executions', 'Runtimes'],
-  MessageStore: ['Runtimes'],
+  MessageStore: ['Source', 'Runtimes'],
   MessageProcessor: ['Source', 'Runtimes'],
   Template: ['Source', 'Runtimes'],
   DataService: ['Source', 'Runtimes'],
