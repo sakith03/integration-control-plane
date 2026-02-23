@@ -102,7 +102,7 @@ WHERE user_id = '550e8400-e29b-41d4-a716-446655440000';
 > ```
 > These two strings are **not interchangeable**. Use one of the options below to produce a
 > compatible hash.
-
+>
 > **OWASP 2023 iteration-count guidance**: OWASP recommends **≥ 600,000 iterations** for
 > PBKDF2-HMAC-SHA256 in new deployments. The service internally calls
 > `crypto:hashPbkdf2(password)` with the library default of **10,000 iterations** and there
@@ -119,8 +119,8 @@ Generate the hash with a small Ballerina script so the MCF format is guaranteed 
 compatible:
 
 ```bash
-# From the icp_server directory
-bal run - <<'EOF'
+# bal run does not accept stdin; write a temporary file and run it.
+cat > /tmp/pbkdf2_hash.bal <<'EOF'
 import ballerina/crypto;
 import ballerina/io;
 
@@ -129,6 +129,8 @@ public function main() returns error? {
     io:println(hash);
 }
 EOF
+bal run /tmp/pbkdf2_hash.bal
+rm /tmp/pbkdf2_hash.bal
 ```
 
 The output will be a string in the exact format `verifyPbkdf2` expects.
@@ -279,14 +281,76 @@ sqlcmd -S localhost -U icp_user -P icp_password -d credentials_db
 
 ---
 
+## Non-Admin User Migration
+
+The SQL `UPDATE` statements in the sections above target only the pre-seeded admin user by UUID.
+If your deployment already has non-admin users, their stored hashes must also be handled before
+you start the service with a new `passwordHashingAlgorithm`.
+
+### Recommended path — force password reset
+
+For modern algorithms (bcrypt, argon2, pbkdf2) the plaintext password is not recoverable from
+the stored hash, so bulk re-hashing is not possible. The cleanest approach is to require all
+users to reset their passwords:
+
+1. Start the service with the new algorithm configured.
+2. Invalidate existing sessions (e.g. flush refresh tokens from the DB).
+3. On next login each user will be prompted to reset their password. The new hash is written
+   with the configured algorithm automatically.
+
+To force an immediate reset you can expire all non-admin passwords in bulk:
+
+```sql
+-- Mark all non-admin passwords as requiring reset by setting a sentinel value.
+-- Adjust the WHERE clause if your admin UUID differs.
+UPDATE user_credentials
+SET    password_hash = 'RESET_REQUIRED',
+       password_salt = NULL,
+       updated_at    = CURRENT_TIMESTAMP
+WHERE  user_id != '550e8400-e29b-41d4-a716-446655440000';
+```
+
+With `password_hash` set to a value that will never verify, any login attempt fails and the
+user is directed through the password-reset flow, which writes the correct hash on completion.
+
+### v1 migration path — bulk copy existing hashes
+
+If you are importing users from a v1 `JDBCUserStoreManager` database, the plaintext passwords
+are never required: the existing v1 hashes and salts can be copied directly.
+
+```sql
+-- Run this after inserting all user rows into user_credentials (without password data).
+-- Replace v1_credentials with the actual v1 table/schema name accessible from your DB client.
+UPDATE user_credentials uc
+JOIN   v1_credentials v ON uc.user_id = v.UM_USER_ID
+SET    uc.password_hash = v.UM_USER_PASSWORD,
+       uc.password_salt = v.UM_SALT_VALUE,       -- NULL if v1 did not use salting
+       uc.updated_at    = CURRENT_TIMESTAMP;
+```
+
+For PostgreSQL (which does not support `JOIN` in `UPDATE` the same way):
+
+```sql
+UPDATE user_credentials uc
+SET    password_hash = v.UM_USER_PASSWORD,
+       password_salt = v.UM_SALT_VALUE,
+       updated_at    = CURRENT_TIMESTAMP
+FROM   v1_credentials v
+WHERE  uc.user_id = v.UM_USER_ID;
+```
+
+Set `passwordHashingAlgorithm` in `Config.toml` to match the v1 `PasswordHashMethod` before
+starting the service.
+
+---
+
 ## Important Notes
 
 - **One-time operation**: This migration only applies to the pre-seeded admin user. All new users
   created after the service starts will automatically use the configured algorithm.
 - **All-or-nothing**: Every user in the credentials DB must have their password stored with the
-  same algorithm. After switching, existing non-admin users must either reset their passwords
-  (which re-hashes with the new algorithm) or have their stored hashes migrated manually using
-  the same approach.
+  same algorithm. After switching, handle existing non-admin users via the password-reset or
+  bulk-copy paths described in [Non-Admin User Migration](#non-admin-user-migration) above.
 - **Algorithm cannot be changed after go-live** without re-hashing all stored passwords.
   Choose the algorithm before the first production deployment.
 - **Recommended choice**: For new deployments with no v1 migration requirement, stay with the
