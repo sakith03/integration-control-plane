@@ -100,6 +100,25 @@ configurable string opensearchPassword = "Ballerina@123";
 // Keep this true for local/self-signed certs; set to false in production with a proper truststore.
 configurable boolean artifactsApiAllowInsecureTLS = true;
 
+// Secrets map containing values encrypted by the WSO2 cipher tool.
+// All values present in this table are expected to be encrypted; plaintext values will cause an error.
+configurable map<string> secrets = {};
+
+// Any configurable that can be encrypted should first be resolved here.
+// Initialized by decrypting or falling back to the plain configurable above.
+// All code outside config.bal must use these resolved variables.
+final string resolvedTruststorePassword = check resolveSecret("truststorePassword", truststorePassword);
+final string resolvedDefaultJwtHMACSecret = check resolveSecret("defaultJwtHMACSecret", defaultJwtHMACSecret);
+final string resolvedUserServiceJwtHMACSecret = check resolveSecret("userServiceJwtHMACSecret", userServiceJwtHMACSecret);
+final string resolvedDefaultRuntimeJwtHMACSecret = check resolveSecret("defaultRuntimeJwtHMACSecret", defaultRuntimeJwtHMACSecret);
+final string resolvedSsoClientId = check resolveSecret("ssoClientId", ssoClientId);
+final string resolvedSsoClientSecret = check resolveSecret("ssoClientSecret", ssoClientSecret);
+final string resolvedDefaultobservabilityJwtHMACSecret = check resolveSecret("defaultobservabilityJwtHMACSecret", defaultobservabilityJwtHMACSecret);
+final string resolvedOpensearchUsername = check resolveSecret("opensearchUsername", opensearchUsername);
+final string resolvedOpensearchPassword = check resolveSecret("opensearchPassword", opensearchPassword);
+final string resolvedCredDbUser = check resolveSecret("credentialsDbUser", credentialsDbUser);
+final string resolvedCredDbPassword = check resolveSecret("credentialsDbPassword", credentialsDbPassword);
+
 // Build SSO configuration from configurable values
 public isolated function getSSOConfig() returns types:SSOConfig => {
     enabled: ssoEnabled,
@@ -107,8 +126,8 @@ public isolated function getSSOConfig() returns types:SSOConfig => {
     authorizationEndpoint: ssoAuthorizationEndpoint,
     tokenEndpoint: ssoTokenEndpoint,
     logoutEndpoint: ssoLogoutEndpoint,
-    clientId: ssoClientId,
-    clientSecret: ssoClientSecret,
+    clientId: resolvedSsoClientId,
+    clientSecret: resolvedSsoClientSecret,
     redirectUri: ssoRedirectUri,
     usernameClaim: ssoUsernameClaim,
     scopes: ssoScopes

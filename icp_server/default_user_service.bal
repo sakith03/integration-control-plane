@@ -37,11 +37,9 @@ configurable string credentialsDbName = "credentials_db";
 configurable string credentialsDbUser = "icp_user";
 configurable string credentialsDbPassword = "icp_password";
 
-final storage:DatabaseConnectionManager credentialsDbManager = check new storage:DatabaseConnectionManager(
-    credentialsDbType, credentialsDbHost, credentialsDbPort,
-    credentialsDbName, credentialsDbUser, credentialsDbPassword
-);
-final sql:Client credentialsDbClient = credentialsDbManager.getClient();
+// Initialized in init() with resolved (decrypted) credentials
+final storage:DatabaseConnectionManager credentialsDbManager;
+final sql:Client credentialsDbClient;
 
 listener http:Listener defaultAuthServiceListener = new (authServicePort,
     config = {
@@ -63,7 +61,7 @@ listener http:Listener defaultAuthServiceListener = new (authServicePort,
                 audience: userServiceJwtAudience,
                 clockSkew: userServiceJwtClockSkewSeconds,
                 signatureConfig: {
-                    secret: userServiceJwtHMACSecret
+                    secret: resolvedUserServiceJwtHMACSecret
                 }
             }
         }

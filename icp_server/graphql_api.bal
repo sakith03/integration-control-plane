@@ -78,7 +78,7 @@ isolated function contextInit(http:RequestContext reqCtx, http:Request request) 
                 issuer: frontendJwtIssuer,
                 audience: frontendJwtAudience,
                 signatureConfig: {
-                    secret: defaultJwtHMACSecret
+                    secret: resolvedDefaultJwtHMACSecret
                 }
             }
         }

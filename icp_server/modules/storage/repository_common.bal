@@ -22,10 +22,6 @@ import ballerina/log;
 import ballerina/sql;
 import ballerina/uuid;
 
-// Shared database connection manager and client
-final DatabaseConnectionManager dbManager = check new (dbType, dbHost, dbPort, dbName, dbUser, dbPassword);
-public final sql:Client dbClient = dbManager.getClient();
-
 // Constants for artifact management
 const string ICP_ARTIFACTS_PATH = "/icp/artifacts";
 
@@ -950,7 +946,7 @@ public isolated function issueRuntimeHmacToken() returns string|error {
         issuer: jwtIssuer,
         expTime: <decimal>defaultTokenExpiryTime,
         audience: jwtAudience,
-        signatureConfig: {algorithm: jwt:HS256, config: defaultRuntimeJwtHMACSecret}
+        signatureConfig: {algorithm: jwt:HS256, config: resolvedDefaultRuntimeJwtHMACSecret}
     };
     issConfig.customClaims["scope"] = "runtime_agent";
 
