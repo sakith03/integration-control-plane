@@ -49,6 +49,17 @@ import { useUpdateArtifactTracingStatus, useUpdateArtifactStatisticsStatus } fro
 import SearchField from './SearchField';
 import { ArtifactSource, ArtifactApiDefinition, ArtifactEndpoints, ArtifactWsdl, ArtifactValue, ArtifactCarbonArtifacts, ArtifactRuntimes, InboundEndpointParameters, AutomationExecutions } from './ArtifactTabs';
 import { ARTIFACT_ICONS, ARTIFACT_TABS, DEFAULT_ARTIFACT_TABS, ENTRY_POINT_TYPE_SET, formatArtifactTypeName, typePlural, type SelectedArtifact, type TabProps } from './artifact-config';
+import { useQueryClient } from '@tanstack/react-query';
+
+/**
+ * Normalizes state/tracing/statistics values to a boolean.
+ * Handles string values like "enabled"/"disabled" (case-insensitive) and boolean values.
+ */
+function toEnabled(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  const strValue = (value ?? '').toString().toLowerCase();
+  return strValue === 'enabled' || strValue === 'true';
+}
 
 function ListenerConfirmDialog({ open, action, listenerName, onConfirm, onCancel }: { open: boolean; action: 'START' | 'STOP'; listenerName: string; onConfirm: () => void; onCancel: () => void }) {
   return (
@@ -75,6 +86,7 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; artifact: GqlArtifact | null; action: 'START' | 'STOP' } | null>(null);
+  const qc = useQueryClient();
   const toggleStatus = useUpdateArtifactStatus();
   const updateListenerState = useUpdateListenerState();
   const updateTracingStatus = useUpdateArtifactTracingStatus();
@@ -141,24 +153,40 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
 
   const handleTracingToggle = (artifact: GqlArtifact, enabled: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
-    updateTracingStatus.mutate({
-      envId,
-      componentId,
-      artifactType,
-      artifactName: artifact.name?.toString() ?? '',
-      trace: enabled ? 'disable' : 'enable',
-    });
+    updateTracingStatus.mutate(
+      {
+        envId,
+        componentId,
+        artifactType,
+        artifactName: artifact.name?.toString() ?? '',
+        trace: enabled ? 'disable' : 'enable',
+      },
+      {
+        onSettled: () => {
+          // Invalidate and refetch the artifact list to sync with server
+          qc.invalidateQueries({ queryKey: ['artifacts', artifactType, envId, componentId] });
+        },
+      },
+    );
   };
 
   const handleStatisticsToggle = (artifact: GqlArtifact, enabled: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
-    updateStatisticsStatus.mutate({
-      envId,
-      componentId,
-      artifactType,
-      artifactName: artifact.name?.toString() ?? '',
-      statistics: enabled ? 'disable' : 'enable',
-    });
+    updateStatisticsStatus.mutate(
+      {
+        envId,
+        componentId,
+        artifactType,
+        artifactName: artifact.name?.toString() ?? '',
+        statistics: enabled ? 'disable' : 'enable',
+      },
+      {
+        onSettled: () => {
+          // Invalidate and refetch the artifact list to sync with server
+          qc.invalidateQueries({ queryKey: ['artifacts', artifactType, envId, componentId] });
+        },
+      },
+    );
   };
 
   const handleConfirmListenerToggle = () => {
@@ -180,10 +208,9 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
     <>
       <Stack gap={1.5}>
         {paginatedArtifacts.map((a, i) => {
-          const artifactState = (a.state ?? '').toString().toLowerCase();
-          const enabled = artifactState === 'enabled';
-          const tracingEnabled = (a.tracing ?? '').toString().toLowerCase() === 'enabled';
-          const statisticsEnabled = (a.statistics ?? '').toString().toLowerCase() === 'enabled';
+          const enabled = toEnabled(a.state);
+          const tracingEnabled = toEnabled(a.tracing);
+          const statisticsEnabled = toEnabled(a.statistics);
           const artifactTypeField = a.type?.toString().toLowerCase() ?? '';
 
           // Check if this specific artifact supports statistics and tracing
