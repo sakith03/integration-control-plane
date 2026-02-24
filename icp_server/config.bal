@@ -105,19 +105,19 @@ configurable boolean artifactsApiAllowInsecureTLS = true;
 configurable map<string> secrets = {};
 
 // Any configurable that can be encrypted should first be resolved here.
-// Initialized by decrypting or falling back to the plain configurable above.
+// Initialized by decrypting (if value is "$secret{alias}") or returned as-is.
 // All code outside config.bal must use these resolved variables.
-final string resolvedTruststorePassword = check resolveSecret("truststorePassword", truststorePassword);
-final string resolvedDefaultJwtHMACSecret = check resolveSecret("defaultJwtHMACSecret", defaultJwtHMACSecret);
-final string resolvedUserServiceJwtHMACSecret = check resolveSecret("userServiceJwtHMACSecret", userServiceJwtHMACSecret);
-final string resolvedDefaultRuntimeJwtHMACSecret = check resolveSecret("defaultRuntimeJwtHMACSecret", defaultRuntimeJwtHMACSecret);
-final string resolvedSsoClientId = check resolveSecret("ssoClientId", ssoClientId);
-final string resolvedSsoClientSecret = check resolveSecret("ssoClientSecret", ssoClientSecret);
-final string resolvedDefaultobservabilityJwtHMACSecret = check resolveSecret("defaultobservabilityJwtHMACSecret", defaultobservabilityJwtHMACSecret);
-final string resolvedOpensearchUsername = check resolveSecret("opensearchUsername", opensearchUsername);
-final string resolvedOpensearchPassword = check resolveSecret("opensearchPassword", opensearchPassword);
-final string resolvedCredDbUser = check resolveSecret("credentialsDbUser", credentialsDbUser);
-final string resolvedCredDbPassword = check resolveSecret("credentialsDbPassword", credentialsDbPassword);
+final string resolvedTruststorePassword = check resolveSecret(truststorePassword);
+final string resolvedDefaultJwtHMACSecret = check resolveSecret(defaultJwtHMACSecret);
+final string resolvedUserServiceJwtHMACSecret = check resolveSecret(userServiceJwtHMACSecret);
+final string resolvedDefaultRuntimeJwtHMACSecret = check resolveSecret(defaultRuntimeJwtHMACSecret);
+final string resolvedSsoClientId = check resolveSecret(ssoClientId);
+final string resolvedSsoClientSecret = check resolveSecret(ssoClientSecret);
+final string resolvedDefaultobservabilityJwtHMACSecret = check resolveSecret(defaultobservabilityJwtHMACSecret);
+final string resolvedOpensearchUsername = check resolveSecret(opensearchUsername);
+final string resolvedOpensearchPassword = check resolveSecret(opensearchPassword);
+final string resolvedCredDbUser = check resolveSecret(credentialsDbUser);
+final string resolvedCredDbPassword = check resolveSecret(credentialsDbPassword);
 
 // Build SSO configuration from configurable values
 public isolated function getSSOConfig() returns types:SSOConfig => {

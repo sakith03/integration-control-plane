@@ -14,12 +14,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import icp_server.secrets as sec;
 import icp_server.storage;
 import icp_server.utils;
 
 import ballerina/jwt;
 
 function init() returns error? {
+    // Share the [secrets] table with the secrets module so other modules can resolve secrets.
+    sec:setConfigs(secrets);
+
+    // Initialize the main database connection using the resolved credentials.
+    check storage:initDb();
+
     // Initialize HTTP client to authentication backend using resolved TLS and JWT secrets
     authBackendClient = check new (authBackendUrl,
         secureSocket = {
@@ -69,13 +76,18 @@ function init() returns error? {
     check initRuntimeScheduler();
 }
 
-// Resolves a secret: looks up the key in the [secrets] config map and decrypts it.
-// Falls back to the plain configurable value if the key is absent from the secrets map.
-// Throws an error if the key is present but decryption fails.
-function resolveSecret(string key, string fallback) returns string|error {
-    string? secretVal = secrets[key];
-    if secretVal is string {
-        return utils:decrypt(secretVal);
+// Resolves a configurable value for the default module.
+// If the value matches "$secret{alias}", looks up the alias in the [secrets] map and decrypts it.
+// Otherwise returns the value unchanged (plain-text config).
+function resolveSecret(string configValue) returns string|error {
+    if configValue.startsWith("$secret{") && configValue.endsWith("}") {
+        string alias = configValue.substring(8, configValue.length() - 1);
+        string? encrypted = secrets[alias];
+        if encrypted is string {
+            string decryptedVal = check utils:decrypt(encrypted);
+            return decryptedVal;
+        }
+        return error("Secret alias '" + alias + "' not found in [secrets] table.");
     }
-    return fallback;
+    return configValue;
 }

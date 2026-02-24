@@ -35,6 +35,7 @@ public isolated function storeRefreshToken(string tokenId, string userId, string
             `INSERT INTO refresh_tokens (token_id, user_id, token_hash, expires_at, user_agent, ip_address) 
          VALUES (${tokenId}, ${userId}, ${tokenHash}, `, sql:queryConcat(sqlQueryFromString(timestampCast(expiryUtcStr)), `, ${userAgent}, ${ipAddress})`)
     );
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|sql:Error result = dbClient->execute(insertQuery);
 
     if result is sql:Error {
@@ -51,6 +52,7 @@ public isolated function validateRefreshToken(string tokenHash) returns types:Us
     log:printDebug("Validating refresh token");
 
     // Query for the refresh token with epoch timestamp for expiry
+    sql:Client dbClient = getDb();
     record {|
         string token_id;
         string user_id;
@@ -114,6 +116,7 @@ public isolated function revokeRefreshToken(string tokenHash) returns error? {
          SET revoked = `, sql:queryConcat(sqlQueryFromString(TRUE_LITERAL), `, revoked_at = CURRENT_TIMESTAMP 
          WHERE token_hash = ${tokenHash}`)
     );
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|sql:Error result = dbClient->execute(updateQuery);
 
     if result is sql:Error {
@@ -141,6 +144,7 @@ public isolated function revokeAllUserRefreshTokens(string userId) returns error
                     sql:queryConcat(`, revoked_at = CURRENT_TIMESTAMP 
          WHERE user_id = ${userId} AND revoked = `, sqlQueryFromString(FALSE_LITERAL)))
     );
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|sql:Error result = dbClient->execute(updateQuery);
 
     if result is sql:Error {
@@ -161,6 +165,7 @@ public isolated function cleanupExpiredRefreshTokens() returns error? {
             `DELETE FROM refresh_tokens 
          WHERE expires_at < CURRENT_TIMESTAMP OR revoked = `, sqlQueryFromString(TRUE_LITERAL)
     );
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|sql:Error result = dbClient->execute(deleteQuery);
 
     if result is sql:Error {

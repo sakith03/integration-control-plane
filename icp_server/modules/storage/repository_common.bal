@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import icp_server.secrets as sec;
 import icp_server.types as types;
 
 import ballerina/http;
@@ -144,6 +145,7 @@ isolated function getDisplayNameById(string? userId) returns string? {
 
 // Helper function to get count from a query
 isolated function getCount(sql:ParameterizedQuery query) returns int|error {
+    sql:Client dbClient = getDb();
     stream<record {|int count;|}, sql:Error?> countStream = dbClient->query(query);
     record {|int count;|}[] results = check from record {|int count;|} count in countStream
         select count;
@@ -156,6 +158,7 @@ isolated function getCount(sql:ParameterizedQuery query) returns int|error {
 
 // Get component type for a runtime
 isolated function getComponentTypeByRuntimeId(string runtimeId) returns string?|error {
+    sql:Client dbClient = getDb();
     stream<record {|string component_type;|}, sql:Error?> componentStream = dbClient->query(`
         SELECT c.component_type
         FROM runtimes r
@@ -180,6 +183,7 @@ isolated function sendPendingBIControlCommands(string runtimeId) returns types:C
 
     // Retrieve pending control commands for this BI runtime (FOR UPDATE prevents concurrent heartbeats
     // from selecting the same commands within overlapping transactions)
+    sql:Client dbClient = getDb();
     stream<types:ControlCommandDBRecord, sql:Error?> commandStream = dbClient->query(`
         SELECT command_id, runtime_id, target_artifact, action, issued_at, status
         FROM bi_runtime_control_commands
@@ -223,6 +227,7 @@ isolated function sendPendingMIControlCommands(string runtimeId) returns error? 
 
     // Retrieve pending control commands for this MI runtime (FOR UPDATE prevents concurrent heartbeats
     // from selecting the same commands within overlapping transactions)
+    sql:Client dbClient = getDb();
     stream<types:MIRuntimeControlCommandDBRecord, sql:Error?> commandStream = dbClient->query(`
         SELECT runtime_id, component_id, artifact_name, artifact_type, action, status, issued_at, sent_at, acknowledged_at, completed_at, error_message, issued_by
         FROM mi_runtime_control_commands
@@ -371,6 +376,7 @@ public isolated function insertControlCommand(
     string actionStr = action.toString();
 
     // Insert control command
+    sql:Client dbClient = getDb();
     _ = check dbClient->execute(`
         INSERT INTO bi_runtime_control_commands (
             command_id, runtime_id, target_artifact, action, status, issued_at, issued_by
@@ -384,6 +390,7 @@ public isolated function insertControlCommand(
 
 // Upsert BI artifact intended state for a component
 public isolated function upsertBIArtifactIntendedState(string componentId, string targetArtifact, string action, string? issuedBy = ()) returns error? {
+    sql:Client dbClient = getDb();
     if dbType == MSSQL {
         _ = check dbClient->execute(`
             MERGE INTO bi_artifact_intended_state AS target
@@ -445,6 +452,7 @@ public isolated function upsertBIArtifactIntendedState(string componentId, strin
 public isolated function getBIIntendedStatesForComponent(string componentId) returns map<string>|error {
     map<string> intendedStates = {};
 
+    sql:Client dbClient = getDb();
     stream<types:BIArtifactIntendedStateDBRecord, sql:Error?> stateStream = dbClient->query(`
         SELECT target_artifact, action
         FROM bi_artifact_intended_state
@@ -464,6 +472,7 @@ public isolated function deleteBIArtifactIntendedState(
         string componentId,
         string targetArtifact
 ) returns error? {
+    sql:Client dbClient = getDb();
     _ = check dbClient->execute(`
         DELETE FROM bi_artifact_intended_state
         WHERE component_id = ${componentId}
@@ -474,6 +483,7 @@ public isolated function deleteBIArtifactIntendedState(
 // Get MI artifact intended states for a component (combines status and tracing tables)
 public isolated function getMIIntendedStatesForComponent(string componentId) returns types:MIArtifactIntendedStateDBRecord[]|error {
     // Query status intended states
+    sql:Client dbClient = getDb();
     stream<types:MIArtifactIntendedStateDBRecord, sql:Error?> statusStream = dbClient->query(`
         SELECT component_id, artifact_name, artifact_type, action
         FROM mi_artifact_intended_status
@@ -528,6 +538,7 @@ public isolated function insertMIControlCommand(
     string actionStr = action.toString();
 
     // Use UPSERT to handle duplicate commands (update existing pending commands)
+    sql:Client dbClient = getDb();
     if dbType == MSSQL {
         _ = check dbClient->execute(`
             MERGE INTO mi_runtime_control_commands AS target
@@ -658,6 +669,7 @@ isolated function resolveArtifactTableMetadata(string artifactType) returns Arti
 
 // Upsert MI artifact intended status (enable/disable) for a component
 public isolated function upsertMIArtifactIntendedStatus(string componentId, string artifactName, string artifactType, string action, string? issuedBy = ()) returns error? {
+    sql:Client dbClient = getDb();
     if dbType == MSSQL {
         _ = check dbClient->execute(`
             MERGE INTO mi_artifact_intended_status AS target
@@ -717,6 +729,7 @@ public isolated function upsertMIArtifactIntendedStatus(string componentId, stri
 
 // Upsert MI artifact intended statistics (enable/disable statistics) for a component
 public isolated function upsertMIArtifactIntendedStatistics(string componentId, string artifactName, string artifactType, string action, string? issuedBy = ()) returns error? {
+    sql:Client dbClient = getDb();
     if dbType == MSSQL {
         _ = check dbClient->execute(`
             MERGE INTO mi_artifact_intended_statistics AS target
@@ -776,6 +789,7 @@ public isolated function upsertMIArtifactIntendedStatistics(string componentId, 
 
 // Upsert MI artifact intended tracing (enable/disable tracing) for a component
 public isolated function upsertMIArtifactIntendedTracing(string componentId, string artifactName, string artifactType, string action, string? issuedBy = ()) returns error? {
+    sql:Client dbClient = getDb();
     if dbType == MSSQL {
         _ = check dbClient->execute(`
             MERGE INTO mi_artifact_intended_tracing AS target
@@ -839,6 +853,7 @@ public isolated function deleteMIArtifactIntendedStatus(
         string artifactName,
         string artifactType
 ) returns error? {
+    sql:Client dbClient = getDb();
     _ = check dbClient->execute(`
         DELETE FROM mi_artifact_intended_status
         WHERE component_id = ${componentId}
@@ -853,6 +868,7 @@ public isolated function deleteMIArtifactIntendedTracing(
         string artifactName,
         string artifactType
 ) returns error? {
+    sql:Client dbClient = getDb();
     _ = check dbClient->execute(`
         DELETE FROM mi_artifact_intended_tracing
         WHERE component_id = ${componentId}
@@ -867,6 +883,7 @@ public isolated function deleteMIArtifactIntendedStatistics(
         string artifactName,
         string artifactType
 ) returns error? {
+    sql:Client dbClient = getDb();
     _ = check dbClient->execute(`
         DELETE FROM mi_artifact_intended_statistics
         WHERE component_id = ${componentId}
@@ -941,12 +958,13 @@ public isolated function sendArtifactTracingChange(types:Runtime runtime, string
 
 // Helper: generate HMAC JWT used to call ICP internal APIs
 public isolated function issueRuntimeHmacToken() returns string|error {
+    string hmacSecret = check sec:resolveConfig(defaultRuntimeJwtHMACSecret);
     jwt:IssuerConfig issConfig = {
         username: "icp-artifact-fetcher",
         issuer: jwtIssuer,
         expTime: <decimal>defaultTokenExpiryTime,
         audience: jwtAudience,
-        signatureConfig: {algorithm: jwt:HS256, config: resolvedDefaultRuntimeJwtHMACSecret}
+        signatureConfig: {algorithm: jwt:HS256, config: hmacSecret}
     };
     issConfig.customClaims["scope"] = "runtime_agent";
 

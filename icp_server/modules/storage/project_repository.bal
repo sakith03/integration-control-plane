@@ -25,6 +25,7 @@ isolated function getProjectAdminRoleId() returns string|error {
     sql:ParameterizedQuery query = `SELECT role_id FROM roles_v2 WHERE role_name = 'Project Admin'`;
     query = appendLimitClause(query, 1);
 
+    sql:Client dbClient = getDb();
     stream<record {|string role_id;|}, sql:Error?> roleStream = dbClient->query(query);
 
     record {|string role_id;|}[] roles = check from record {|string role_id;|} role in roleStream
@@ -75,6 +76,7 @@ public isolated function createProject(types:ProjectInput project, types:UserCon
             ${project?.gitProvider}, ${project?.gitOrganization}, ${project?.repository}, 
             ${project?.branch}, ${project?.secretRef}, ${userId}, ${displayName}
         )`;
+        sql:Client dbClient = getDb();
         sql:ExecutionResult _ = check dbClient->execute(insertQuery);
 
         log:printInfo(string `Created project: ${project.name}`,
@@ -141,6 +143,7 @@ public isolated function getProjects() returns types:Project[]|error {
                                    FROM projects 
                                    ORDER BY name ASC`;
 
+    sql:Client dbClient = getDb();
     stream<types:Project, sql:Error?> projectStream = dbClient->query(query);
 
     check from types:Project projectRecord in projectStream
@@ -194,6 +197,7 @@ public isolated function getProjectsByIds(string[] projectIds, int? orgId = ()) 
 
     query = sql:queryConcat(query, ` ORDER BY name ASC`);
 
+    sql:Client dbClient = getDb();
     stream<types:Project, sql:Error?> projectStream = dbClient->query(query);
 
     check from types:Project projectRecord in projectStream
@@ -213,6 +217,7 @@ public isolated function getProjectsByIds(string[] projectIds, int? orgId = ()) 
 
 // Get a specific project by ID
 public isolated function getProjectById(string projectId) returns types:Project|error {
+    sql:Client dbClient = getDb();
     stream<types:Project, sql:Error?> projectStream =
         dbClient->query(`SELECT project_id, org_id, name, version, created_date, handler, region, 
                                 description, 
@@ -234,6 +239,7 @@ public isolated function getProjectById(string projectId) returns types:Project|
 
 // Get project ID by handler
 public isolated function getProjectIdByHandler(string projectHandler, int orgId) returns string|error {
+    sql:Client dbClient = getDb();
     stream<record {|string project_id;|}, sql:Error?> projectStream = dbClient->query(`
         SELECT project_id FROM projects WHERE handler = ${projectHandler} AND org_id = ${orgId} 
     `);
@@ -277,6 +283,7 @@ public isolated function updateProjectWithInput(types:ProjectUpdateInput project
     transaction {
         // Update the project
         sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE projects `, updateFields, whereClause);
+        sql:Client dbClient = getDb();
         sql:ExecutionResult _ = check dbClient->execute(updateQuery);
 
         check commit;
@@ -292,6 +299,7 @@ public isolated function updateProjectWithInput(types:ProjectUpdateInput project
 // Delete a project by ID (this will cascade delete all components, runtimes, roles, and user role assignments)
 public isolated function deleteProject(string projectId) returns error? {
     sql:ParameterizedQuery deleteQuery = `DELETE FROM projects WHERE project_id = ${projectId}`;
+    sql:Client dbClient = getDb();
     var result = dbClient->execute(deleteQuery);
     if result is sql:Error {
         log:printError(string `Failed to delete project ${projectId}`, result);
@@ -312,6 +320,7 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
 
     int existingHandlerCount = 0;
 
+    sql:Client dbClient = getDb();
     stream<record {}, sql:Error?> handlerCountStream = dbClient->query(query);
 
     check from record {} countRecord in handlerCountStream

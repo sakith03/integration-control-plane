@@ -14,43 +14,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import icp_server.utils;
+import icp_server.secrets as sec;
 
-import ballerina/log;
 import ballerina/sql;
-import ballerina/toml;
 
-final DatabaseConnectionManager dbManager = check new (dbType, dbHost, dbPort, dbName, resolvedDbUser, resolvedDbPassword);
-public final sql:Client dbClient = dbManager.getClient();
+isolated sql:Client? _dbClient = ();
 
-// Reads the [secrets] from the deployment.toml.
-// Falls back to the corresponding plain configurable values if the file is absent, cannot be parsed, or the section does not exist.
-function readStorageSecretsSection() returns map<anydata>? {
-    //TODO: handle file name as config
-    // map<anydata>|toml:Error config = toml:readFile("../conf/deployment.toml");
-    map<anydata>|toml:Error config = toml:readFile("Config.toml");
-    if config is toml:Error {
-        log:printWarn("Failed to parse deployment.toml; storage module will use plain configurable values.",
-            'error = config);
-        return ();
+// Resolves DB credentials via the secrets module and establishes the connection.
+public function initDb() returns error? {
+    string resolvedUser = check sec:resolveConfig(dbUser);
+    string resolvedPassword = check sec:resolveConfig(dbPassword);
+    DatabaseConnectionManager dbManager = check new (dbType, dbHost, dbPort, dbName, resolvedUser, resolvedPassword);
+    lock {
+        _dbClient = dbManager.getClient();
     }
-
-    anydata secretsRaw = config["secrets"];
-    if secretsRaw is map<anydata> {
-        return secretsRaw;
-    }
-    return ();
 }
 
-// Looks up the key in the storage secrets section and decrypts it.
-// Falls back to the plain configurable value if the key is absent.
-// Throws an error if the key is present but decryption fails.
-function resolveStorageSecret(map<anydata>? secretsSection, string key, string fallback) returns string|error {
-    if secretsSection is map<anydata> {
-        anydata val = secretsSection[key];
-        if val is string {
-            return utils:decrypt(val);
-        }
+// Returns the initialized DB client.
+// Panics with a clear message if called before initDb()
+isolated function getDb() returns sql:Client {
+    sql:Client? dbClient;
+    lock {
+        dbClient = _dbClient;
     }
-    return fallback;
+    // c = dbRecord._dbClient;
+    if dbClient is sql:Client {
+        return dbClient;
+    }
+    panic error("Database client not initialized.");
 }

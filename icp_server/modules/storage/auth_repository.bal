@@ -39,6 +39,7 @@ public const int DEFAULT_ORG_ID = 1;
 public isolated function getOrgIdByHandle(string orgHandle) returns int|error {
     log:printDebug(string `Resolving org handle: ${orgHandle} to org ID`);
     
+    sql:Client dbClient = getDb();
     record {|int org_id;|} result = check dbClient->queryRow(
         `SELECT org_id FROM organizations WHERE org_handle = ${orgHandle}`
     );
@@ -57,6 +58,7 @@ public isolated function createGroup(types:GroupInput input) returns string|erro
 
     log:printDebug(string `Creating group: ${input.groupName} with groupId: ${groupId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|error result = dbClient->execute(
         `INSERT INTO user_groups (group_id, group_name, org_uuid, description) 
          VALUES (${groupId}, ${input.groupName}, ${orgId}, ${input.description})`
@@ -75,6 +77,7 @@ public isolated function createGroup(types:GroupInput input) returns string|erro
 public isolated function getGroupById(string groupId) returns types:Group|error {
     log:printDebug(string `Fetching group details for groupId: ${groupId}`);
 
+    sql:Client dbClient = getDb();
     types:Group group = check dbClient->queryRow(
         `SELECT group_id, group_name, org_uuid, description, created_at, updated_at 
          FROM user_groups 
@@ -89,6 +92,7 @@ public isolated function getGroupsByOrgId(int orgId) returns types:Group[]|error
     log:printDebug(string `Fetching groups for orgId: ${orgId}`);
 
     types:Group[] groups = [];
+    sql:Client dbClient = getDb();
     stream<types:Group, sql:Error?> groupStream = dbClient->query(
         `SELECT group_id, group_name, org_uuid, description, created_at, updated_at 
          FROM user_groups 
@@ -107,6 +111,7 @@ public isolated function getGroupsByOrgId(int orgId) returns types:Group[]|error
 public isolated function updateGroup(string groupId, types:GroupInput input) returns error? {
     log:printDebug(string `Updating group: ${groupId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(
         `UPDATE user_groups 
          SET group_name = ${input.groupName}, 
@@ -126,6 +131,7 @@ public isolated function updateGroup(string groupId, types:GroupInput input) ret
 public isolated function deleteGroup(string groupId) returns error? {
     log:printDebug(string `Deleting group: ${groupId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(
         `DELETE FROM user_groups WHERE group_id = ${groupId}`
     );
@@ -149,6 +155,7 @@ public isolated function createRoleV2(types:RoleV2Input input) returns string|er
 
     log:printDebug(string `Creating role: ${input.roleName} with roleId: ${roleId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|error result = dbClient->execute(
         `INSERT INTO roles_v2 (role_id, role_name, org_id, description) 
          VALUES (${roleId}, ${input.roleName}, ${orgId}, ${input.description})`
@@ -167,6 +174,7 @@ public isolated function createRoleV2(types:RoleV2Input input) returns string|er
 public isolated function getRoleV2ById(string roleId) returns types:RoleV2|error {
     log:printDebug(string `Fetching role details for roleId: ${roleId}`);
 
+    sql:Client dbClient = getDb();
     types:RoleV2 role = check dbClient->queryRow(
         `SELECT role_id, role_name, org_id, description, created_at, updated_at 
          FROM roles_v2 
@@ -181,6 +189,7 @@ public isolated function getAllRolesV2(int orgId) returns types:RoleV2[]|error {
     log:printDebug(string `Fetching all roles for orgId: ${orgId}`);
 
     types:RoleV2[] roles = [];
+    sql:Client dbClient = getDb();
     stream<types:RoleV2, sql:Error?> roleStream = dbClient->query(
         `SELECT role_id, role_name, org_id, description, created_at, updated_at 
          FROM roles_v2 
@@ -200,6 +209,7 @@ public isolated function getAllRolesV2(int orgId) returns types:RoleV2[]|error {
 public isolated function updateRoleV2(string roleId, types:RoleV2Input input) returns error? {
     log:printDebug(string `Updating role: ${roleId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(
         `UPDATE roles_v2 
          SET role_name = ${input.roleName}, 
@@ -219,6 +229,7 @@ public isolated function updateRoleV2(string roleId, types:RoleV2Input input) re
 public isolated function deleteRoleV2(string roleId) returns error? {
     log:printDebug(string `Deleting role: ${roleId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(
         `DELETE FROM roles_v2 WHERE role_id = ${roleId}`
     );
@@ -239,6 +250,7 @@ public isolated function deleteRoleV2(string roleId) returns error? {
 public isolated function getPermissionById(string permissionId) returns types:Permission|error {
     log:printDebug(string `Fetching permission details for permissionId: ${permissionId}`);
 
+    sql:Client dbClient = getDb();
     types:Permission permission = check dbClient->queryRow(
         `SELECT permission_id, permission_name, permission_domain, resource_type, action, description, created_at, updated_at 
          FROM permissions 
@@ -252,6 +264,7 @@ public isolated function getPermissionById(string permissionId) returns types:Pe
 public isolated function getPermissionByName(string permissionName) returns types:Permission|error {
     log:printDebug(string `Fetching permission details for permissionName: ${permissionName}`);
 
+    sql:Client dbClient = getDb();
     types:Permission permission = check dbClient->queryRow(
         `SELECT permission_id, permission_name, permission_domain, resource_type, action, description, created_at, updated_at 
          FROM permissions 
@@ -266,6 +279,7 @@ public isolated function getAllPermissions() returns types:Permission[]|error {
     log:printDebug("Fetching all permissions");
 
     types:Permission[] permissions = [];
+    sql:Client dbClient = getDb();
     stream<types:Permission, sql:Error?> permissionStream = dbClient->query(
         `SELECT permission_id, permission_name, permission_domain, resource_type, action, description, created_at, updated_at 
          FROM permissions 
@@ -285,6 +299,7 @@ public isolated function getPermissionsByDomain(types:PermissionDomain domain) r
     log:printDebug(string `Fetching permissions for domain: ${domain}`);
 
     types:Permission[] permissions = [];
+    sql:Client dbClient = getDb();
     stream<types:Permission, sql:Error?> permissionStream = dbClient->query(
         `SELECT permission_id, permission_name, permission_domain, resource_type, action, description, created_at, updated_at 
          FROM permissions 
@@ -308,6 +323,7 @@ public isolated function getPermissionsByDomain(types:PermissionDomain domain) r
 public isolated function addUserToGroup(string userId, string groupId) returns error? {
     log:printDebug(string `Adding user ${userId} to group ${groupId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|error result = dbClient->execute(
         `INSERT INTO group_user_mapping (group_id, user_uuid) 
          VALUES (${groupId}, ${userId})`
@@ -326,6 +342,7 @@ public isolated function addUserToGroup(string userId, string groupId) returns e
 public isolated function removeUserFromGroup(string userId, string groupId) returns error? {
     log:printDebug(string `Removing user ${userId} from group ${groupId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(
         `DELETE FROM group_user_mapping 
          WHERE group_id = ${groupId} AND user_uuid = ${userId}`
@@ -345,6 +362,7 @@ public isolated function assignRoleToGroup(types:AssignRoleToGroupInput input) r
 
     log:printDebug(string `Assigning role ${input.roleId} to group ${input.groupId} with scope`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult|error result = dbClient->execute(
         `INSERT INTO group_role_mapping (group_id, role_id, org_uuid, project_uuid, env_uuid, integration_uuid) 
          VALUES (${input.groupId}, ${input.roleId}, ${orgId}, ${input.projectUuid}, ${input.envUuid}, ${input.integrationUuid})`
@@ -368,6 +386,7 @@ public isolated function assignRoleToGroup(types:AssignRoleToGroupInput input) r
 public isolated function removeRoleFromGroup(int mappingId) returns error? {
     log:printDebug(string `Removing group-role mapping with ID: ${mappingId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(
         `DELETE FROM group_role_mapping WHERE id = ${mappingId}`
     );
@@ -439,6 +458,7 @@ public isolated function updateGroupRoleMapping(int mappingId, types:UpdateGroup
 
     updateQuery = sql:queryConcat(updateQuery, ` WHERE id = ${mappingId}`);
 
+    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(updateQuery);
 
     if result.affectedRowCount == 0 {
@@ -453,6 +473,7 @@ public isolated function updateGroupRoleMapping(int mappingId, types:UpdateGroup
 public isolated function assignPermissionsToRole(string roleId, string[] permissionIds) returns error? {
     log:printDebug(string `Assigning ${permissionIds.length()} permissions to role ${roleId}`);
 
+    sql:Client dbClient = getDb();
     transaction {
         foreach string permissionId in permissionIds {
             sql:ExecutionResult _ = check dbClient->execute(
@@ -475,6 +496,7 @@ public isolated function assignPermissionsToRole(string roleId, string[] permiss
 public isolated function removePermissionsFromRole(string roleId, string[] permissionIds) returns error? {
     log:printDebug(string `Removing ${permissionIds.length()} permissions from role ${roleId}`);
 
+    sql:Client dbClient = getDb();
     transaction {
         foreach string permissionId in permissionIds {
             sql:ExecutionResult result = check dbClient->execute(
@@ -506,6 +528,7 @@ public isolated function getUserGroups(string userId) returns types:Group[]|erro
     log:printDebug(string `Fetching groups for user: ${userId}`);
 
     types:Group[] groups = [];
+    sql:Client dbClient = getDb();
     stream<types:Group, sql:Error?> groupStream = dbClient->query(
         `SELECT g.group_id, g.group_name, g.org_uuid, g.description, g.created_at, g.updated_at
          FROM user_groups g
@@ -550,6 +573,7 @@ public isolated function getGroupRoles(string groupId, types:AccessScope? scope)
         }
     }
 
+    sql:Client dbClient = getDb();
     stream<types:RoleV2, sql:Error?> roleStream = dbClient->query(query);
 
     check from types:RoleV2 role in roleStream
@@ -565,6 +589,7 @@ public isolated function getRolePermissions(string roleId) returns types:Permiss
     log:printDebug(string `Fetching permissions for role: ${roleId}`);
 
     types:Permission[] permissions = [];
+    sql:Client dbClient = getDb();
     stream<types:Permission, sql:Error?> permissionStream = dbClient->query(
         `SELECT p.permission_id, p.permission_name, p.permission_domain, p.resource_type, p.action, p.description, p.created_at, p.updated_at
          FROM permissions p
@@ -640,6 +665,7 @@ public isolated function getUserEffectivePermissions(string userId, types:Access
         ORDER BY p.permission_domain, p.permission_name
     `);
 
+    sql:Client dbClient = getDb();
     stream<types:Permission, sql:Error?> permissionStream = dbClient->query(query);
 
     // Collect results
@@ -684,6 +710,7 @@ public isolated function getAllUserPermissions(string userId) returns types:Perm
         ORDER BY p.permission_domain, p.permission_name
     `;
 
+    sql:Client dbClient = getDb();
     stream<types:Permission, sql:Error?> permissionStream = dbClient->query(query);
 
     check from types:Permission permission in permissionStream
@@ -704,6 +731,7 @@ public isolated function getUserAccessibleProjects(string userId) returns types:
     log:printDebug(string `Fetching accessible projects for user: ${userId}`);
 
     types:UserProjectAccess[] projects = [];
+    sql:Client dbClient = getDb();
     stream<types:UserProjectAccess, sql:Error?> projectStream = dbClient->query(
         `SELECT user_uuid, project_uuid, project_name, role_id, org_uuid, access_level
          FROM v_user_project_access
@@ -743,6 +771,7 @@ public isolated function getUserAccessibleIntegrations(string userId, string? pr
 
     query = sql:queryConcat(query, ` ORDER BY integration_name`);
 
+    sql:Client dbClient = getDb();
     stream<types:UserIntegrationAccess, sql:Error?> integrationStream = dbClient->query(query);
 
     check from types:UserIntegrationAccess integration in integrationStream
@@ -777,6 +806,7 @@ public isolated function getUserEnvironmentRestrictions(string userId, string? p
 
     query = sql:queryConcat(query, ` ORDER BY env_uuid`);
 
+    sql:Client dbClient = getDb();
     stream<types:UserEnvironmentAccess, sql:Error?> envStream = dbClient->query(query);
 
     check from types:UserEnvironmentAccess env in envStream
@@ -796,6 +826,7 @@ public isolated function getUserEnvironmentRestrictions(string userId, string? p
 public isolated function hasAccessToProject(string userId, string projectId) returns boolean|error {
     log:printDebug(string `Checking project access for user ${userId} on project ${projectId}`);
 
+    sql:Client dbClient = getDb();
     int count = check dbClient->queryRow(
         `SELECT COUNT(*) as count
          FROM v_user_project_access
@@ -809,6 +840,7 @@ public isolated function hasAccessToProject(string userId, string projectId) ret
 public isolated function hasAccessToIntegration(string userId, string integrationId) returns boolean|error {
     log:printDebug(string `Checking integration access for user ${userId} on integration ${integrationId}`);
 
+    sql:Client dbClient = getDb();
     int count = check dbClient->queryRow(
         `SELECT COUNT(*) as count
          FROM v_user_integration_access
@@ -840,6 +872,7 @@ public isolated function getEnvironmentRestriction(string userId, string? projec
         query = sql:queryConcat(query, ` AND (integration_uuid = ${integrationId} OR integration_uuid IS NULL)`);
     }
 
+    sql:Client dbClient = getDb();
     stream<record {|string? env_uuid;|}, sql:Error?> envStream = dbClient->query(query);
 
     check from record {|string? env_uuid;|} env in envStream
@@ -873,6 +906,7 @@ public isolated function hasAccessToRuntime(string userId, string runtimeId) ret
     log:printDebug(string `Checking runtime access for user ${userId} on runtime ${runtimeId}`);
 
     // First, get the integration_uuid and env_uuid for this runtime
+    sql:Client dbClient = getDb();
     record {|string integration_uuid; string? env_uuid;|}? runtime = check dbClient->queryRow(
         `SELECT integration_uuid, env_uuid 
          FROM runtimes 
@@ -941,6 +975,7 @@ public isolated function buildEffectivePermissionsWithScope(string userId, types
 public isolated function isUserInGroup(string userId, string groupId) returns boolean|error {
     log:printDebug(string `Checking if user ${userId} is in group ${groupId}`);
 
+    sql:Client dbClient = getDb();
     int count = check dbClient->queryRow(
         `SELECT COUNT(*) as count
          FROM group_user_mapping
@@ -955,6 +990,7 @@ public isolated function getGroupUsers(string groupId) returns string[]|error {
     log:printDebug(string `Fetching users for group: ${groupId}`);
 
     string[] userIds = [];
+    sql:Client dbClient = getDb();
     stream<record {|string user_uuid;|}, sql:Error?> userStream = dbClient->query(
         `SELECT user_uuid
          FROM group_user_mapping
@@ -976,6 +1012,7 @@ public isolated function getRoleGroups(string roleId) returns types:Group[]|erro
     log:printDebug(string `Fetching groups with role: ${roleId}`);
 
     types:Group[] groups = [];
+    sql:Client dbClient = getDb();
     stream<types:Group, sql:Error?> groupStream = dbClient->query(
         `SELECT DISTINCT g.group_id, g.group_name, g.org_uuid, g.description, g.created_at, g.updated_at
          FROM user_groups g
@@ -997,6 +1034,7 @@ public isolated function getRoleGroups(string roleId) returns types:Group[]|erro
 public isolated function permissionExists(string permissionName) returns boolean|error {
     log:printDebug(string `Checking if permission exists: ${permissionName}`);
 
+    sql:Client dbClient = getDb();
     int count = check dbClient->queryRow(
         `SELECT COUNT(*) as count
          FROM permissions
@@ -1011,6 +1049,7 @@ public isolated function permissionExists(string permissionName) returns boolean
 public isolated function getGroupRoleMappingById(int mappingId) returns types:GroupRoleMapping|error {
     log:printDebug(string `Fetching group-role mapping with ID: ${mappingId}`);
 
+    sql:Client dbClient = getDb();
     types:GroupRoleMapping mapping = check dbClient->queryRow(
         `SELECT id, group_id, role_id, org_uuid, project_uuid, env_uuid, integration_uuid, created_at
          FROM group_role_mapping
@@ -1025,6 +1064,7 @@ public isolated function getGroupRoleMappings(string groupId) returns types:Grou
     log:printDebug(string `Fetching role mappings for group: ${groupId}`);
 
     types:GroupRoleMapping[] mappings = [];
+    sql:Client dbClient = getDb();
     stream<types:GroupRoleMapping, sql:Error?> mappingStream = dbClient->query(
         `SELECT id, group_id, role_id, org_uuid, project_uuid, env_uuid, integration_uuid, created_at
          FROM group_role_mapping
@@ -1046,6 +1086,7 @@ public isolated function getRoleMappings(string roleId) returns types:GroupRoleM
     log:printDebug(string `Fetching group mappings for role: ${roleId}`);
 
     types:GroupRoleMapping[] mappings = [];
+    sql:Client dbClient = getDb();
     stream<types:GroupRoleMapping, sql:Error?> mappingStream = dbClient->query(
         `SELECT id, group_id, role_id, org_uuid, project_uuid, env_uuid, integration_uuid, created_at
          FROM group_role_mapping
@@ -1066,6 +1107,7 @@ public isolated function getRoleMappings(string roleId) returns types:GroupRoleM
 public isolated function getGroupUserCount(string groupId) returns int|error {
     log:printDebug(string `Counting users in group: ${groupId}`);
 
+    sql:Client dbClient = getDb();
     int count = check dbClient->queryRow(
         `SELECT COUNT(*) as count
          FROM group_user_mapping
@@ -1079,6 +1121,7 @@ public isolated function getGroupUserCount(string groupId) returns int|error {
 public isolated function getRoleAssignmentCount(string roleId) returns int|error {
     log:printDebug(string `Counting role assignments for role: ${roleId}`);
 
+    sql:Client dbClient = getDb();
     int count = check dbClient->queryRow(
         `SELECT COUNT(*) as count
          FROM group_role_mapping

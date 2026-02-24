@@ -29,26 +29,46 @@ configurable string cipherKeystorePath = check file:joinPath("..", "conf", "secu
 // One of the two must be set when encrypted secrets are present.
 configurable string cipherKeystorePassword = "changeit";
 
+// Password for the private key used for decrypting.
+// Resolved at runtime: ICP_PRIVATE_KEY_PASSWORD env var takes precedence over this configurable.
+// One of the two must be set when encrypted secrets are present.
+configurable string cipherPrivateKeyPassword = "changeit";
+
+// Alias of the private key entry in the cipher keystore.
+// Defaults to "localhost" (the alias used by WSO2 default keystores).
+// Override this when using a keystore with a different alias.
+configurable string cipherKeystoreAlias = "localhost";
+
+final string resolvedKeystorePassword = check resolvePassword(
+        "ICP_CIPHER_KEYSTORE_PASSWORD", cipherKeystorePassword,
+        "Cipher keystore password is not configured. " +
+        "Set the ICP_CIPHER_KEYSTORE_PASSWORD environment variable.");
+
+final string resolvedPrivateKeyPassword = check resolvePassword(
+        "ICP_PRIVATE_KEY_PASSWORD", cipherPrivateKeyPassword,
+        "Cipher private key password is not configured. " +
+        "Set the ICP_PRIVATE_KEY_PASSWORD environment variable.");
+
+function resolvePassword(string envVar, string fallback, string errorMsg) returns string|error {
+    string val = os:getEnv(envVar);
+    if val == "" {
+        val = fallback;
+    }
+    if val == "" {
+        return error(errorMsg);
+    }
+    return val;
+}
+
 // Decrypts a value encrypted by the WSO2 cipher tool using asymmetric RSA/ECB/OAEPwithSHA1andMGF1Padding.
 // Returns an error if decryption fails (including if the value is not a valid encrypted secret).
-public function decrypt(string encryptedValue) returns string|error {
-    string password = os:getEnv("ICP_CIPHER_KEYSTORE_PASSWORD");
-    if password == "" {
-        password = cipherKeystorePassword;
-    }
-    if password == "" {
-        return error("Cipher keystore password is not configured. " +
-                     "Set the ICP_CIPHER_KEYSTORE_PASSWORD environment variable " +
-                     "or the cipherKeystorePassword configurable.");
-    }
-
+public isolated function decrypt(string encryptedValue) returns string|error {
     crypto:KeyStore keyStore = {
         path: cipherKeystorePath,
-        password: password
+        password: resolvedKeystorePassword
     };
-    crypto:PrivateKey privateKey = check crypto:decodeRsaPrivateKeyFromKeyStore(keyStore, "localhost", password);
+    crypto:PrivateKey privateKey = check crypto:decodeRsaPrivateKeyFromKeyStore(keyStore, cipherKeystoreAlias, resolvedPrivateKeyPassword);
     byte[] encryptedBytes = check array:fromBase64(encryptedValue);
     byte[] decryptedBytes = check crypto:decryptRsaEcb(encryptedBytes, privateKey, crypto:OAEPWithSHA1AndMGF1);
-    string decryptedKey = check string:fromBytes(decryptedBytes);
-    return decryptedKey;
+    return check string:fromBytes(decryptedBytes);
 }

@@ -31,6 +31,7 @@ public isolated function createComponent(types:ComponentInput component) returns
 
     sql:ParameterizedQuery insertQuery = `INSERT INTO components (component_id, project_id, name, display_name, description, component_type, created_by) 
                                           VALUES (${componentId}, ${component.projectId}, ${component.name}, ${displayName}, ${component.description}, ${componentTypeValue}, ${component.createdBy})`;
+    sql:Client dbClient = getDb();
     var result = dbClient->execute(insertQuery);
     if result is sql:Error {
         return result;
@@ -41,6 +42,7 @@ public isolated function createComponent(types:ComponentInput component) returns
 // Check if a project has any components
 public isolated function hasProjectComponents(string projectId) returns boolean|error {
     sql:ParameterizedQuery query = `SELECT COUNT(*) as component_count FROM components WHERE project_id = ${projectId}`;
+    sql:Client dbClient = getDb();
     stream<record {int component_count;}, sql:Error?> resultStream = dbClient->query(query);
 
     record {|record {int component_count;} value;|}? streamResult = check resultStream.next();
@@ -77,6 +79,7 @@ public isolated function getComponents(string? projectId, types:ComponentOptions
     sql:ParameterizedQuery orderByClause = ` ORDER BY c.name ASC `;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
 
+    sql:Client dbClient = getDb();
     stream<types:ComponentInDB, sql:Error?> componentStream = dbClient->query(query);
 
     check from types:ComponentInDB component in componentStream
@@ -119,6 +122,7 @@ public isolated function getComponentsByProjectIds(string[] projectIds, types:Co
     sql:ParameterizedQuery orderByClause = `) ORDER BY c.name ASC`;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, inClause, orderByClause);
 
+    sql:Client dbClient = getDb();
     stream<types:ComponentInDB, sql:Error?> componentStream = dbClient->query(query);
 
     check from types:ComponentInDB component in componentStream
@@ -167,6 +171,7 @@ public isolated function getComponentsByIds(string[] componentIds) returns types
     sql:ParameterizedQuery orderByClause = `) ORDER BY c.name ASC`;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, inClause, orderByClause);
 
+    sql:Client dbClient = getDb();
     stream<types:ComponentInDB, sql:Error?> componentStream = dbClient->query(query);
 
     check from types:ComponentInDB component in componentStream
@@ -179,6 +184,7 @@ public isolated function getComponentsByIds(string[] componentIds) returns types
 
 // Get project ID for a given component ID (lightweight query for access control)
 public isolated function getProjectIdByComponentId(string componentId) returns string|error {
+    sql:Client dbClient = getDb();
     stream<record {|string project_id;|}, sql:Error?> resultStream =
         dbClient->query(`SELECT project_id FROM components WHERE component_id = ${componentId}`);
 
@@ -195,6 +201,7 @@ public isolated function getProjectIdByComponentId(string componentId) returns s
 
 // Get a specific component by ID
 public isolated function getComponentById(string componentId) returns types:Component|error {
+    sql:Client dbClient = getDb();
     stream<types:ComponentInDB, sql:Error?> componentStream =
         dbClient->query(`SELECT c.component_id, c.project_id, c.name as component_name, c.display_name as component_display_name, c.description as component_description, 
                                 c.component_type, c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
@@ -224,6 +231,7 @@ public isolated function getComponentById(string componentId) returns types:Comp
 
 // Get component ID by name
 public isolated function getComponentIdByName(string componentName) returns string|error {
+    sql:Client dbClient = getDb();
     stream<record {|string component_id;|}, sql:Error?> componentStream = dbClient->query(`
         SELECT component_id FROM components WHERE name = ${componentName}
     `);
@@ -239,6 +247,7 @@ public isolated function getComponentIdByName(string componentName) returns stri
 
 // Get a component by project ID and handler (component name)
 public isolated function getComponentByProjectAndHandler(string projectId, string handler) returns types:Component?|error {
+    sql:Client dbClient = getDb();
     stream<types:ComponentInDB, sql:Error?> componentStream =
         dbClient->query(`SELECT c.component_id, c.project_id, c.name as component_name, c.display_name as component_display_name, c.description as component_description,
                                 c.component_type, c.created_by as component_created_by, c.created_at as component_created_at, c.updated_at as component_updated_at,
@@ -268,6 +277,7 @@ public isolated function getComponentByProjectAndHandler(string projectId, strin
 // Delete a component by ID
 public isolated function deleteComponent(string componentId) returns error? {
     sql:ParameterizedQuery deleteQuery = `DELETE FROM components WHERE component_id = ${componentId}`;
+    sql:Client dbClient = getDb();
     var result = dbClient->execute(deleteQuery);
     if result is sql:Error {
         log:printError(string `Failed to delete component ${componentId}`, result);
@@ -293,6 +303,7 @@ public isolated function updateComponent(string componentId, string? name, strin
     }
 
     sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE components `, updateFields, whereClause);
+    sql:Client dbClient = getDb();
     var result = dbClient->execute(updateQuery);
     if result is sql:Error {
         log:printError(string `Failed to update component ${componentId}`, result);
@@ -317,6 +328,7 @@ public isolated function getComponentDeployment(string componentId, string envir
 
     query = appendLimitClause(query, 1);
 
+    sql:Client dbClient = getDb();
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(query);
 
     types:RuntimeDBRecord[] runtimeRecords = check from types:RuntimeDBRecord runtimeRecord in runtimeStream
@@ -375,6 +387,7 @@ public isolated function getArtifactTypesForComponent(string componentId, types:
     if environmentId is string {
         runtimeQuery = sql:queryConcat(runtimeQuery, ` AND environment_id = ${environmentId}`);
     }
+    sql:Client dbClient = getDb();
     stream<record {|string runtime_id;|}, sql:Error?> runtimeStream = dbClient->query(runtimeQuery);
 
     string[] runtimeIds = [];

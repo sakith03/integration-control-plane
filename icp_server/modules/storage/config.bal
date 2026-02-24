@@ -44,11 +44,3 @@ configurable string publicCertFile = "./resources/keys/public.cert";
 configurable decimal jwtClockSkewSeconds = 10;
 configurable int defaultTokenExpiryTime = 3600; // 1 hour (in seconds)
 configurable string defaultRuntimeJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
-
-// Any configurables of the storage module that can be encrypted should first be resolved here.
-// Initialized by decrypting or falling back to the plain configurables above. 
-// All code outside config.bal must use these resolved variables.
-map<anydata>? storageSec = readStorageSecretsSection();
-final string resolvedDbUser = check resolveStorageSecret(storageSec, "dbUser", dbUser);
-final string resolvedDbPassword = check resolveStorageSecret(storageSec, "dbPassword", dbPassword);
-final string resolvedDefaultRuntimeJwtHMACSecret = check resolveStorageSecret(storageSec, "defaultRuntimeJwtHMACSecret", defaultRuntimeJwtHMACSecret);
