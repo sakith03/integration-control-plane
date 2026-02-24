@@ -85,7 +85,6 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
             fullHeartbeatRequired = true;
             log:printWarn(string `No artifacts reported in heartbeat for runtime ${heartbeat.runtime}`);
         }
-        sql:Client dbClient = getDb();
         _ = check dbClient->execute(`
             INSERT INTO audit_logs (
                 runtime_id, action, details
@@ -142,7 +141,6 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
 
         // Still update the timestamp to show runtime is alive
         // Use database's native timestamp function (CURRENT_TIMESTAMP works in both H2 MySQL mode and MySQL)
-        sql:Client dbClient = getDb();
         sql:ExecutionResult|error result = dbClient->execute(`
             UPDATE runtimes
             SET last_heartbeat = CURRENT_TIMESTAMP, status = 'RUNNING'
@@ -166,7 +164,6 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
 
     // Update the heartbeat timestamp using database's native timestamp function
     
-    sql:Client dbClient = getDb();
     sql:ExecutionResult|error timestampResult = dbClient->execute(`
         UPDATE runtimes
         SET last_heartbeat = CURRENT_TIMESTAMP, status = 'RUNNING'
@@ -283,7 +280,6 @@ isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error
 
 // Validate component runtime consistency
 isolated function validateComponentRuntimeConsistency(string componentId, types:Artifacts newArtifacts) returns error? {
-    sql:Client dbClient = getDb();
     stream<record {|string runtime_id;|}, sql:Error?> runtimeStream = dbClient->query(`
         SELECT runtime_id FROM runtimes WHERE component_id = ${componentId}
     `);
@@ -634,7 +630,6 @@ isolated function getArtifactDetailsByTypeAndName(string runtimeId, string artif
             ` = ${artifactName} LIMIT 1`
     );
 
-    sql:Client dbClient = getDb();
     stream<types:ArtifactQueryResult, sql:Error?> resultStream = dbClient->query(query);
     types:ArtifactQueryResult[] results = check from types:ArtifactQueryResult state in resultStream
         select state;
@@ -730,7 +725,6 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
     string runtimeHostname = heartbeat.runtimeHostname ?: "";
     string runtimePort = heartbeat.runtimePort ?: "";
 
-    sql:Client dbClient = getDb();
     sql:ExecutionResult|error insertRes = dbClient->execute(`
         INSERT INTO runtimes (
             runtime_id, name, runtime_type, status, version,
@@ -793,7 +787,6 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
 // Insert all runtime artifacts
 isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns error? {
     // Insert services with UPSERT logic
-    sql:Client dbClient = getDb();
     foreach types:Service serviceDetail in heartbeat.artifacts.services {
         if dbType == MSSQL {
             _ = check dbClient->execute(`
@@ -1001,7 +994,6 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
 
 // Delete existing artifacts
 isolated function deleteExistingArtifacts(string runtimeId) returns error? {
-    sql:Client dbClient = getDb();
     _ = check dbClient->execute(`DELETE FROM bi_service_artifacts WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM bi_runtime_listener_artifacts WHERE runtime_id = ${runtimeId}`);
     _ = check dbClient->execute(`DELETE FROM bi_service_resource_artifacts WHERE runtime_id = ${runtimeId}`);
@@ -1032,7 +1024,6 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         string artifactId = uuid:createType4AsString();
         string? carbonApp = api?.carbonApp;
         string urlsJson = api.urls.toJsonString();
-        sql:Client dbClient = getDb();
         if dbType == MSSQL {
             _ = check dbClient->execute(`
                 MERGE INTO mi_api_artifacts AS target
@@ -1134,7 +1125,6 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
     foreach types:ProxyService proxy in <types:ProxyService[]>heartbeat.artifacts.proxyServices {
         string artifactId = uuid:createType4AsString();
         string? carbonApp = proxy?.carbonApp;
-        sql:Client dbClient = getDb();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_proxy_service_artifacts AS target
@@ -1220,7 +1210,6 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
     foreach types:Endpoint endpoint in <types:Endpoint[]>heartbeat.artifacts.endpoints {
         string artifactId = uuid:createType4AsString();
         string? carbonApp = endpoint?.carbonApp;
-        sql:Client dbClient = getDb();
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_endpoint_artifacts AS target
@@ -1313,7 +1302,6 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
 
 // Insert additional MI artifacts
 isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns error? {
-    sql:Client dbClient = getDb();
     foreach types:InboundEndpoint inbound in <types:InboundEndpoint[]>heartbeat.artifacts.inboundEndpoints {
         string artifactId = uuid:createType4AsString();
         string? carbonApp = inbound?.carbonApp;

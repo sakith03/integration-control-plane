@@ -49,7 +49,6 @@ public isolated function getRuntimes(string? status, string? runtimeType, string
     sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC `;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
     
-    sql:Client dbClient = getDb();
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(query);
 
     check from types:RuntimeDBRecord runtime in runtimeStream
@@ -113,7 +112,6 @@ public isolated function getRuntimesByIntegrationIds(
     sql:ParameterizedQuery orderByClause = ` ORDER BY registration_time DESC `;
     sql:ParameterizedQuery query = sql:queryConcat(selectClause, whereClause, whereConditions, orderByClause);
 
-    sql:Client dbClient = getDb();
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(query);
 
     check from types:RuntimeDBRecord runtime in runtimeStream
@@ -126,7 +124,6 @@ public isolated function getRuntimesByIntegrationIds(
 
 // Get a specific runtime by ID
 public isolated function getRuntimeById(string runtimeId) returns types:Runtime?|error {
-    sql:Client dbClient = getDb();
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(`
         SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version,
                runtime_hostname, runtime_port,
@@ -150,7 +147,6 @@ public isolated function getRuntimeById(string runtimeId) returns types:Runtime?
 // Get the type of a runtime by ID
 public isolated function getRuntimeTypeById(string runtimeId) returns types:RuntimeTypeRecord?|error {
     log:printDebug("Fetching runtime type for runtime ID: " + runtimeId);
-    sql:Client dbClient = getDb();
     stream<types:RuntimeTypeRecord, sql:Error?> runtimeTypeStream = dbClient->query(`
         SELECT runtime_id, runtime_type, environment_id, component_id 
         FROM runtimes
@@ -171,7 +167,6 @@ public isolated function getRuntimeTypeById(string runtimeId) returns types:Runt
 // Delete a runtime by ID
 public isolated function deleteRuntime(string runtimeId) returns error? {
     sql:ParameterizedQuery deleteQuery = `DELETE FROM runtimes WHERE runtime_id = ${runtimeId}`;
-    sql:Client dbClient = getDb();
     var result = dbClient->execute(deleteQuery);
     if result is sql:Error {
         log:printError(string `Failed to delete runtime ${runtimeId}`, result);
@@ -196,7 +191,6 @@ public isolated function markOfflineRuntimes() returns error? {
                 sqlQueryFromString(getTimestampDiffSeconds("last_heartbeat", "CURRENT_TIMESTAMP")),
                 ` > ${heartbeatTimeoutSeconds}`
         );
-        sql:Client dbClient = getDb();
         sql:ExecutionResult result = check dbClient->execute(deleteQuery);
 
         int? affectedCount = result.affectedRowCount;
@@ -214,7 +208,6 @@ public isolated function markOfflineRuntimes() returns error? {
                 sqlQueryFromString(getTimestampDiffSeconds("last_heartbeat", "CURRENT_TIMESTAMP")),
                 ` > ${heartbeatTimeoutSeconds}`
         );
-        sql:Client dbClient = getDb();
         sql:ExecutionResult result = check dbClient->execute(updateQuery);
 
         int? affectedCount = result.affectedRowCount;
@@ -227,7 +220,6 @@ public isolated function markOfflineRuntimes() returns error? {
 // Get services for a specific runtime
 public isolated function getServicesForRuntime(string runtimeId) returns types:Service[]|error {
     types:Service[] serviceList = [];
-    sql:Client dbClient = getDb();
     stream<types:ServiceRecordInDB, sql:Error?> serviceStream = dbClient->query(`
         SELECT service_name, service_package, base_path, state 
         FROM bi_service_artifacts 
@@ -246,7 +238,6 @@ public isolated function getServicesForRuntime(string runtimeId) returns types:S
 // Get listeners for a specific runtime
 public isolated function getListenersForRuntime(string runtimeId) returns types:Listener[]|error {
     types:Listener[] listenerList = [];
-    sql:Client dbClient = getDb();
     stream<types:Listener, sql:Error?> listenerStream = dbClient->query(`
         SELECT listener_name, listener_package, protocol, state, listener_host, listener_port 
         FROM bi_runtime_listener_artifacts 
@@ -264,7 +255,6 @@ public isolated function getListenersForRuntime(string runtimeId) returns types:
 // Get REST APIs for a specific runtime
 public isolated function getApisForRuntime(string runtimeId) returns types:RestApi[]|error {
     types:RestApi[] apiList = [];
-    sql:Client dbClient = getDb();
     stream<record {|
         string api_name;
         string url;
@@ -316,7 +306,6 @@ public isolated function getApisForRuntime(string runtimeId) returns types:RestA
 isolated function getApiResourcesForRuntime(string runtimeId, string apiName) returns types:ApiResource[]|error {
     types:ApiResource[] resourceList = [];
 
-    sql:Client dbClient = getDb();
     stream<record {|string resource_path; string methods;|}, sql:Error?> resourceStream = dbClient->query(`
         SELECT resource_path, methods
         FROM mi_api_resource_artifacts
@@ -340,7 +329,6 @@ public isolated function getProxyServicesForRuntime(string runtimeId) returns ty
     types:ProxyService[] proxyList = [];
     // Load endpoints for all proxies in this runtime
     map<string[]> endpointMap = {};
-    sql:Client dbClient = getDb();
     stream<record {|string proxy_name; string endpoint_url;|}, sql:Error?> epStream = dbClient->query(`
         SELECT proxy_name, endpoint_url
         FROM mi_proxy_service_endpoint_artifacts
@@ -379,7 +367,6 @@ public isolated function getProxyServicesForRuntime(string runtimeId) returns ty
 // Get endpoints for a specific runtime
 public isolated function getEndpointsForRuntime(string runtimeId) returns types:Endpoint[]|error {
     types:Endpoint[] endpointList = [];
-    sql:Client dbClient = getDb();
     stream<types:EndpointRecordInDB, sql:Error?> endpointStream = dbClient->query(`
         SELECT endpoint_name, endpoint_type, state, tracing, statistics, carbon_app
         FROM mi_endpoint_artifacts
@@ -438,7 +425,6 @@ public isolated function getInboundEndpointsForRuntime(string runtimeId) returns
             WHERE runtime_id = ${runtimeId}
         `;
     }
-    sql:Client dbClient = getDb();
     stream<types:InboundEndpoint, sql:Error?> inboundStream = dbClient->query(query);
 
     check from types:InboundEndpoint inboundRecord in inboundStream
@@ -452,7 +438,6 @@ public isolated function getInboundEndpointsForRuntime(string runtimeId) returns
 // Get sequences for a specific runtime
 public isolated function getSequencesForRuntime(string runtimeId) returns types:Sequence[]|error {
     types:Sequence[] sequenceList = [];
-    sql:Client dbClient = getDb();
     stream<types:SequenceRecordInDB, sql:Error?> sequenceStream = dbClient->query(`
         SELECT sequence_name, sequence_type, container, state, tracing, statistics, carbon_app
         FROM mi_sequence_artifacts
@@ -479,7 +464,6 @@ public isolated function getSequencesForRuntime(string runtimeId) returns types:
 // Get tasks for a specific runtime
 public isolated function getTasksForRuntime(string runtimeId) returns types:Task[]|error {
     types:Task[] taskList = [];
-    sql:Client dbClient = getDb();
     stream<types:TaskRecordInDB, sql:Error?> taskStream = dbClient->query(`
         SELECT task_name, task_class, task_group, state, carbon_app
         FROM mi_task_artifacts 
@@ -504,7 +488,6 @@ public isolated function getTasksForRuntime(string runtimeId) returns types:Task
 // Get templates for a specific runtime
 public isolated function getTemplatesForRuntime(string runtimeId) returns types:Template[]|error {
     types:Template[] templateList = [];
-    sql:Client dbClient = getDb();
     stream<types:Template, sql:Error?> templateStream = dbClient->query(`
         SELECT template_name, template_type, carbon_app
         FROM mi_template_artifacts 
@@ -523,7 +506,6 @@ public isolated function getTemplatesForRuntime(string runtimeId) returns types:
 // Get message stores for a specific runtime
 public isolated function getMessageStoresForRuntime(string runtimeId) returns types:MessageStore[]|error {
     types:MessageStore[] storeList = [];
-    sql:Client dbClient = getDb();
     stream<types:MessageStoreRecordInDB, sql:Error?> storeStream = dbClient->query(`
         SELECT store_name, store_type, size, carbon_app
         FROM mi_message_store_artifacts 
@@ -547,7 +529,6 @@ public isolated function getMessageStoresForRuntime(string runtimeId) returns ty
 // Get message processors for a specific runtime
 public isolated function getMessageProcessorsForRuntime(string runtimeId) returns types:MessageProcessor[]|error {
     types:MessageProcessor[] processorList = [];
-    sql:Client dbClient = getDb();
     stream<types:MessageProcessorRecordInDB, sql:Error?> processorStream = dbClient->query(`
         SELECT processor_name, processor_type, processor_class, state, carbon_app
         FROM mi_message_processor_artifacts 
@@ -572,7 +553,6 @@ public isolated function getMessageProcessorsForRuntime(string runtimeId) return
 // Get local entries for a specific runtime
 public isolated function getLocalEntriesForRuntime(string runtimeId) returns types:LocalEntry[]|error {
     types:LocalEntry[] entryList = [];
-    sql:Client dbClient = getDb();
     stream<types:LocalEntryRecordInDB, sql:Error?> entryStream = dbClient->query(`
         SELECT entry_name, entry_type, entry_value, state, carbon_app
         FROM mi_local_entry_artifacts 
@@ -597,7 +577,6 @@ public isolated function getLocalEntriesForRuntime(string runtimeId) returns typ
 // Get data services for a specific runtime
 public isolated function getDataServicesForRuntime(string runtimeId) returns types:DataService[]|error {
     types:DataService[] serviceList = [];
-    sql:Client dbClient = getDb();
     stream<types:DataService, sql:Error?> serviceStream = dbClient->query(`
         SELECT service_name, description, wsdl, state, carbon_app
         FROM mi_data_service_artifacts 
@@ -616,7 +595,6 @@ public isolated function getDataServicesForRuntime(string runtimeId) returns typ
 public isolated function getCarbonAppsForRuntime(string runtimeId) returns types:CarbonApp[]|error {
     types:CarbonApp[] appList = [];
     // Include artifacts column (serialized JSON string) if present
-    sql:Client dbClient = getDb();
     stream<record {string app_name; string version; types:DeploymentState state; string artifacts?;}, sql:Error?> appStream = dbClient->query(`
         SELECT app_name, version, state, artifacts
         FROM mi_carbon_app_artifacts 
@@ -669,7 +647,6 @@ isolated function parseCarbonAppArtifacts(json j) returns types:CarbonAppArtifac
 // Get data sources for a specific runtime
 public isolated function getDataSourcesForRuntime(string runtimeId) returns types:DataSource[]|error {
     types:DataSource[] sourceList = [];
-    sql:Client dbClient = getDb();
     stream<types:DataSource, sql:Error?> sourceStream = dbClient->query(`
         SELECT datasource_name, datasource_type, driver, url, username, state
         FROM mi_data_source_artifacts 
@@ -687,7 +664,6 @@ public isolated function getDataSourcesForRuntime(string runtimeId) returns type
 // Get connectors for a specific runtime
 public isolated function getConnectorsForRuntime(string runtimeId) returns types:Connector[]|error {
     types:Connector[] connectorList = [];
-    sql:Client dbClient = getDb();
     stream<types:Connector, sql:Error?> connectorStream = dbClient->query(`
         SELECT connector_name, package, version, state
         FROM mi_connector_artifacts 
@@ -705,7 +681,6 @@ public isolated function getConnectorsForRuntime(string runtimeId) returns types
 // Get registry resources for a specific runtime
 public isolated function getRegistryResourcesForRuntime(string runtimeId) returns types:RegistryResource[]|error {
     types:RegistryResource[] resourceList = [];
-    sql:Client dbClient = getDb();
     stream<types:RegistryResourceRecordInDB, sql:Error?> resourceStream = dbClient->query(`
         SELECT resource_name, resource_type
         FROM mi_registry_resource_artifacts 
@@ -825,7 +800,6 @@ public isolated function mapToService(types:ServiceRecordInDB serviceRecord, str
     types:Resource[] resourceList = [];
     string serviceName = serviceRecord.service_name;
 
-    sql:Client dbClient = getDb();
     stream<types:ResourceRecord, sql:Error?> resourceStream = dbClient->query(`
         SELECT resource_url, methods 
         FROM bi_service_resource_artifacts 

@@ -22,7 +22,6 @@ import ballerina/sql;
 
 // Helper function to get runtime IDs for a specific environment and component
 isolated function getRuntimeIdsByEnvironmentAndComponent(string environmentId, string componentId) returns string[]|error {
-    sql:Client dbClient = getDb();
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(`
         SELECT runtime_id 
         FROM runtimes 
@@ -56,7 +55,6 @@ isolated function getRuntimeStatusMap(string[] runtimeIds) returns map<string>|e
     inClause = sql:queryConcat(inClause, `)`);
 
     sql:ParameterizedQuery query = sql:queryConcat(`SELECT runtime_id, status FROM runtimes WHERE runtime_id IN `, inClause);
-    sql:Client dbClient = getDb();
     stream<record {|string runtime_id; string status;|}, sql:Error?> rs = dbClient->query(query);
     check from record {|string runtime_id; string status;|} row in rs
         do {
@@ -292,7 +290,6 @@ public isolated function getAutomationsByEnvironmentAndComponent(string environm
     `);
 
     // Use a record type that includes runtime_id to capture all fields
-    sql:Client dbClient = getDb();
     stream<record {|string runtime_id; string package_org; string package_name; string package_version; string execution_timestamp;|}, sql:Error?> automationStream = dbClient->query(query);
 
     // Build nested map: automationKey -> runtimeId -> execution_timestamps[]

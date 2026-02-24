@@ -22,7 +22,6 @@ import ballerina/sql;
 // Get user details by user ID
 public isolated function getUserDetailsById(string userId) returns types:User|error {
     log:printDebug(string `Fetching user details for userId: ${userId}`);
-    sql:Client dbClient = getDb();
     types:User|sql:Error user = dbClient->queryRow(
         `SELECT user_id, username, display_name, is_super_admin, is_project_author, is_oidc_user, require_password_change, created_at, updated_at
          FROM users
@@ -74,7 +73,6 @@ public isolated function getAllUsersV2() returns json[]|error {
     log:printDebug("Fetching all users with group memberships (RBAC v2)");
     
     // Get all users
-    sql:Client dbClient = getDb();
     stream<types:User, sql:Error?> userStream = dbClient->query(
         `SELECT user_id, username, display_name, is_super_admin, is_project_author, is_oidc_user, require_password_change, created_at, updated_at
          FROM users
@@ -105,7 +103,6 @@ public isolated function getAllUsersV2() returns json[]|error {
 }
 
 isolated function getGroupsForUser(string userId) returns json[]|error {
-    sql:Client dbClient = getDb();
     stream<record {|string group_id; string group_name; string description;|}, sql:Error?> groupStream = dbClient->query(
         `SELECT g.group_id, g.group_name, g.description
          FROM user_groups g
@@ -133,7 +130,6 @@ public isolated function createUserV2(string userId, string username, string dis
     log:printDebug(string `Creating user (RBAC v2): ${username} with userId: ${userId}`);
     
     // Check if user already exists in main DB
-    sql:Client dbClient = getDb();
     stream<record {|int count;|}, sql:Error?> countStream = dbClient->query(
         `SELECT COUNT(*) as count FROM users WHERE user_id = ${userId} OR username = ${username}`
     );
@@ -197,7 +193,6 @@ public isolated function deleteUserV2(string userId, string currentUserId) retur
     }
     
     // Check if user exists
-    sql:Client dbClient = getDb();
     stream<record {|int count;|}, sql:Error?> countStream = dbClient->query(
         `SELECT COUNT(*) as count FROM users WHERE user_id = ${userId}`
     );
@@ -236,7 +231,6 @@ public isolated function deleteUserV2(string userId, string currentUserId) retur
 public isolated function setRequirePasswordChange(string userId, boolean requireChange) returns error? {
     log:printDebug(string `Setting require_password_change=${requireChange.toString()} for user: ${userId}`);
 
-    sql:Client dbClient = getDb();
     sql:ExecutionResult result = check dbClient->execute(
         `UPDATE users
          SET require_password_change = ${requireChange}, updated_at = CURRENT_TIMESTAMP

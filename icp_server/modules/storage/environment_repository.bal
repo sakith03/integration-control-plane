@@ -23,7 +23,6 @@ import ballerina/uuid;
 // Get all environments
 public isolated function getEnvironments() returns types:Environment[]|error {
     types:Environment[] environments = [];
-    sql:Client dbClient = getDb();
     stream<types:Environment, sql:Error?> envStream = dbClient->query(`SELECT environment_id, name, description, 
         region, cluster_id, choreo_env, external_apim_env_name, internal_apim_env_name, sandbox_apim_env_name, 
         critical, dns_prefix, created_at, updated_at, created_by, updated_by 
@@ -77,7 +76,6 @@ public isolated function getEnvironmentsByIds(string[] environmentIds) returns t
 
     query = sql:queryConcat(query, `) ORDER BY name ASC`);
 
-    sql:Client dbClient = getDb();
     stream<types:Environment, sql:Error?> envStream = dbClient->query(query);
 
     check from types:Environment env in envStream
@@ -116,7 +114,6 @@ public isolated function getAllEnvironments() returns types:Environment[]|error 
                                      FROM environments 
                                      ORDER BY name ASC`;
 
-    sql:Client dbClient = getDb();
     stream<types:Environment, sql:Error?> envStream = dbClient->query(query);
 
     check from types:Environment env in envStream
@@ -166,7 +163,6 @@ public isolated function getEnvironmentIdsByTypes(boolean hasProdAccess, boolean
 
     query = sql:queryConcat(query, ` ORDER BY name ASC`);
 
-    sql:Client dbClient = getDb();
     stream<record {|string environment_id;|}, sql:Error?> envStream = dbClient->query(query);
 
     check from record {|string environment_id;|} env in envStream
@@ -181,7 +177,6 @@ public isolated function getEnvironmentIdsByTypes(boolean hasProdAccess, boolean
 
 // Get environment by ID
 public isolated function getEnvironmentById(string environmentId) returns types:Environment|error {
-    sql:Client dbClient = getDb();
     stream<types:Environment, sql:Error?> envStream =
         dbClient->query(`SELECT environment_id, name, description, region, cluster_id, choreo_env, 
                         external_apim_env_name, internal_apim_env_name, sandbox_apim_env_name, critical, dns_prefix, 
@@ -219,7 +214,6 @@ public isolated function createEnvironment(types:EnvironmentInput environment) r
 
     sql:ParameterizedQuery insertQuery = `INSERT INTO environments (environment_id, name, description, critical, created_by) 
     VALUES (${envId}, ${environment.name}, ${environment.description}, ${environment.critical}, ${environment.createdBy})`;
-    sql:Client dbClient = getDb();
     var result = dbClient->execute(insertQuery);
     if result is sql:Error {
         // If error is not duplicate entry, log and return
@@ -250,7 +244,6 @@ public isolated function updateEnvironment(string environmentId, string? name, s
     }
 
     sql:ParameterizedQuery updateQuery = sql:queryConcat(`UPDATE environments `, updateFields, whereClause);
-    sql:Client dbClient = getDb();
     var result = dbClient->execute(updateQuery);
     if result is sql:Error {
         log:printError(string `Failed to update environment ${environmentId}`, result);
@@ -263,7 +256,6 @@ public isolated function updateEnvironment(string environmentId, string? name, s
 // Update environment production status
 public isolated function updateEnvironmentProductionStatus(string environmentId, boolean critical) returns error? {
     sql:ParameterizedQuery updateQuery = `UPDATE environments SET critical = ${critical}, updated_at = CURRENT_TIMESTAMP WHERE environment_id = ${environmentId}`;
-    sql:Client dbClient = getDb();
     var result = dbClient->execute(updateQuery);
     if result is sql:Error {
         log:printError(string `Failed to update environment production status ${environmentId}`, result);
@@ -275,7 +267,6 @@ public isolated function updateEnvironmentProductionStatus(string environmentId,
 
 // Get environment ID by name
 public isolated function getEnvironmentIdByName(string environmentName) returns string|error {
-    sql:Client dbClient = getDb();
     stream<record {|string environment_id;|}, sql:Error?> envStream = dbClient->query(`
         SELECT environment_id FROM environments WHERE name = ${environmentName}
     `);
@@ -292,7 +283,6 @@ public isolated function getEnvironmentIdByName(string environmentName) returns 
 // Delete an environment by ID
 public isolated function deleteEnvironment(string environmentId) returns error? {
     sql:ParameterizedQuery deleteQuery = `DELETE FROM environments WHERE environment_id = ${environmentId}`;
-    sql:Client dbClient = getDb();
     var result = dbClient->execute(deleteQuery);
     if result is sql:Error {
         log:printError(string `Failed to delete environment ${environmentId}`, result);
@@ -306,7 +296,6 @@ public isolated function deleteEnvironment(string environmentId) returns error? 
 public isolated function getEnvironmentIdsWithRuntimes(string componentId) returns string[]|error {
     log:printDebug(string `Fetching environment IDs where component ${componentId} has runtimes`);
 
-    sql:Client dbClient = getDb();
     stream<record {|string environment_Id;|}, sql:Error?> envStream = dbClient->query(
         `SELECT DISTINCT environment_id 
          FROM runtimes 
