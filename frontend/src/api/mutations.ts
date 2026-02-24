@@ -228,3 +228,66 @@ export function useUpdateListenerState() {
     },
   });
 }
+
+// ── Logger mutations ──
+
+export interface UpdateLogLevelInput {
+  runtimeIds: string[];
+  componentName: string;
+  logLevel: 'INFO' | 'DEBUG' | 'WARN' | 'ERROR';
+}
+
+const UPDATE_LOG_LEVEL = `
+  mutation UpdateLogLevel($input: UpdateLogLevelInput!) {
+    updateLogLevel(input: $input) {
+      success, message, commandIds
+    }
+  }`;
+
+export function useUpdateLogLevel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateLogLevelInput) =>
+      gql<{ updateLogLevel: { success: boolean; message: string; commandIds: string[] } }>(UPDATE_LOG_LEVEL, {
+        input: {
+          runtimeIds: input.runtimeIds,
+          componentName: input.componentName,
+          logLevel: input.logLevel,
+        },
+      }).then((d) => d.updateLogLevel),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['loggers'] });
+    },
+  });
+}
+
+// ── Task trigger ──
+
+const TRIGGER_ARTIFACT = `
+  mutation TriggerTask($input: ArtifactTriggerInput!) {
+    triggerArtifact(input: $input) {
+      status, message, successCount, failedCount, details
+    }
+  }`;
+
+export interface TriggerTaskInput {
+  componentId: string;
+  taskName: string;
+}
+
+export function useTriggerTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: TriggerTaskInput) =>
+      gql<{ triggerArtifact: { status: string; message: string; successCount: number; failedCount: number; details: string[] } }>(TRIGGER_ARTIFACT, {
+        input: {
+          componentId: input.componentId,
+          taskName: input.taskName,
+        },
+      }).then((d) => d.triggerArtifact),
+    onSuccess: () => {
+      // Invalidate task queries to refetch the updated state
+      qc.invalidateQueries({ queryKey: ['artifacts', 'Task'] });
+    },
+  });
+}

@@ -148,6 +148,27 @@ export function useAllEnvironments() {
   });
 }
 
+export interface GqlLogger {
+  componentName: string;
+  logLevel: string;
+  runtimeIds: string[];
+}
+
+const LOGGERS_BY_ENV_AND_COMPONENT_QUERY = `
+  query GetLoggers($environmentId: String!, $componentId: String!) {
+    loggersByEnvironmentAndComponent(environmentId: $environmentId, componentId: $componentId) {
+      componentName, logLevel, runtimeIds
+    }
+  }`;
+
+export function useLoggers(environmentId: string, componentId: string) {
+  return useQuery({
+    queryKey: ['loggers', environmentId, componentId],
+    queryFn: () => gql<{ loggersByEnvironmentAndComponent: GqlLogger[] }>(LOGGERS_BY_ENV_AND_COMPONENT_QUERY, { environmentId, componentId }).then((d) => d.loggersByEnvironmentAndComponent),
+    enabled: !!environmentId && !!componentId,
+  });
+}
+
 export interface GqlRuntime {
   runtimeId: string;
   runtimeType: string;
@@ -273,7 +294,7 @@ const ARTIFACT_QUERY_MAP: Record<string, { queryName: string; field: string; fie
     queryName: 'messageProcessorsByEnvironmentAndComponent',
     field: 'messageProcessorsByEnvironmentAndComponent',
     fields: 'name, type, state',
-    gqlFields: 'name, type, state, carbonApp, runtimes { runtimeId, status }',
+    gqlFields: 'name, type, state, tracing, carbonApp, runtimes { runtimeId, status }',
   },
   Template: {
     queryName: 'templatesByEnvironmentAndComponent',
@@ -399,6 +420,32 @@ export function useArtifactParams(componentId: string, artifactType: string, art
         environmentId: envId,
         runtimeId,
       }).then((d) => d.artifactParametersByComponent),
+    enabled: !!componentId && !!artifactType && !!artifactName && !!envId,
+  });
+}
+
+const ARTIFACT_WSDL_QUERY = `
+  query ArtifactWsdl($componentId: String!, $artifactType: String!, $artifactName: String!, $environmentId: String, $runtimeId: String) {
+    artifactWsdlByComponent(
+      componentId: $componentId,
+      artifactType: $artifactType,
+      artifactName: $artifactName,
+      environmentId: $environmentId,
+      runtimeId: $runtimeId
+    )
+  }`;
+
+export function useArtifactWsdl(componentId: string, artifactType: string, artifactName: string, envId: string, runtimeId?: string) {
+  return useQuery({
+    queryKey: ['artifactWsdl', componentId, artifactType, artifactName, envId, runtimeId],
+    queryFn: () =>
+      gql<{ artifactWsdlByComponent: string }>(ARTIFACT_WSDL_QUERY, {
+        componentId,
+        artifactType,
+        artifactName,
+        environmentId: envId,
+        runtimeId,
+      }).then((d) => d.artifactWsdlByComponent),
     enabled: !!componentId && !!artifactType && !!artifactName && !!envId,
   });
 }

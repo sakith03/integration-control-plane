@@ -32,7 +32,6 @@ import {
   formatRelativeTime,
   Header,
   IconButton,
-  Link,
   NotificationPanel,
   Sidebar,
   Stack,
@@ -41,15 +40,15 @@ import {
   useAppShell,
   useNotifications,
 } from '@wso2/oxygen-ui';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { JSX } from 'react';
 import { useNavigate, Outlet, Link as NavLink } from 'react-router';
 import Logo from '../components/Logo';
-import { BarChart3, Bell, Building, ChevronRight, Layers, LayoutDashboard, LogOut, ScrollText, Settings, Shield, User as UserIcon, X } from '@wso2/oxygen-ui-icons-react';
+import { BarChart3, Bell, Building, ChevronRight, Layers, LayoutDashboard, LogOut, ScrollText, Server, Shield, Sliders, User as UserIcon, X } from '@wso2/oxygen-ui-icons-react';
 import { useProjectByHandler, useProjects, useComponents } from '../api/queries';
 import { mockNotifications } from '../mock-data/mockNotifications';
 import { useScope, useResource, resourceUrl, broaden, narrow, sidebarItems, hasProject, hasComponent, type Resource } from '../nav';
-import { loginUrl, profileUrl, orgUrl } from '../paths';
+import { cookiePolicyUrl, loginUrl, privacyPolicyUrl, profileUrl, orgUrl } from '../paths';
 import { useAuth } from '../auth/AuthContext';
 import { useAccessControl } from '../contexts/AccessControlContext';
 import { ALL_USER_MGT_PERMISSIONS, Permissions } from '../constants/permissions';
@@ -57,8 +56,9 @@ import { ALL_USER_MGT_PERMISSIONS, Permissions } from '../constants/permissions'
 const SIDEBAR_ICONS: Record<Resource, JSX.Element> = {
   overview: <LayoutDashboard size={20} />,
   logs: <ScrollText size={20} />,
+  loggers: <Sliders size={20} />,
   metrics: <BarChart3 size={20} />,
-  runtimes: <Settings size={20} />,
+  runtimes: <Server size={20} />,
   environments: <Layers size={20} />,
   'access-control': <Shield size={20} />,
 };
@@ -105,6 +105,8 @@ export default function AppLayout(): JSX.Element {
       }
       case 'logs':
         return 'logs';
+      case 'loggers':
+        return 'loggers';
       case 'metrics':
         return 'metrics';
       case 'runtimes':
@@ -142,6 +144,7 @@ export default function AppLayout(): JSX.Element {
               onChange={() => {}}
               size="small"
               sx={{ minWidth: 180 }}
+              SelectDisplayProps={{ 'aria-label': 'Select organization' }}
               renderValue={() => (
                 <>
                   <ComplexSelect.MenuItem.Icon>
@@ -169,6 +172,7 @@ export default function AppLayout(): JSX.Element {
                   }}
                   size="small"
                   sx={{ minWidth: 160 }}
+                  SelectDisplayProps={{ 'aria-label': 'Select project' }}
                   renderValue={() => <ComplexSelect.MenuItem.Text primary={project?.name ?? scope.project} secondary="Project" />}
                   label="Projects">
                   {projects.map((p) => (
@@ -179,6 +183,7 @@ export default function AppLayout(): JSX.Element {
                 </ComplexSelect>
                 <IconButton
                   size="small"
+                  aria-label="Clear project"
                   onClick={() => {
                     const orgScope = { level: 'organizations' as const, org: scope.org };
                     const target = resource ?? 'overview';
@@ -199,6 +204,7 @@ export default function AppLayout(): JSX.Element {
                   }}
                   size="small"
                   sx={{ minWidth: 160 }}
+                  SelectDisplayProps={{ 'aria-label': 'Select integration' }}
                   renderValue={() => <ComplexSelect.MenuItem.Text primary={scope.component} secondary="Integration" />}
                   label="Integrations">
                   {components.map((c) => (
@@ -209,6 +215,7 @@ export default function AppLayout(): JSX.Element {
                 </ComplexSelect>
                 <IconButton
                   size="small"
+                  aria-label="Clear integration"
                   onClick={() => {
                     const projectScope = broaden(scope)!;
                     const target = resource ?? 'overview';
@@ -234,7 +241,6 @@ export default function AppLayout(): JSX.Element {
               <UserMenu.Trigger name={displayName || username || 'User'} />
               <UserMenu.Header name={displayName || username || 'User'} email={username} role="Admin" />
               <UserMenu.Item icon={<UserIcon size={18} />} label="Profile" onClick={() => navigate(profileUrl())} />
-              <UserMenu.Item icon={<Settings size={18} />} label="Settings" />
               <UserMenu.Divider />
               <UserMenu.Logout icon={<LogOut size={18} />} onClick={() => setConfirmDialogOpen(true)} />
             </UserMenu>
@@ -243,32 +249,34 @@ export default function AppLayout(): JSX.Element {
       </AppShell.Navbar>
 
       <AppShell.Sidebar>
-        <Sidebar collapsed={shell.sidebarCollapsed} activeItem={resource ?? 'overview'} expandedMenus={shell.expandedMenus} onSelect={() => {}} onToggleExpand={actions.toggleMenu}>
+        <Sidebar
+          collapsed={shell.sidebarCollapsed}
+          activeItem={resource ?? 'overview'}
+          expandedMenus={shell.expandedMenus}
+          onSelect={(id) => {
+            if (id === 'expand') actions.toggleSidebar();
+          }}
+          onToggleExpand={actions.toggleMenu}
+          sx={{ backgroundColor: 'background.acrylic', backdropFilter: 'blur(3px)' }}>
           <Sidebar.Nav>
             <Sidebar.Category>
               {items.map((item, index) => (
-                <React.Fragment key={`${item.resource}-${index}`}>
-                  <Link component={NavLink} to={item.url}>
-                    <Sidebar.Item id={item.resource}>
-                      <Sidebar.ItemIcon>{SIDEBAR_ICONS[item.resource]}</Sidebar.ItemIcon>
-                      <Sidebar.ItemLabel>{item.label}</Sidebar.ItemLabel>
-                    </Sidebar.Item>
-                  </Link>
-                </React.Fragment>
+                <Sidebar.Item key={`${item.resource}-${index}`} id={item.resource} link={<NavLink to={item.url} />}>
+                  <Sidebar.ItemIcon>{SIDEBAR_ICONS[item.resource]}</Sidebar.ItemIcon>
+                  <Sidebar.ItemLabel>{item.label}</Sidebar.ItemLabel>
+                </Sidebar.Item>
               ))}
             </Sidebar.Category>
           </Sidebar.Nav>
 
-          <Sidebar.Footer>
-            <Sidebar.Category>
-              <Button variant="text" fullWidth onClick={actions.toggleSidebar} sx={{ minHeight: 'auto', py: 1, justifyContent: 'flex-start' }}>
-                <Sidebar.Item id="expand">
-                  <Sidebar.ItemIcon>
-                    <ChevronRight size={20} style={{ transform: shell.sidebarCollapsed ? 'none' : 'rotate(180deg)' }} />
-                  </Sidebar.ItemIcon>
-                  <Sidebar.ItemLabel>Expand</Sidebar.ItemLabel>
-                </Sidebar.Item>
-              </Button>
+          <Sidebar.Footer sx={{ py: 0 }}>
+            <Sidebar.Category sx={{ mb: 0 }}>
+              <Sidebar.Item id="expand" sx={{ minHeight: 0, py: 2 }}>
+                <Sidebar.ItemIcon>
+                  <ChevronRight size={20} style={{ transform: shell.sidebarCollapsed ? 'none' : 'rotate(180deg)' }} />
+                </Sidebar.ItemIcon>
+                <Sidebar.ItemLabel>{shell.sidebarCollapsed ? 'Expand' : 'Collapse'}</Sidebar.ItemLabel>
+              </Sidebar.Item>
             </Sidebar.Category>
           </Sidebar.Footer>
         </Sidebar>
@@ -280,10 +288,27 @@ export default function AppLayout(): JSX.Element {
 
       <AppShell.Footer>
         <Footer>
-          <Footer.Link href="#privacy">Privacy Policy</Footer.Link>
-          <Footer.Link href="#cookies">Cookie Policy</Footer.Link>
+          <Footer.Link
+            href={privacyPolicyUrl()}
+            onClick={(e) => {
+              if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.defaultPrevented) {
+                e.preventDefault();
+                navigate(privacyPolicyUrl());
+              }
+            }}>
+            Privacy Policy
+          </Footer.Link>
+          <Footer.Link
+            href={cookiePolicyUrl()}
+            onClick={(e) => {
+              if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.defaultPrevented) {
+                e.preventDefault();
+                navigate(cookiePolicyUrl());
+              }
+            }}>
+            Cookie Policy
+          </Footer.Link>
           <Footer.Link href="#support">Support</Footer.Link>
-          <Footer.Divider />
           <Footer.Copyright>&copy; {new Date().getFullYear()}, WSO2 LLC.</Footer.Copyright>
         </Footer>
       </AppShell.Footer>

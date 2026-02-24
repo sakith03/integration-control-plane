@@ -3,46 +3,134 @@
 # ============================================
 type Query {
   # Runtime Queries
-  runtimes(status: String, runtimeType: String, environmentId: String, projectId: String, componentId: String): [Runtime!]!
+  runtimes(
+    status: String
+    runtimeType: String
+    environmentId: String
+    projectId: String
+    componentId: String
+  ): [Runtime!]!
   runtime(runtimeId: String!): Runtime
   services(runtimeId: String!): [Service!]!
   listeners(runtimeId: String!): [Listener!]!
 
   # Environment Queries
-  environments(orgUuid: String, type: String, projectId: String): [Environment!]!
+  environments(
+    orgUuid: String
+    type: String
+    projectId: String
+  ): [Environment!]!
   adminEnvironments: [Environment!]!
 
   # Project Queries
   projects(orgId: Int): [Project!]!
   adminProjects: [Project!]!
   project(orgId: Int, projectId: String!): Project
-  projectCreationEligibility(orgId: Int!, orgHandler: String!): ProjectCreationEligibility!
-  projectHandlerAvailability(orgId: Int!, projectHandlerCandidate: String!): ProjectHandlerAvailability!
+  projectCreationEligibility(
+    orgId: Int!
+    orgHandler: String!
+  ): ProjectCreationEligibility!
+  projectHandlerAvailability(
+    orgId: Int!
+    projectHandlerCandidate: String!
+  ): ProjectHandlerAvailability!
 
   # Component Queries
-  components(orgHandler: String!, projectId: String, options: ComponentOptionsInput): [Component!]!
-  component(componentId: String, projectId: String, componentHandler: String): Component
-  componentDeployment(orgHandler: String!, orgUuid: String!, componentId: String!, versionId: String!, environmentId: String!): ComponentDeployment
+  components(
+    orgHandler: String!
+    projectId: String
+    options: ComponentOptionsInput
+  ): [Component!]!
+  component(
+    componentId: String
+    projectId: String
+    componentHandler: String
+  ): Component
+  componentDeployment(
+    orgHandler: String!
+    orgUuid: String!
+    componentId: String!
+    versionId: String!
+    environmentId: String!
+  ): ComponentDeployment
   componentArtifactTypes(componentId: String!): ArtifactTypes!
 
   # Artifact Queries by Environment and Component
-  servicesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [Service!]!
-  listenersByEnvironmentAndComponent(environmentId: String!, componentId: String!): [Listener!]!
-  restApisByEnvironmentAndComponent(environmentId: String!, componentId: String!): [RestApi!]!
-  proxyServicesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [ProxyService!]!
-  endpointsByEnvironmentAndComponent(environmentId: String!, componentId: String!): [MIEndpoint!]!
-  inboundEndpointsByEnvironmentAndComponent(environmentId: String!, componentId: String!): [InboundEndpoint!]!
-  sequencesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [Sequence!]!
-  tasksByEnvironmentAndComponent(environmentId: String!, componentId: String!): [Task!]!
-  templatesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [Template!]!
-  messageStoresByEnvironmentAndComponent(environmentId: String!, componentId: String!): [MessageStore!]!
-  messageProcessorsByEnvironmentAndComponent(environmentId: String!, componentId: String!): [MessageProcessor!]!
-  localEntriesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [LocalEntry!]!
-  dataServicesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [DataService!]!
-  dataSourcesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [DataSource!]!
-  carbonAppsByEnvironmentAndComponent(environmentId: String!, componentId: String!): [CarbonApp!]!
-  connectorsByEnvironmentAndComponent(environmentId: String!, componentId: String!): [Connector!]!
-  registryResourcesByEnvironmentAndComponent(environmentId: String!, componentId: String!): [RegistryResource!]!
+  servicesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [Service!]!
+  listenersByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [Listener!]!
+  restApisByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [RestApi!]!
+  proxyServicesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [ProxyService!]!
+  endpointsByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [MIEndpoint!]!
+  inboundEndpointsByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [InboundEndpoint!]!
+  sequencesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [Sequence!]!
+  tasksByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [Task!]!
+  templatesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [Template!]!
+  messageStoresByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [MessageStore!]!
+  messageProcessorsByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [MessageProcessor!]!
+  localEntriesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [LocalEntry!]!
+  dataServicesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [DataService!]!
+  dataSourcesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [DataSource!]!
+  carbonAppsByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [CarbonApp!]!
+  connectorsByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [Connector!]!
+  registryResourcesByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [RegistryResource!]!
+
+  # Logger Queries
+  loggersByRuntime(runtimeId: String!): [Logger!]!
+  loggersByEnvironmentAndComponent(
+    environmentId: String!
+    componentId: String!
+  ): [LoggerGroup!]!
 }
 
 # ============================================
@@ -55,8 +143,15 @@ type Mutation {
   # Environment Mutations
   createEnvironment(environment: EnvironmentInput!): Environment
   deleteEnvironment(environmentId: String!): Boolean!
-  updateEnvironment(environmentId: String!, name: String, description: String): Environment
-  updateEnvironmentProductionStatus(environmentId: String!, isProduction: Boolean!): Environment
+  updateEnvironment(
+    environmentId: String!
+    name: String
+    description: String
+  ): Environment
+  updateEnvironmentProductionStatus(
+    environmentId: String!
+    isProduction: Boolean!
+  ): Environment
 
   # Project Mutations
   createProject(project: ProjectInput!): Project
@@ -66,16 +161,30 @@ type Mutation {
   # Component Mutations
   createComponent(component: ComponentInput!): Component
   deleteComponent(componentId: String!): Boolean!
-  deleteComponentV2(orgHandler: String!, componentId: String!, projectId: String!): DeleteComponentV2Response!
+  deleteComponentV2(
+    orgHandler: String!
+    componentId: String!
+    projectId: String!
+  ): DeleteComponentV2Response!
   updateComponent(component: ComponentUpdateInput!): Component!
 
   # Artifact Control Mutations
-  updateArtifactStatus(input: ArtifactStatusChangeInput!): ArtifactStatusChangeResponse!
-  updateArtifactTracingStatus(input: ArtifactTracingChangeInput!): ArtifactTracingChangeResponse!
-  updateArtifactStatisticsStatus(input: ArtifactStatisticsChangeInput!): ArtifactStatisticsChangeResponse!
+  updateArtifactStatus(
+    input: ArtifactStatusChangeInput!
+  ): ArtifactStatusChangeResponse!
+  updateArtifactTracingStatus(
+    input: ArtifactTracingChangeInput!
+  ): ArtifactTracingChangeResponse!
+  updateArtifactStatisticsStatus(
+    input: ArtifactStatisticsChangeInput!
+  ): ArtifactStatisticsChangeResponse!
+  triggerArtifact(input: ArtifactTriggerInput!): ArtifactTriggerResponse!
 
   # Listener Control Mutations
   updateListenerState(input: ListenerControlInput!): ListenerControlResponse!
+
+  # Logger Control Mutations
+  updateLogLevel(input: UpdateLogLevelInput!): UpdateLogLevelResponse!
 }
 
 # ============================================
@@ -96,6 +205,7 @@ type Runtime {
   registrationTime: String
   lastHeartbeat: String
   artifacts: Artifacts
+  logLevels: [RuntimeLogLevel!]
 }
 
 # ============================================
@@ -121,6 +231,7 @@ type Service {
   basePath: String!
   state: ArtifactState!
   resources: [Resource!]!
+  runtimes: [ArtifactRuntimeInfo]
 }
 
 # ============================================
@@ -131,6 +242,7 @@ type Listener {
   package: String!
   protocol: String!
   state: ArtifactState!
+  runtimes: [ArtifactRuntimeInfo]
 }
 
 # ============================================
@@ -139,6 +251,34 @@ type Listener {
 type Resource {
   methods: [String!]!
   url: String!
+}
+
+# ============================================
+# Logger Type - Runtime Logger Configuration
+# ============================================
+type Logger {
+  componentName: String!
+  logLevel: LogLevel!
+  runtimeId: String!
+}
+
+# ============================================
+# LoggerGroup Type - Grouped Loggers by Component
+# ============================================
+type LoggerGroup {
+  componentName: String!
+  logLevel: LogLevel!
+  runtimeIds: [String!]!
+}
+
+# ============================================
+# LogLevel Enum - Log Level Values
+# ============================================
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
 }
 
 # ============================================
@@ -230,9 +370,11 @@ type Sequence {
 # ============================================
 type Task {
   name: String!
+  class: String
   group: String
   state: ArtifactState!
   carbonApp: String
+  runtimes: [ArtifactRuntimeInfo]
 }
 
 # ============================================
@@ -277,6 +419,7 @@ type LocalEntry {
   value: String
   state: ArtifactState!
   carbonApp: String
+  runtimes: [ArtifactRuntimeInfo]
 }
 
 # ============================================
@@ -310,6 +453,7 @@ type CarbonApp {
   version: String
   state: String!
   artifacts: [CarbonAppArtifact!]
+  runtimes: [ArtifactRuntimeInfo]
 }
 
 # ============================================
@@ -328,6 +472,7 @@ type Connector {
   package: String!
   version: String
   state: ArtifactState!
+  runtimes: [ArtifactRuntimeInfo]
 }
 
 # ============================================
@@ -336,6 +481,16 @@ type Connector {
 type RegistryResource {
   name: String!
   type: String!
+  runtimes: [ArtifactRuntimeInfo]
+}
+
+# ============================================
+# RuntimeLogLevel Type - Runtime Log Level Configuration
+# ============================================
+type RuntimeLogLevel {
+  runtimeId: String!
+  componentName: String!
+  logLevel: String!
 }
 
 # ============================================
@@ -355,6 +510,14 @@ enum ArtifactState {
   STARTING
   DISABLED
   ENABLED
+}
+
+# ============================================
+# ArtifactRuntimeInfo Type - Runtime Information for Artifacts
+# ============================================
+type ArtifactRuntimeInfo {
+  runtimeId: String!
+  status: String!
 }
 
 # ============================================
@@ -917,6 +1080,21 @@ type ArtifactStatisticsChangeResponse {
   details: [String!]!
 }
 
+# Input for artifact trigger (e.g., triggering scheduled tasks)
+input ArtifactTriggerInput {
+  componentId: String!
+  taskName: String!
+}
+
+# Response for artifact trigger
+type ArtifactTriggerResponse {
+  status: String!
+  message: String!
+  successCount: Int!
+  failedCount: Int!
+  details: [String!]!
+}
+
 # ============================================
 # Input Types for Queries
 # ============================================
@@ -1059,6 +1237,14 @@ type SourceConfigMigrationStatus {
 }
 
 # ============================================
+# ControlAction Enum - Control Actions for Artifacts
+# ============================================
+enum ControlAction {
+  START
+  STOP
+}
+
+# ============================================
 # Listener Control Input - used for enabling/disabling listeners
 # ============================================
 input ListenerControlInput {
@@ -1071,6 +1257,25 @@ input ListenerControlInput {
 # Listener Control Response
 # ============================================
 type ListenerControlResponse {
-  success: Boolean!\n  message: String!
+  success: Boolean!
+  message: String!
+  commandIds: [String!]!
+}
+
+# ============================================
+# Update Log Level Input
+# ============================================
+input UpdateLogLevelInput {
+  runtimeIds: [String!]!
+  componentName: String!
+  logLevel: LogLevel!
+}
+
+# ============================================
+# Update Log Level Response
+# ============================================
+type UpdateLogLevelResponse {
+  success: Boolean!
+  message: String!
   commandIds: [String!]!
 }

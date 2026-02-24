@@ -102,6 +102,12 @@ export function orgAnalyticsLogsUrl(orgHandler: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Route segments
+// ---------------------------------------------------------------------------
+
+export const loggersSegment = 'loggers';
+
+// ---------------------------------------------------------------------------
 // External links
 // ---------------------------------------------------------------------------
 
@@ -161,3 +167,11 @@ export { loginApiUrl, refreshTokenApiUrl, revokeTokenApiUrl, oidcAuthorizeApiUrl
 export const observabilityLogsApiUrl = (): string => window.API_CONFIG.observabilityUrl + '/logs?live=true';
 // Metrics URL helper
 export const observabilityMetricsApiUrl = (): string => window.API_CONFIG.observabilityUrl + '/metrics';
+
+// ---------------------------------------------------------------------------
+// WSDL/SOAP namespace constants
+// ---------------------------------------------------------------------------
+
+export const WSDL_NS = 'http://schemas.xmlsoap.org/wsdl/';
+export const SOAP_NS = 'http://schemas.xmlsoap.org/wsdl/soap/';
+export const SOAP12_NS = 'http://schemas.xmlsoap.org/wsdl/soap12/';

@@ -1124,6 +1124,35 @@ BEGIN
 END;
 GO
 
+-- Runtime log levels for BI components
+CREATE TABLE bi_runtime_log_levels (
+    runtime_id VARCHAR(100) NOT NULL,
+    component_name NVARCHAR(200) NOT NULL,
+    log_level NVARCHAR(20) NOT NULL CHECK (log_level IN ('DEBUG', 'ERROR', 'INFO', 'WARN')),
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    PRIMARY KEY (runtime_id, component_name),
+    CONSTRAINT fk_bi_runtime_log_levels_runtime FOREIGN KEY (runtime_id) REFERENCES runtimes (runtime_id) ON DELETE CASCADE,
+    INDEX idx_runtime_id (runtime_id),
+    INDEX idx_component_name (component_name),
+    INDEX idx_log_level (log_level)
+);
+GO
+
+CREATE TRIGGER trg_bi_runtime_log_levels_updated_at
+ON bi_runtime_log_levels
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE bi_runtime_log_levels
+    SET updated_at = GETDATE()
+    FROM bi_runtime_log_levels rll
+    INNER JOIN inserted i ON rll.runtime_id = i.runtime_id 
+        AND rll.component_name = i.component_name;
+END;
+GO
+
 -- ============================================================================
 -- MI-SPECIFIC ARTIFACT TABLES
 -- ============================================================================
@@ -1809,6 +1838,7 @@ CREATE TABLE bi_runtime_control_commands (
     runtime_id VARCHAR(100) NOT NULL,
     target_artifact NVARCHAR (200) NOT NULL,
     action NVARCHAR (50) NOT NULL, -- start, stop, restart, deploy, undeploy
+    payload NVARCHAR (MAX) NULL,
     status NVARCHAR (20) NOT NULL DEFAULT 'pending' CHECK (
         status IN (
             'pending',
@@ -1905,6 +1935,39 @@ BEGIN
     SET updated_at = GETDATE()
     FROM bi_artifact_intended_state bas
     INNER JOIN inserted i ON bas.component_id = i.component_id AND bas.target_artifact = i.target_artifact;
+END;
+GO
+
+CREATE TABLE bi_log_level_intended_state (
+    component_id CHAR(36) NOT NULL,
+    component_name NVARCHAR(500) NOT NULL,
+    log_level NVARCHAR(50) NOT NULL,
+    issued_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    issued_by CHAR(36),
+    created_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    updated_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    PRIMARY KEY (component_id, component_name),
+    CONSTRAINT fk_bi_log_level_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_bi_log_level_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    CONSTRAINT chk_log_level_state CHECK (log_level IN ('DEBUG', 'INFO', 'WARN', 'ERROR'))
+);
+GO
+
+CREATE INDEX idx_bi_log_level_state_component_id ON bi_log_level_intended_state(component_id);
+CREATE INDEX idx_bi_log_level_state_component_name ON bi_log_level_intended_state(component_name);
+CREATE INDEX idx_bi_log_level_state_log_level ON bi_log_level_intended_state(log_level);
+GO
+
+CREATE TRIGGER trg_bi_log_level_intended_state_updated_at
+ON bi_log_level_intended_state
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE bi_log_level_intended_state
+    SET updated_at = GETDATE()
+    FROM bi_log_level_intended_state blls
+    INNER JOIN inserted i ON blls.component_id = i.component_id AND blls.component_name = i.component_name;
 END;
 GO
 
@@ -2335,53 +2398,3 @@ VALUES (
         '127.0.0.1'
     );
 GO
-
--- ============================================================================
--- SCHEDULED JOBS (SQL Server Agent Jobs)
--- ============================================================================
-
--- Note: SQL Server uses SQL Server Agent for scheduled jobs instead of events
--- The following is a T-SQL script to create a job that cleans up expired refresh tokens
--- This should be run separately by a DBA with appropriate permissions
-
-/*
-USE msdb;
-GO
-
--- Create a job to cleanup expired refresh tokens
-EXEC dbo.sp_add_job
-@job_name = N'Cleanup Expired Refresh Tokens',
-@enabled = 1,
-@description = N'Deletes expired and revoked refresh tokens from the database';
-GO
-
--- Add a job step
-EXEC sp_add_jobstep
-@job_name = N'Cleanup Expired Refresh Tokens',
-@step_name = N'Delete Expired Tokens',
-@subsystem = N'TSQL',
-@database_name = N'icp_database',
-@command = N'DELETE FROM refresh_tokens WHERE expires_at < GETDATE() OR revoked = 1;',
-@retry_attempts = 3,
-@retry_interval = 5;
-GO
-
--- Schedule the job to run daily at 2:00 AM
-EXEC sp_add_schedule
-@schedule_name = N'Daily at 2:00 AM',
-@freq_type = 4,  -- Daily
-@freq_interval = 1,
-@active_start_time = 020000;  -- 2:00 AM
-GO
-
--- Attach the schedule to the job
-EXEC sp_attach_schedule
-@job_name = N'Cleanup Expired Refresh Tokens',
-@schedule_name = N'Daily at 2:00 AM';
-GO
-
--- Add the job to the local server
-EXEC sp_add_jobserver
-@job_name = N'Cleanup Expired Refresh Tokens';
-GO
-*/

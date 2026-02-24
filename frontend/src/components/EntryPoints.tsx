@@ -16,24 +16,56 @@
  * under the License.
  */
 
-import { Autocomplete, Box, Button, Card, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, IconButton, InputAdornment, Stack, Switch, TextField, Typography } from '@wso2/oxygen-ui';
-import { RefreshCw, ListFilter, LayoutGrid, Settings, Copy, Check } from '@wso2/oxygen-ui-icons-react';
+import {
+  Autocomplete,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Divider,
+  IconButton,
+  InputAdornment,
+  Snackbar,
+  Alert,
+  Stack,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@wso2/oxygen-ui';
+import { RefreshCw, ListFilter, LayoutGrid, Settings, Copy, Check, Play } from '@wso2/oxygen-ui-icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useArtifacts, useRefreshEnvironmentArtifacts, type GqlArtifact, type GqlEnvironment } from '../api/queries';
 import { useUpdateArtifactTracingStatus, useUpdateArtifactStatisticsStatus } from '../api/artifactToggleMutations';
-import { ArtifactApiDefinition, ServiceResources, AutomationExecutions } from './ArtifactTabs';
+import { useUpdateArtifactStatus, useUpdateListenerState, useTriggerTask } from '../api/mutations';
+import { ArtifactApiDefinition, ServiceResources, AutomationExecutions, ProxyApiReference } from './ArtifactTabs';
 import { ArtifactTypeSelector } from './ArtifactDetail';
 import { ENTRY_POINT_CONFIG, ENTRY_POINT_DETAIL_TABS, type SelectedArtifact, type TabProps } from './artifact-config';
 
 function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArtifact; onOpenDrawerTab: (tab: string) => void }) {
   const [tracingEnabled, setTracingEnabled] = useState(false);
   const [statisticsEnabled, setStatisticsEnabled] = useState(false);
-  const [pendingToggle, setPendingToggle] = useState<{ type: 'tracing' | 'statistics'; checked: boolean } | null>(null);
+  const [statusEnabled, setStatusEnabled] = useState(false);
+  const [listenerEnabled, setListenerEnabled] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState<{ type: 'tracing' | 'statistics' | 'status'; checked: boolean } | null>(null);
+  const [pendingListenerToggle, setPendingListenerToggle] = useState<{ checked: boolean } | null>(null);
+  const [triggerConfirmDialogOpen, setTriggerConfirmDialogOpen] = useState(false);
+  const [triggerSuccessMessage, setTriggerSuccessMessage] = useState<string | null>(null);
   const { artifact, artifactType, envId, componentId, projectId } = selected;
   const queryClient = useQueryClient();
   const updateTracingStatus = useUpdateArtifactTracingStatus();
   const updateStatisticsStatus = useUpdateArtifactStatisticsStatus();
+  const updateArtifactStatus = useUpdateArtifactStatus();
+  const updateListenerState = useUpdateListenerState();
+  const triggerTask = useTriggerTask();
   const config = ENTRY_POINT_CONFIG[artifactType];
   const tabProps: TabProps = { artifact, artifactType, envId, componentId, projectId };
   const carbonApp = artifact.carbonApp?.toString();
@@ -41,8 +73,17 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
   const showTracingToggle = ['RestApi', 'ProxyService', 'InboundEndpoint'].includes(artifactType);
   const showRuntimesButton = true; // Show View Runtimes button for all entry points
   const showParametersButton = artifactType === 'InboundEndpoint';
-  const showSourceButton = artifactType === 'RestApi';
+  const showSourceButton = ['RestApi', 'ProxyService', 'InboundEndpoint', 'Task'].includes(artifactType);
+  const showWsdlButton = artifactType === 'ProxyService';
   const showStatisticsToggle = ['RestApi', 'ProxyService', 'InboundEndpoint'].includes(artifactType);
+  const showStatusToggle = artifactType === 'ProxyService';
+  const showListenerToggle = artifactType === 'Listener';
+  const showTaskToggle = artifactType === 'Task';
+  const showTaskTrigger = artifactType === 'Task';
+  const hasRuntimes = artifact.runtimes && Array.isArray(artifact.runtimes) && artifact.runtimes.length > 0;
+
+  // Track if any preceding controls are visible for proper divider placement
+  const hasPrecedingControls = carbonApp || showStatusToggle || showTracingToggle || showStatisticsToggle || showListenerToggle;
   const toEnabled = (value: unknown) => {
     if (typeof value === 'boolean') return value;
     const normalized = (value ?? '').toString().toLowerCase();
@@ -54,7 +95,9 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
   useEffect(() => {
     setTracingEnabled(toEnabled(artifact.tracing));
     setStatisticsEnabled(toEnabled(artifact.statistics));
-  }, [artifactKey, artifact.tracing, artifact.statistics]);
+    setStatusEnabled(toEnabled(artifact.state));
+    setListenerEnabled(toEnabled(artifact.state));
+  }, [artifactKey, artifact.tracing, artifact.statistics, artifact.state]);
 
   const handleToggleTracing = (checked: boolean) => {
     if (!showTracingToggle) return;
@@ -64,6 +107,37 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
   const handleToggleStatistics = (checked: boolean) => {
     if (!showStatisticsToggle) return;
     setPendingToggle({ type: 'statistics', checked });
+  };
+
+  const handleToggleStatus = (checked: boolean) => {
+    if (!showStatusToggle && !showTaskToggle) return;
+    setPendingToggle({ type: 'status', checked });
+  };
+
+  const handleToggleListener = (checked: boolean) => {
+    if (!showListenerToggle) return;
+    setPendingListenerToggle({ checked });
+  };
+
+  const handleTriggerTask = () => {
+    if (!showTaskTrigger) return;
+    setTriggerConfirmDialogOpen(true);
+  };
+
+  const handleConfirmTrigger = () => {
+    setTriggerConfirmDialogOpen(false);
+    triggerTask.mutate(
+      { componentId, taskName: artifactName },
+      {
+        onSuccess: () => {
+          setTriggerSuccessMessage(`Successfully triggered task ${artifactName}`);
+        },
+        onSettled: () => {
+          const artifactQueryKey = ['artifacts', artifactType, envId, componentId];
+          queryClient.invalidateQueries({ queryKey: artifactQueryKey });
+        },
+      },
+    );
   };
 
   const handleConfirmToggle = () => {
@@ -79,7 +153,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
           onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
         },
       );
-    } else {
+    } else if (pendingToggle.type === 'statistics') {
       const previousValue = statisticsEnabled;
       setStatisticsEnabled(pendingToggle.checked);
       updateStatisticsStatus.mutate(
@@ -89,12 +163,54 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
           onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
         },
       );
+    } else {
+      const previousValue = statusEnabled;
+      setStatusEnabled(pendingToggle.checked);
+      updateArtifactStatus.mutate(
+        { envId, componentId, artifactType, artifactName, status: pendingToggle.checked ? 'active' : 'inactive' },
+        {
+          onError: () => setStatusEnabled(previousValue),
+          onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
+        },
+      );
     }
     setPendingToggle(null);
   };
 
-  const toggleLabel = pendingToggle?.type === 'tracing' ? 'tracing' : 'statistics';
+  const handleConfirmListenerToggle = () => {
+    if (!pendingListenerToggle) return;
+
+    const runtimes = artifact.runtimes;
+    if (!runtimes || !Array.isArray(runtimes) || runtimes.length === 0) {
+      console.error('No valid runtimes available for listener toggle');
+      setPendingListenerToggle(null);
+      return;
+    }
+
+    const runtimeIds = runtimes.map((r: { runtimeId: string }) => r.runtimeId);
+    const previousValue = listenerEnabled;
+
+    setListenerEnabled(pendingListenerToggle.checked);
+    const artifactQueryKey = ['artifacts', artifactType, envId, componentId];
+
+    updateListenerState.mutate(
+      {
+        runtimeIds,
+        listenerName: artifactName,
+        action: pendingListenerToggle.checked ? 'START' : 'STOP',
+      },
+      {
+        onError: () => setListenerEnabled(previousValue),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: artifactQueryKey }),
+      },
+    );
+
+    setPendingListenerToggle(null);
+  };
+
+  const toggleLabel = pendingToggle?.type ?? 'status';
   const toggleAction = pendingToggle?.checked ? 'enable' : 'disable';
+  const listenerAction = pendingListenerToggle?.checked ? 'enable' : 'disable';
 
   return (
     <>
@@ -114,11 +230,49 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
           </Button>
         </DialogActions>
       </Dialog>
+      <Dialog open={pendingListenerToggle !== null} onClose={() => setPendingListenerToggle(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{listenerAction === 'enable' ? 'Enable Listener' : 'Disable Listener'}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to {listenerAction} the listener <strong>{artifactName}</strong>?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingListenerToggle(null)}>Cancel</Button>
+          <Button variant="contained" color={listenerAction === 'disable' ? 'error' : 'primary'} onClick={handleConfirmListenerToggle}>
+            {listenerAction === 'enable' ? 'Enable' : 'Disable'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={triggerConfirmDialogOpen} onClose={() => setTriggerConfirmDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Trigger Task</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to trigger task <strong>{artifactName}</strong>?
+          </DialogContentText>
+          <DialogContentText sx={{ mt: 1.5, fontSize: 13, color: 'text.secondary' }}>This will send a trigger command to all runtimes associated with this task.</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTriggerConfirmDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleConfirmTrigger}>
+            Trigger
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Box sx={{ mt: 2 }}>
         {/* Header row */}
         <Stack direction="row" alignItems="center" gap={1.5} sx={{ px: 2, py: 1.5 }}>
           {carbonApp && <Chip label={`C-App: ${carbonApp}`} size="small" variant="outlined" sx={{ bgcolor: '#e8eaf6', color: '#3949ab', fontSize: 11 }} />}
           {carbonApp && <Divider orientation="vertical" flexItem />}
+          {showStatusToggle && (
+            <Stack direction="row" alignItems="center" gap={1}>
+              <Typography variant="body2" color="text.secondary">
+                Status
+              </Typography>
+              <Switch name="status" size="small" checked={statusEnabled} onChange={(e) => handleToggleStatus(e.target.checked)} disabled={updateArtifactStatus.isPending} aria-label="Enable status" />
+            </Stack>
+          )}
+          {showStatusToggle && showTracingToggle && <Divider orientation="vertical" flexItem />}
           {showTracingToggle && (
             <Stack direction="row" alignItems="center" gap={1}>
               <Typography variant="body2" color="text.secondary">
@@ -136,6 +290,38 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
               <Switch size="small" checked={statisticsEnabled} onChange={(e) => handleToggleStatistics(e.target.checked)} disabled={updateStatisticsStatus.isPending} aria-label="Enable statistics" />
             </Stack>
           )}
+          {(showTracingToggle || showStatisticsToggle) && showListenerToggle && <Divider orientation="vertical" flexItem />}
+          {showListenerToggle && (
+            <Stack direction="row" alignItems="center" gap={1}>
+              <Typography variant="body2" color="text.secondary">
+                State
+              </Typography>
+              <Switch size="small" checked={listenerEnabled} onChange={(e) => handleToggleListener(e.target.checked)} disabled={updateListenerState.isPending} aria-label="Enable listener" />
+            </Stack>
+          )}
+          {showTaskToggle && (
+            <>
+              {hasPrecedingControls && <Divider orientation="vertical" flexItem />}
+              <Stack direction="row" alignItems="center" gap={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Status
+                </Typography>
+                <Switch size="small" checked={statusEnabled} onChange={(e) => handleToggleStatus(e.target.checked)} disabled={updateArtifactStatus.isPending || !hasRuntimes} aria-label="Enable task" />
+              </Stack>
+            </>
+          )}
+          {showTaskTrigger && (
+            <>
+              {(hasPrecedingControls || showTaskToggle) && <Divider orientation="vertical" flexItem />}
+              <Tooltip title={!hasRuntimes ? 'No runtimes available' : 'Trigger task'}>
+                <Box>
+                  <IconButton size="small" onClick={handleTriggerTask} disabled={triggerTask.isPending || !hasRuntimes} aria-label="Trigger task" sx={{ color: hasRuntimes ? 'primary.main' : 'text.disabled' }}>
+                    <Play size={16} />
+                  </IconButton>
+                </Box>
+              </Tooltip>
+            </>
+          )}
           {showSourceButton && (
             <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Source')} sx={{ ml: 'auto' }}>
               View Source
@@ -146,8 +332,18 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
               View Parameters
             </Button>
           )}
+          {showWsdlButton && (
+            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Endpoints')} sx={{ ml: 'auto' }}>
+              View Endpoints
+            </Button>
+          )}
+          {showWsdlButton && (
+            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('WSDL')}>
+              View WSDL
+            </Button>
+          )}
           {showRuntimesButton && (
-            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Runtimes')} sx={{ ml: showSourceButton || showParametersButton ? 0 : 'auto' }}>
+            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Runtimes')} sx={{ ml: showSourceButton || showParametersButton || showWsdlButton ? 0 : 'auto' }}>
               View Runtimes
             </Button>
           )}
@@ -178,12 +374,22 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
           </Box>
         )}
         {(ENTRY_POINT_DETAIL_TABS[artifactType] ?? []).includes('Resources') && <Box sx={{ px: 2, py: 1.5 }}>{artifactType === 'RestApi' ? <ArtifactApiDefinition {...tabProps} /> : <ServiceResources {...tabProps} />}</Box>}
+        {artifactType === 'ProxyService' && (
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <ProxyApiReference {...tabProps} />
+          </Box>
+        )}
         {artifactType === 'Automation' && (
           <Box sx={{ px: 2, py: 1.5 }}>
             <AutomationExecutions {...tabProps} />
           </Box>
         )}
       </Box>
+      <Snackbar open={triggerSuccessMessage !== null} autoHideDuration={4000} onClose={() => setTriggerSuccessMessage(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert onClose={() => setTriggerSuccessMessage(null)} severity="success" sx={{ width: '100%' }}>
+          {triggerSuccessMessage}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

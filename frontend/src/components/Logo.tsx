@@ -23,10 +23,10 @@ export default function Logo() {
     <ColorSchemeImage
       src={{
         light: `${import.meta.env.BASE_URL}assets/images/icp-logo.svg`,
-        dark: `${import.meta.env.BASE_URL}assets/images/icp-logo.svg`,
+        dark: `${import.meta.env.BASE_URL}assets/images/icp-logo-white.svg`,
       }}
       alt={{ light: 'ICP Logo (Light)', dark: 'ICP Logo (Dark)' }}
-      height={24}
+      height={50}
       width="auto"
     />
   );
