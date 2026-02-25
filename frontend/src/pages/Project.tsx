@@ -1,29 +1,7 @@
-import {
-  Alert,
-  Avatar,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Divider,
-  Grid,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  ListingTable,
-  PageContent,
-  Stack,
-  TextField,
-  Typography,
-} from '@wso2/oxygen-ui';
-import { Clock, Plus, PlugZap, RefreshCw, Trash2 } from '@wso2/oxygen-ui-icons-react';
+import { Alert, Avatar, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Grid, IconButton, ListingTable, PageContent, Stack, TextField, Typography } from '@wso2/oxygen-ui';
+import { Plus, PlugZap, RefreshCw, Trash2 } from '@wso2/oxygen-ui-icons-react';
 import EmptyListing from '../components/EmptyListing';
+import IntegrationTypesCard from '../components/IntegrationTypesCard';
 import SearchField from '../components/SearchField';
 import { useNavigate } from 'react-router';
 import { useState, type JSX } from 'react';
@@ -71,7 +49,23 @@ function DeleteDialog({ component, scope, projectId, onClose }: { component: Gql
   );
 }
 
-function IntegrationsTable({ components, isLoading, scope, projectId, onSelect }: { components: GqlComponent[]; isLoading: boolean; scope: ProjectScope; projectId: string; onSelect: (handler: string) => void }) {
+function IntegrationsTable({
+  components,
+  isLoading,
+  isRefreshing,
+  onRefresh,
+  scope,
+  projectId,
+  onSelect,
+}: {
+  components: GqlComponent[];
+  isLoading: boolean;
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  scope: ProjectScope;
+  projectId: string;
+  onSelect: (handler: string) => void;
+}) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [deleting, setDeleting] = useState<GqlComponent | null>(null);
@@ -80,10 +74,15 @@ function IntegrationsTable({ components, isLoading, scope, projectId, onSelect }
   return (
     <section>
       <Stack direction="row" alignItems="center" gap={2} sx={{ mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+        <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
           Integrations
         </Typography>
-        <IconButton size="small">
+        <IconButton
+          size="small"
+          aria-label="Refresh integrations"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          sx={isRefreshing ? { '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } }, '& svg': { animation: 'spin 1s linear infinite' } } : undefined}>
           <RefreshCw size={16} />
         </IconButton>
         <SearchField value={query} onChange={setQuery} placeholder="Search" sx={{ flex: 1 }} />
@@ -137,6 +136,7 @@ function IntegrationsTable({ components, isLoading, scope, projectId, onSelect }
                       <IconButton
                         size="small"
                         color="error"
+                        aria-label={`Delete ${c.displayName}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeleting(c);
@@ -157,45 +157,12 @@ function IntegrationsTable({ components, isLoading, scope, projectId, onSelect }
   );
 }
 
-function IntegrationTypesCard({ components }: { components: GqlComponent[] }) {
-  const counts = components.reduce<Record<string, number>>((acc, c) => {
-    acc[c.componentType] = (acc[c.componentType] || 0) + 1;
-    return acc;
-  }, {});
-
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Clock size={20} />
-          Integration Types
-        </Typography>
-        <List disablePadding>
-          {Object.entries(counts).map(([type, count]) => (
-            <ListItem key={type} sx={{ px: 0, py: 0.5 }}>
-              <ListItemText primary={type} />
-              <Typography variant="body2">{count}</Typography>
-            </ListItem>
-          ))}
-          <Divider />
-          <ListItem sx={{ px: 0, py: 0.5 }}>
-            <ListItemText primary={<Typography sx={{ fontWeight: 600 }}>Total</Typography>} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {components.length}
-            </Typography>
-          </ListItem>
-        </List>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function Project(scope: ProjectScope): JSX.Element {
   const navigate = useNavigate();
   const { data: project, isLoading: loadingProject } = useProjectByHandler(scope.project);
   const projectId = project?.id ?? '';
   useLoadProjectPermissions(scope.org, projectId);
-  const { data: components = [], isLoading: loadingComponents } = useComponents(scope.org, projectId);
+  const { data: components = [], isLoading: loadingComponents, isFetching: fetchingComponents, refetch: refetchComponents } = useComponents(scope.org, projectId);
 
   if (loadingProject) {
     return (
@@ -213,9 +180,7 @@ export default function Project(scope: ProjectScope): JSX.Element {
       <Stack component="header" direction="row" alignItems="center" gap={2} sx={{ mb: 4 }}>
         <Avatar sx={{ width: 56, height: 56, fontSize: 24, bgcolor: 'text.primary', color: 'background.paper' }}>{project?.name?.[0]?.toUpperCase() ?? 'P'}</Avatar>
         <div>
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            {project.name}
-          </Typography>
+          <Typography variant="h1">{project.name}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
             {project.description}
           </Typography>
@@ -224,7 +189,15 @@ export default function Project(scope: ProjectScope): JSX.Element {
 
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 8 }}>
-          <IntegrationsTable components={components} isLoading={loadingComponents} scope={scope} projectId={projectId} onSelect={(handler) => navigate(resourceUrl(narrow(scope, handler), 'overview'))} />
+          <IntegrationsTable
+            components={components}
+            isLoading={loadingComponents}
+            isRefreshing={fetchingComponents && !loadingComponents}
+            onRefresh={refetchComponents}
+            scope={scope}
+            projectId={projectId}
+            onSelect={(handler) => navigate(resourceUrl(narrow(scope, handler), 'overview'))}
+          />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
           <Stack gap={3}>
