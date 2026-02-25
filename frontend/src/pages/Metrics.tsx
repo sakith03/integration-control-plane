@@ -497,15 +497,13 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                             <TableCell>{i + 1}</TableCell>
                             {hasMixedTypes && (
                               <TableCell>
-                                <Chip
-                                  label={api.serviceType}
-                                  size="small"
-                                  color={api.serviceType === 'MI' ? 'primary' : 'secondary'}
-                                  variant="outlined"
-                                />
+                                <Chip label={api.serviceType} size="small" color={api.serviceType === 'MI' ? 'primary' : 'secondary'} variant="outlined" />
                               </TableCell>
                             )}
-                            <TableCell>{api.name}{api.deployment ? ` (${api.deployment})` : ''}</TableCell>
+                            <TableCell>
+                              {api.name}
+                              {api.deployment ? ` (${api.deployment})` : ''}
+                            </TableCell>
                             <TableCell>{api.method || '\u2014'}</TableCell>
                             <TableCell align="right">{api.requestCount}</TableCell>
                             <TableCell align="right">{api.avgResponseTime.toFixed(2)}</TableCell>
