@@ -2957,7 +2957,7 @@ service /auth on httpListener {
             }
         ]
     }
-    isolated resource function post orgs/[string orgHandle]/users/[string userId]/unlock\-account(http:Request req) returns http:Ok|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
+    isolated resource function post orgs/[string orgHandle]/users/[string userId]/unlock\-account(http:Request req) returns http:Ok|http:Unauthorized|http:Forbidden|http:NotFound|http:InternalServerError|error {
         log:printInfo("Admin unlock account requested", orgHandle = orgHandle, targetUserId = userId);
 
         types:UserContextV2|error userContext = extractUserContextFromRequest(req);
@@ -2977,13 +2977,25 @@ service /auth on httpListener {
         types:User|error targetUser = storage:getUserDetailsById(userId);
         if targetUser is error {
             log:printDebug("Unlock: user not found in main DB", 'error = targetUser, userId = userId);
-            return utils:createInternalServerError("User not found");
+            return <http:NotFound>{
+                body: {
+                    message: "User not found"
+                }
+            };
         }
 
         http:Response|error authResponse = authBackendClient->post("/unlock-account", {username: targetUser.username});
         if authResponse is error {
             log:printError("Error calling auth backend for account unlock", authResponse);
             return utils:createInternalServerError("Account unlock service unavailable");
+        }
+        if authResponse.statusCode == http:STATUS_NOT_FOUND {
+            log:printError("User not found in auth backend for unlock", statusCode = authResponse.statusCode);
+            return <http:NotFound>{
+                body: {
+                    message: "User not found in auth backend"
+                }
+            };
         }
         if authResponse.statusCode != http:STATUS_OK {
             log:printError("Unexpected status from auth backend for unlock", statusCode = authResponse.statusCode);
