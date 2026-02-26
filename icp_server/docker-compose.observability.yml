@@ -64,23 +64,6 @@ services:
       opensearch:
         condition: service_healthy
 
-  data-prepper:
-    image: opensearchproject/data-prepper:latest
-    container_name: data-prepper
-    ports:
-      - "4900:4900"
-      - "4317:4317"
-      - "8021:8021"
-    env_file:
-      - ./resources/observability/opensearch-observability-dashboard/config/.env
-    volumes:
-      - data_prepper_config:/usr/share/data-prepper/pipelines
-    depends_on:
-      opensearch:
-        condition: service_healthy
-      envsubst-service:
-        condition: service_healthy
-
   fluent-bit:
     image: fluent/fluent-bit:4.2.2
     container_name: fluent-bit
@@ -92,9 +75,8 @@ services:
       - ./resources/observability/opensearch-observability-dashboard/config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
       - ./resources/observability/opensearch-observability-dashboard/config/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf
       - ./resources/observability/opensearch-observability-dashboard/config/fluent-bit/scripts:/fluent-bit/scripts
-      - ./resources/observability/opensearch-observability-dashboard/logs/ballerina:/var/log/ballerina:ro
-      # Optional: Uncomment and set MI_LOG_FILE_PATH in .env to monitor MI logs
-      # - ${MI_LOG_FILE_PATH}:/var/log/mi:ro
+      - ${BI_LOG_FILE_PATH}:/var/log/bi:ro
+      - ${MI_LOG_FILE_PATH}:/var/log/mi:ro
       # Persist position database
       - fluent-bit-db:/fluent-bit/db
       # Persist buffer storage
@@ -104,28 +86,6 @@ services:
         condition: service_healthy
       opensearch-setup:
         condition: service_completed_successfully
-
-  envsubst-service:
-    image: nginx:alpine
-    env_file:
-      - ./resources/observability/opensearch-observability-dashboard/config/.env
-    command: >
-      /bin/sh -c "
-      apk add --no-cache gettext &&
-      envsubst < /templates/pipelines.yaml.template > /output/pipelines.yaml &&
-      echo 'Template processing complete' &&
-      sleep infinity
-      "
-    volumes:
-      - ./resources/observability/opensearch-observability-dashboard/config/data-prepper/pipelines.yaml.template:/templates/pipelines.yaml.template
-      - data_prepper_config:/output
-    healthcheck:
-      test: ["CMD", "test", "-s", "/output/pipelines.yaml"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 10s
-    restart: no
 
   opensearch-setup:
     image: curlimages/curl:8.18.0
@@ -144,9 +104,6 @@ services:
           echo 'Waiting for OpenSearch...' &&
           sleep 10
         done &&
-
-        echo 'Increasing search.max_buckets to handle metrics aggregations...' &&
-        curl -fX PUT 'https://opensearch:9200/_cluster/settings' -ku admin:$$OPENSEARCH_INITIAL_ADMIN_PASSWORD -H 'Content-Type: application/json' -d '{"persistent":{"search.max_buckets":500000}}' &&
 
         echo 'Creating index templates...' &&
         curl -X PUT 'https://opensearch:9200/_index_template/wso2_integration_application_log_template' -ku admin:$$OPENSEARCH_INITIAL_ADMIN_PASSWORD -H 'Content-Type: application/json' -d @/setup/index-template-request.json &&
