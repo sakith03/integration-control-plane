@@ -161,6 +161,7 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
               <TableCell align="right">
                 <IconButton
                   size="small"
+                  aria-label={`Edit ${r.roleName}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     navigate(getRoleDetailUrl(r.roleId));
@@ -170,6 +171,7 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
                 {!effectiveReadOnly && (
                   <IconButton
                     size="small"
+                    aria-label={`Delete ${r.roleName}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeletingRole(r);

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { PageContent, PageTitle, Tab, Tabs, Typography } from '@wso2/oxygen-ui';
+import { Box, PageContent, PageTitle, Tab, Tabs, Typography } from '@wso2/oxygen-ui';
 import { useEffect, type JSX } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAccessControl } from '../contexts/AccessControlContext';
@@ -35,16 +35,17 @@ const PROJECT_TABS = ['roles', 'groups'] as const;
 export default function AccessControl(): JSX.Element {
   const { orgHandler = 'default', tab = 'users' } = useParams();
   const navigate = useNavigate();
-  const { hasAnyPermission } = useAccessControl();
+  const { hasAnyPermission, isOrgPermissionsLoaded } = useAccessControl();
 
   const accessControlPerms: string[] = [...ALL_USER_MGT_PERMISSIONS];
   const canSeeAccessControl = hasAnyPermission(accessControlPerms);
 
   useEffect(() => {
+    if (!isOrgPermissionsLoaded) return;
     if (!canSeeAccessControl) {
       navigate(`/organizations/${orgHandler}`);
     }
-  }, [canSeeAccessControl, navigate, orgHandler]);
+  }, [isOrgPermissionsLoaded, canSeeAccessControl, navigate, orgHandler]);
 
   const tabIndex = ORG_TABS.indexOf(tab as string as (typeof ORG_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
@@ -53,11 +54,13 @@ export default function AccessControl(): JSX.Element {
       <PageTitle>
         <PageTitle.Header>Access Control</PageTitle.Header>
       </PageTitle>
-      <Tabs value={safeIndex} onChange={(_, v) => navigate(`/organizations/${orgHandler}/settings/access-control/${ORG_TABS[v] ?? 'users'}`)} sx={{ mb: 3 }}>
-        <Tab label="Users" />
-        <Tab label="Roles" />
-        <Tab label="Groups" />
-      </Tabs>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={safeIndex} onChange={(_, v) => navigate(`/organizations/${orgHandler}/settings/access-control/${ORG_TABS[v] ?? 'users'}`)}>
+          <Tab label="Users" />
+          <Tab label="Roles" />
+          <Tab label="Groups" />
+        </Tabs>
+      </Box>
       {safeIndex === 0 && <UsersTab orgHandler={orgHandler} />}
       {safeIndex === 1 && <RolesTab orgHandler={orgHandler} />}
       {safeIndex === 2 && <GroupsTab orgHandler={orgHandler} />}
@@ -68,16 +71,17 @@ export default function AccessControl(): JSX.Element {
 export function OrgAccessControl({ org }: { org: string }): JSX.Element {
   const { tab = 'users' } = useParams();
   const navigate = useNavigate();
-  const { hasAnyPermission } = useAccessControl();
+  const { hasAnyPermission, isOrgPermissionsLoaded } = useAccessControl();
 
   const accessControlPerms: string[] = [...ALL_USER_MGT_PERMISSIONS];
   const canSeeAccessControl = hasAnyPermission(accessControlPerms);
 
   useEffect(() => {
+    if (!isOrgPermissionsLoaded) return;
     if (!canSeeAccessControl) {
       navigate(`/organizations/${org}`);
     }
-  }, [canSeeAccessControl, navigate, org]);
+  }, [isOrgPermissionsLoaded, canSeeAccessControl, navigate, org]);
 
   const tabIndex = ORG_TABS.indexOf(tab as string as (typeof ORG_TABS)[number]);
   const safeIndex = tabIndex < 0 ? 0 : tabIndex;
@@ -86,11 +90,13 @@ export function OrgAccessControl({ org }: { org: string }): JSX.Element {
       <PageTitle>
         <PageTitle.Header>Access Control</PageTitle.Header>
       </PageTitle>
-      <Tabs value={safeIndex} onChange={(_, v) => navigate(`/organizations/${org}/settings/access-control/${ORG_TABS[v] ?? 'users'}`)} sx={{ mb: 3 }}>
-        <Tab label="Users" />
-        <Tab label="Roles" />
-        <Tab label="Groups" />
-      </Tabs>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={safeIndex} onChange={(_, v) => navigate(`/organizations/${org}/settings/access-control/${ORG_TABS[v] ?? 'users'}`)}>
+          <Tab label="Users" />
+          <Tab label="Roles" />
+          <Tab label="Groups" />
+        </Tabs>
+      </Box>
       {safeIndex === 0 && <UsersTab orgHandler={org} />}
       {safeIndex === 1 && <RolesTab orgHandler={org} />}
       {safeIndex === 2 && <GroupsTab orgHandler={org} />}
@@ -129,10 +135,12 @@ export function ProjectAccessControl({ org, project }: { org: string; project: s
       <PageTitle>
         <PageTitle.Header>Access Control</PageTitle.Header>
       </PageTitle>
-      <Tabs value={safeIndex} onChange={(_, v) => navigate(`/organizations/${org}/projects/${project}/settings/access-control/${PROJECT_TABS[v] ?? 'roles'}`)} sx={{ mb: 3 }}>
-        <Tab label="Roles" />
-        <Tab label="Groups" />
-      </Tabs>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={safeIndex} onChange={(_, v) => navigate(`/organizations/${org}/projects/${project}/settings/access-control/${PROJECT_TABS[v] ?? 'roles'}`)}>
+          <Tab label="Roles" />
+          <Tab label="Groups" />
+        </Tabs>
+      </Box>
       {safeIndex === 0 && <RolesTab orgHandler={org} projectId={projectId} projectHandler={project} readOnly />}
       {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={projectId} projectHandler={project} readOnly />}
     </PageContent>
@@ -184,10 +192,12 @@ export function ComponentAccessControl({ org, project, component }: ComponentSco
       <PageTitle>
         <PageTitle.Header>Access Control</PageTitle.Header>
       </PageTitle>
-      <Tabs value={safeIndex} onChange={(_, v) => navigate(componentAccessControlUrl(org, project, component, PROJECT_TABS[v] ?? 'roles'))} sx={{ mb: 3 }}>
-        <Tab label="Roles" />
-        <Tab label="Groups" />
-      </Tabs>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={safeIndex} onChange={(_, v) => navigate(componentAccessControlUrl(org, project, component, PROJECT_TABS[v] ?? 'roles'))}>
+          <Tab label="Roles" />
+          <Tab label="Groups" />
+        </Tabs>
+      </Box>
       {safeIndex === 0 && <RolesTab orgHandler={org} projectId={projectId} projectHandler={project} componentHandler={component} readOnly />}
       {safeIndex === 1 && <GroupsTab orgHandler={org} projectId={projectId} projectHandler={project} componentHandler={component} readOnly />}
     </PageContent>

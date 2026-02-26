@@ -105,6 +105,7 @@ function AddRolesToGroupDialog({ orgHandler, projectId, componentId, groupId, ex
   const [selected, setSelected] = useState<Role[]>([]);
   const [envMode, setEnvMode] = useState<'all' | 'selected'>('all');
   const [selectedEnvs, setSelectedEnvs] = useState<string[]>([]);
+  const [assignError, setAssignError] = useState<string | null>(null);
   const available = allRoles.filter((r) => !existingRoleIds.includes(r.roleId));
   const pending = mutation.isPending;
 
@@ -112,15 +113,14 @@ function AddRolesToGroupDialog({ orgHandler, projectId, componentId, groupId, ex
     if (envMode === 'selected' && selectedEnvs.length === 0) {
       return;
     }
+    setAssignError(null);
     const envUuid = envMode === 'selected' && selectedEnvs.length > 0 ? selectedEnvs[0] : undefined;
     const roleIds = selected.map((r) => r.roleId);
     mutation.mutate(
       { groupId, roleIds, envUuid },
       {
         onSuccess: () => onClose(),
-        onError: (error) => {
-          console.error('Failed to add roles to group:', error);
-        },
+        onError: (error) => setAssignError(error.message ?? 'Failed to add roles to group. Please try again.'),
       },
     );
   };
@@ -130,6 +130,11 @@ function AddRolesToGroupDialog({ orgHandler, projectId, componentId, groupId, ex
       <DialogTitle>Add Roles to Group</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          {assignError && (
+            <Alert severity="error" onClose={() => setAssignError(null)}>
+              {assignError}
+            </Alert>
+          )}
           <Autocomplete
             multiple
             options={available}
@@ -263,7 +268,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
                     <TableCell>{u.username}</TableCell>
                     <Authorized permissions={Permissions.USER_MANAGE_GROUPS}>
                       <TableCell align="right">
-                        <IconButton size="small" onClick={() => setRemovingUser(u)}>
+                        <IconButton size="small" aria-label={`Remove ${u.displayName} from group`} onClick={() => setRemovingUser(u)}>
                           <Trash2 size={16} />
                         </IconButton>
                       </TableCell>
@@ -329,11 +334,13 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
                     <Authorized permissions={roleModifyPerms}>
                       <TableCell align="right">
                         <Tooltip title={componentId ? (!r.integrationUuid ? 'Org/Project-level mapping' : '') : projectId && !r.projectUuid ? 'Org-level mapping' : ''} placement="right">
-                          <span>
-                            <IconButton size="small" onClick={() => setRemovingRole({ id: r.id, roleName: r.roleName })} disabled={componentId ? !r.integrationUuid : Boolean(projectId && !r.projectUuid)}>
-                              <Trash2 size={16} />
-                            </IconButton>
-                          </span>
+                          <IconButton
+                            size="small"
+                            aria-label={(componentId ? !r.integrationUuid : Boolean(projectId && !r.projectUuid)) ? 'Org/Project-level mapping — cannot remove' : `Remove ${r.roleName} from group`}
+                            onClick={() => setRemovingRole({ id: r.id, roleName: r.roleName })}
+                            disabled={componentId ? !r.integrationUuid : Boolean(projectId && !r.projectUuid)}>
+                            <Trash2 size={16} />
+                          </IconButton>
                         </Tooltip>
                       </TableCell>
                     </Authorized>
@@ -429,6 +436,7 @@ export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }:
               <TableCell align="right">
                 <IconButton
                   size="small"
+                  aria-label={`Edit ${g.groupName}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setViewingGroup(g);
@@ -438,6 +446,7 @@ export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }:
                 {!effectiveReadOnly && (
                   <IconButton
                     size="small"
+                    aria-label={`Delete ${g.groupName}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeletingGroup(g);

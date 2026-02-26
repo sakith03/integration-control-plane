@@ -187,7 +187,7 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
                 {!isSelf && (
                   <Authorized permissions={Permissions.USER_MANAGE_USERS}>
                     <TableCell align="right">
-                      <IconButton size="small" onClick={() => setRemovingGroupId(g.groupId)}>
+                      <IconButton size="small" aria-label={`Remove ${g.groupName} group`} onClick={() => setRemovingGroupId(g.groupId)}>
                         <Trash2 size={16} />
                       </IconButton>
                     </TableCell>
@@ -316,7 +316,8 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
             <TableRow
               key={u.userId}
               ref={u.username === newUsername ? newRowRef : undefined}
-              tabIndex={u.username === newUsername ? -1 : undefined}
+              tabIndex={u.username === newUsername ? -1 : 0}
+              aria-label={`View details for ${u.displayName}`}
               hover
               sx={{
                 cursor: 'pointer',
@@ -326,7 +327,13 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
                   '@media (prefers-reduced-motion: reduce)': { outline: '2px solid', outlineColor: 'warning.main' },
                 }),
               }}
-              onClick={() => setViewingUserId(u.userId)}>
+              onClick={() => setViewingUserId(u.userId)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setViewingUserId(u.userId);
+                }
+              }}>
               <TableCell>
                 <Stack direction="row" alignItems="center" gap={1}>
                   {u.displayName}
@@ -347,17 +354,16 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
                 {!u.isSuperAdmin && (
                   <Authorized permissions={Permissions.USER_MANAGE_USERS}>
                     <Tooltip title={u.isOidcUser ? 'Cannot reset password of OIDC user' : 'Reset Password'}>
-                      <span>
-                        <IconButton
-                          size="small"
-                          disabled={u.isOidcUser}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setResettingUserId(u.userId);
-                          }}>
-                          <Key size={16} />
-                        </IconButton>
-                      </span>
+                      <IconButton
+                        size="small"
+                        aria-label={u.isOidcUser ? 'Cannot reset password of OIDC user' : 'Reset Password'}
+                        disabled={u.isOidcUser}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setResettingUserId(u.userId);
+                        }}>
+                        <Key size={16} />
+                      </IconButton>
                     </Tooltip>
                     <Tooltip title="Revoke Sessions">
                       <IconButton
