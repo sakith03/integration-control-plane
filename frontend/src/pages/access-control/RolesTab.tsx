@@ -163,7 +163,7 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
               aria-label={`View details for ${r.roleName}`}
               onClick={() => navigate(getRoleDetailUrl(r.roleId))}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                   if (e.key === ' ') e.preventDefault();
                   navigate(getRoleDetailUrl(r.roleId));
                 }

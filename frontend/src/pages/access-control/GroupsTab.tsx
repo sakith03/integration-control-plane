@@ -438,7 +438,7 @@ export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }:
               aria-label={`View details for ${g.groupName}`}
               onClick={() => setViewingGroup(g)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                   if (e.key === ' ') e.preventDefault();
                   setViewingGroup(g);
                 }

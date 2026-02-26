@@ -198,7 +198,9 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
           )}
         </TableBody>
       </Table>
-      {assigning && <AssignGroupsDialog orgHandler={orgHandler} user={user} onClose={() => setAssigning(false)} />}
+      {assigning && (
+        <AssignGroupsDialog orgHandler={orgHandler} user={user} onClose={() => setAssigning(false)} />
+      )}
       {removingGroup && (
         <Dialog open onClose={() => setRemovingGroupId(null)} maxWidth="xs" fullWidth>
           <DialogTitle>Remove Group</DialogTitle>
@@ -209,7 +211,17 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setRemovingGroupId(null)}>Cancel</Button>
-            <Button variant="contained" color="error" disabled={removeUserMutation.isPending} onClick={() => removeUserMutation.mutate({ groupId: removingGroup.groupId, userId: user.userId }, { onSuccess: () => setRemovingGroupId(null) })}>
+            <Button
+              variant="contained"
+              color="error"
+              disabled={removeUserMutation.isPending}
+              onClick={() =>
+                removeUserMutation.mutate(
+                  { groupId: removingGroup.groupId, userId: user.userId },
+                  { onSuccess: () => setRemovingGroupId(null) }
+                )
+              }
+            >
               Remove
             </Button>
           </DialogActions>
@@ -341,7 +353,7 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
               }}
               onClick={() => setViewingUserId(u.userId)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault();
                   setViewingUserId(u.userId);
                 }
@@ -389,24 +401,26 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setViewingUserId(u.userId);
-                        }}>
-                        <Pencil size={16} />
-                      </IconButton>
+                        <IconButton
+                          size="small"
+                          aria-label="Edit user"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingUserId(u.userId);
+                          }}>
+                          <Pencil size={16} />
+                        </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingUserId(u.userId);
-                        }}>
-                        <Trash2 size={16} />
-                      </IconButton>
+                        <IconButton
+                          size="small"
+                          aria-label="Delete user"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingUserId(u.userId);
+                          }}>
+                          <Trash2 size={16} />
+                        </IconButton>
                     </Tooltip>
                   </Authorized>
                 )}
@@ -481,8 +495,13 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
                         setResettingUserId(null);
                         setResetPasswordResult({ username: u.username, password: data.password });
                       },
+                      onError: (error) => {
+                        setResettingUserId(null);
+                        setTableAlert({ type: 'error', message: error?.message ?? 'Failed to reset password. Please try again.' });
+                      },
                     })
-                  }>
+                  }
+                >
                   Reset Password
                 </Button>
               </DialogActions>
@@ -502,14 +521,26 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setRevokingUserId(null)}>Cancel</Button>
-                <Button variant="contained" color="error" disabled={revokeTokensMutation.isPending} onClick={() => revokeTokensMutation.mutate(u.userId, { onSuccess: () => setRevokingUserId(null) })}>
+                <Button variant="contained" color="error" disabled={revokeTokensMutation.isPending} onClick={() => revokeTokensMutation.mutate(u.userId, {
+                  onSuccess: () => setRevokingUserId(null),
+                  onError: (error) => {
+                    setRevokingUserId(null);
+                    setTableAlert({ type: 'error', message: error?.message ?? 'Failed to revoke sessions. Please try again.' });
+                  }
+                })}>
                   Revoke Sessions
                 </Button>
               </DialogActions>
             </Dialog>
           ) : null;
         })()}
-      {resetPasswordResult && <ResetPasswordDialog username={resetPasswordResult.username} password={resetPasswordResult.password} onClose={() => setResetPasswordResult(null)} />}
+      {resetPasswordResult && (
+        <ResetPasswordDialog
+          username={resetPasswordResult.username}
+          password={resetPasswordResult.password}
+          onClose={() => setResetPasswordResult(null)}
+        />
+      )}
     </>
   );
 }
