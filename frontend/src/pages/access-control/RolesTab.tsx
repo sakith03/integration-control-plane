@@ -155,7 +155,19 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
         </TableHead>
         <TableBody>
           {filtered.map((r) => (
-            <TableRow key={r.roleId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(getRoleDetailUrl(r.roleId))}>
+            <TableRow
+              key={r.roleId}
+              hover
+              sx={{ cursor: 'pointer' }}
+              tabIndex={0}
+              aria-label={`View details for ${r.roleName}`}
+              onClick={() => navigate(getRoleDetailUrl(r.roleId))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === ' ') e.preventDefault();
+                  navigate(getRoleDetailUrl(r.roleId));
+                }
+              }}>
               <TableCell>{r.roleName}</TableCell>
               <TableCell>{r.description}</TableCell>
               <TableCell align="right">

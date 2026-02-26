@@ -227,13 +227,15 @@ export default function ProjectRoleDetail(): JSX.Element {
                 <Authorized permissions={roleModifyPerms}>
                   <TableCell>
                     <Tooltip title={!g.projectUuid ? 'Org-level mapping' : ''} placement="right">
-                      <IconButton
-                        size="small"
-                        aria-label={!g.projectUuid ? 'Org-level mapping — cannot remove' : `Remove ${g.groupName ?? g.groupId} from role`}
-                        onClick={() => handleDeleteGroup(g)}
-                        disabled={removeMutation.isPending || Boolean(!g.projectUuid)}>
-                        <Trash2 size={16} />
-                      </IconButton>
+                      <span style={{ display: 'inline-flex' }}>
+                        <IconButton
+                          size="small"
+                          aria-label={!g.projectUuid ? 'Org-level mapping — cannot remove' : `Remove ${g.groupName ?? g.groupId} from role`}
+                          onClick={() => handleDeleteGroup(g)}
+                          disabled={removeMutation.isPending || Boolean(!g.projectUuid)}>
+                          <Trash2 size={16} />
+                        </IconButton>
+                      </span>
                     </Tooltip>
                   </TableCell>
                 </Authorized>

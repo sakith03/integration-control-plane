@@ -221,12 +221,19 @@ function UserDetailView({ orgHandler, user, onBack }: { orgHandler: string; user
 
 function ResetPasswordDialog({ username, password, onClose }: { username: string; password: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(password).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(password).then(
+      () => {
+        setCopyError(null);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => {
+        setCopyError('Failed to copy password. Please copy it manually.');
+      },
+    );
   };
 
   return (
@@ -244,6 +251,11 @@ function ResetPasswordDialog({ username, password, onClose }: { username: string
             {copied ? 'Copied' : 'Copy'}
           </Button>
         </Stack>
+        {copyError && (
+          <Alert severity="error" onClose={() => setCopyError(null)} sx={{ mt: 1 }}>
+            {copyError}
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions>
         <Button variant="contained" onClick={onClose}>
@@ -368,6 +380,7 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
                     <Tooltip title="Revoke Sessions">
                       <IconButton
                         size="small"
+                        aria-label="Revoke Sessions"
                         onClick={(e) => {
                           e.stopPropagation();
                           setRevokingUserId(u.userId);

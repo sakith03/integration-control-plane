@@ -430,7 +430,19 @@ export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }:
         </TableHead>
         <TableBody>
           {filtered.map((g) => (
-            <TableRow key={g.groupId} hover sx={{ cursor: 'pointer' }} onClick={() => setViewingGroup(g)}>
+            <TableRow
+              key={g.groupId}
+              hover
+              sx={{ cursor: 'pointer' }}
+              tabIndex={0}
+              aria-label={`View details for ${g.groupName}`}
+              onClick={() => setViewingGroup(g)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === ' ') e.preventDefault();
+                  setViewingGroup(g);
+                }
+              }}>
               <TableCell>{g.groupName}</TableCell>
               <TableCell>{g.description}</TableCell>
               <TableCell align="right">
