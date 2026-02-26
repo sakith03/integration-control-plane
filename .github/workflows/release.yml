@@ -91,11 +91,14 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
           fi
 
-          # Validate version format (semver with optional pre-release)
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+          # Validate version format (SemVer 2.0.0 compliant)
+          # Official regex from semver.org
+          SEMVER_REGEX='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$'
+
+          if ! [[ "$VERSION" =~ $SEMVER_REGEX ]]; then
             echo "ERROR: Invalid version format: $VERSION"
-            echo "Expected format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease"
-            echo "Examples: 2.0.0, 2.0.0-alpha, 2.0.0-beta.1, 2.0.0-rc.2"
+            echo "Expected format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease or MAJOR.MINOR.PATCH-prerelease+build"
+            echo "Examples: 2.0.0, 2.0.0-alpha, 2.0.0-beta.1, 2.0.0-rc.2, 2.0.0-alpha.beta+build.123"
             exit 1
           fi
 
