@@ -587,7 +587,18 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setUnlockingUserId(null)}>Cancel</Button>
-                <Button variant="contained" disabled={unlockMutation.isPending} onClick={() => unlockMutation.mutate(u.userId, { onSuccess: () => setUnlockingUserId(null) })}>
+                <Button
+                  variant="contained"
+                  disabled={unlockMutation.isPending}
+                  onClick={() =>
+                    unlockMutation.mutate(u.userId, {
+                      onSuccess: () => setUnlockingUserId(null),
+                      onError: (error) => {
+                        setUnlockingUserId(null);
+                        setTableAlert({ type: 'error', message: error?.message ?? 'Failed to unlock account. Please try again.' });
+                      },
+                    })
+                  }>
                   Unlock
                 </Button>
               </DialogActions>
