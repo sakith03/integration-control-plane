@@ -90,6 +90,15 @@ jobs:
           else
             VERSION=${GITHUB_REF#refs/tags/v}
           fi
+
+          # Validate version format (semver with optional pre-release)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+            echo "ERROR: Invalid version format: $VERSION"
+            echo "Expected format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease"
+            echo "Examples: 2.0.0, 2.0.0-alpha, 2.0.0-beta.1, 2.0.0-rc.2"
+            exit 1
+          fi
+
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Release version: ${VERSION}"
 
@@ -104,13 +113,18 @@ jobs:
 
       - name: Update version in gradle.properties
         run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Escape special characters for sed (/, &, \)
+          ESCAPED_VERSION=$(echo "$VERSION" | sed 's/[\/&]/\\&/g')
+
           # Update gradle.properties (build.gradle reads from here)
-          sed -i 's/^project.version=.*/project.version=${{ steps.version.outputs.version }}/' gradle.properties
+          sed -i "s/^project\\.version=.*/project.version=${ESCAPED_VERSION}/" gradle.properties
 
           # Verify changes
           echo "=== gradle.properties ==="
           grep project.version gradle.properties
-          echo "Version will be: ${{ steps.version.outputs.version }}"
+          echo "Version will be: ${VERSION}"
 
       - name: Build distribution package
         run: ./gradlew clean build
@@ -189,14 +203,14 @@ jobs:
           cat wso2-integrator-icp-${{ steps.version.outputs.version }}.zip.md5
 
       - name: Dry Run Summary
-        if: github.event.inputs.dry_run == 'true'
+        if: inputs.dry_run
         run: |
           echo "## 🔍 Dry Run - No Release Created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "This was a dry run. The following would have been released:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version**: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Pre-release**: ${{ github.event.inputs.prerelease || steps.version.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Pre-release**: ${{ inputs.prerelease || steps.version.outputs.is_prerelease == 'true' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Artifacts Ready" >> $GITHUB_STEP_SUMMARY
           echo "✓ Distribution ZIP ($(du -h build/distribution/wso2-integrator-icp-${{ steps.version.outputs.version }}.zip | cut -f1))" >> $GITHUB_STEP_SUMMARY
@@ -206,7 +220,7 @@ jobs:
           echo "**To create the actual release, run without dry_run option.**" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload artifacts for dry run
-        if: github.event.inputs.dry_run == 'true'
+        if: inputs.dry_run
         uses: actions/upload-artifact@v4
         with:
           name: icp-distribution-${{ steps.version.outputs.version }}
@@ -217,7 +231,7 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: github.event.inputs.dry_run != 'true'
+        if: ${{ !inputs.dry_run }}
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
@@ -229,13 +243,13 @@ jobs:
             build/distribution/wso2-integrator-icp-${{ steps.version.outputs.version }}.zip.sha256
             build/distribution/wso2-integrator-icp-${{ steps.version.outputs.version }}.zip.md5
           draft: false
-          prerelease: ${{ github.event.inputs.prerelease || steps.version.outputs.is_prerelease == 'true' }}
+          prerelease: ${{ inputs.prerelease || steps.version.outputs.is_prerelease == 'true' }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release summary
-        if: github.event.inputs.dry_run != 'true'
+        if: ${{ !inputs.dry_run }}
         run: |
           echo "## ✅ Release Created Successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
