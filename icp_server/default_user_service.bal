@@ -136,16 +136,20 @@ service / on defaultAuthServiceListener {
         };
     }
 
-    resource function post unlock\-account(record {string username;} request) returns http:Ok|http:BadRequest|error {
+    resource function post unlock\-account(record {string username;} request) returns http:Ok|http:BadRequest|http:InternalServerError|error {
         log:printDebug("Unlock account request", username = request.username);
         types:UserCredentials|sql:Error credentials = credentialsDbClient->queryRow(
             `SELECT user_id as userId, username, display_name as displayName,
                     password_hash as passwordHash, password_salt as passwordSalt
              FROM user_credentials WHERE username = ${request.username}`
         );
-        if credentials is sql:Error {
-            log:printDebug("Unlock: user not found", 'error = credentials, username = request.username);
+        if credentials is sql:NoRowsError {
+            log:printDebug("Unlock: user not found", username = request.username);
             return utils:createBadRequestError("User not found");
+        }
+        if credentials is sql:Error {
+            log:printError("Database error during unlock user lookup", 'error = credentials, username = request.username);
+            return utils:createInternalServerError("Authentication service unavailable");
         }
         check clearLockoutAttrs(credentials.userId);
         log:printInfo("Account unlocked", username = request.username, userId = credentials.userId);
