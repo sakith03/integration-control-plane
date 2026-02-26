@@ -2975,13 +2975,17 @@ service /auth on httpListener {
         }
 
         types:User|error targetUser = storage:getUserDetailsById(userId);
-        if targetUser is error {
-            log:printDebug("Unlock: user not found in main DB", 'error = targetUser, userId = userId);
+        if targetUser is sql:NoRowsError {
+            log:printDebug("Unlock: user not found in main DB", userId = userId);
             return <http:NotFound>{
                 body: {
                     message: "User not found"
                 }
             };
+        }
+        if targetUser is error {
+            log:printError("Unlock: DB error looking up user", 'error = targetUser, userId = userId);
+            return utils:createInternalServerError("Error looking up user");
         }
 
         http:Response|error authResponse = authBackendClient->post("/unlock-account", {username: targetUser.username});
