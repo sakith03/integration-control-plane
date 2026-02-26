@@ -77,25 +77,75 @@ service / on defaultAuthServiceListener {
     function init() {
         log:printInfo("Authentication service started at " + authServiceHost + ":" + authServicePort.toString());
     }
-    resource function post authenticate(types:Credentials request) returns http:Ok|http:BadRequest|http:Unauthorized|error {
-        // Perform authentication against database
-        types:User|error authResult = authenticateUser(request.username, request.password);
-        if authResult is error {
-            log:printError("Error authenticating user", authResult);
+    resource function post authenticate(types:Credentials request) returns http:Ok|http:BadRequest|http:Unauthorized|http:TooManyRequests|error {
+        log:printDebug("Authenticate request", username = request.username);
+
+        types:UserCredentials|sql:Error credentials = credentialsDbClient->queryRow(
+            `SELECT user_id as userId, username, display_name as displayName,
+                    password_hash as passwordHash, password_salt as passwordSalt
+             FROM user_credentials WHERE username = ${request.username}`
+        );
+        if credentials is sql:Error {
+            log:printDebug("User lookup failed", 'error = credentials, username = request.username);
             return utils:createUnauthorizedError("Invalid credentials");
         }
 
-        // Create response timestamp
-        string responseTimestamp = time:utcToString(time:utcNow());
-        log:printInfo("User authenticated successfully: " + authResult.username);
+        int failedAttempts = parseIntOrZero(check getUserAttr(credentials.userId, "failedLoginAttempts"));
+        log:printDebug("Lockout state", userId = credentials.userId, failedAttempts = failedAttempts);
+
+        if failedAttempts >= LOCKOUT_THRESHOLD {
+            string? lastFailedAt = check getUserAttr(credentials.userId, "lastFailedLoginAt");
+            int retryAfter = lockoutRetryAfterSeconds(failedAttempts, lastFailedAt, time:utcNow());
+            if retryAfter > 0 {
+                log:printDebug("Account locked", userId = credentials.userId, retryAfterSeconds = retryAfter, failedAttempts = failedAttempts);
+                return <http:TooManyRequests>{
+                    headers: {"Retry-After": retryAfter.toString()},
+                    body: {message: "Account temporarily locked due to too many failed login attempts", retryAfterSeconds: retryAfter}
+                };
+            }
+            log:printDebug("Lockout expired, allowing attempt", userId = credentials.userId, failedAttempts = failedAttempts);
+        }
+
+        boolean|error matches = verifyPassword(request.password, credentials.passwordHash, credentials.passwordSalt);
+        if matches is error {
+            log:printError("Password verification failed", matches, userId = credentials.userId);
+            return utils:createUnauthorizedError("Invalid credentials");
+        }
+        if !matches {
+            log:printDebug("Invalid password", username = request.username, failedAttempts = failedAttempts + 1);
+            check recordFailedLogin(credentials.userId, failedAttempts);
+            return utils:createUnauthorizedError("Invalid credentials");
+        }
+
+        if failedAttempts > 0 {
+            log:printDebug("Clearing lockout attrs on successful login", userId = credentials.userId, previousFailedAttempts = failedAttempts);
+            check clearLockoutAttrs(credentials.userId);
+        }
+        log:printInfo("User authenticated successfully", username = credentials.username);
         return <http:Ok>{
             body: {
                 authenticated: true,
-                userId: authResult.userId,
-                displayName: authResult.displayName,
-                timestamp: responseTimestamp
+                userId: credentials.userId,
+                displayName: credentials.displayName,
+                timestamp: time:utcToString(time:utcNow())
             }
         };
+    }
+
+    resource function post unlock\-account(record {string username;} request) returns http:Ok|http:BadRequest|error {
+        log:printDebug("Unlock account request", username = request.username);
+        types:UserCredentials|sql:Error credentials = credentialsDbClient->queryRow(
+            `SELECT user_id as userId, username, display_name as displayName,
+                    password_hash as passwordHash, password_salt as passwordSalt
+             FROM user_credentials WHERE username = ${request.username}`
+        );
+        if credentials is sql:Error {
+            log:printDebug("Unlock: user not found", 'error = credentials, username = request.username);
+            return utils:createBadRequestError("User not found");
+        }
+        check clearLockoutAttrs(credentials.userId);
+        log:printInfo("Account unlocked", username = request.username, userId = credentials.userId);
+        return <http:Ok>{body: {message: "Account unlocked"}};
     }
 
     resource function post change\-password(types:ChangePasswordRequest request) returns http:Ok|http:BadRequest|http:Unauthorized|http:InternalServerError|error {
@@ -277,42 +327,63 @@ service / on defaultAuthServiceListener {
     }
 }
 
-isolated function authenticateUser(string username, string password) returns types:User|error {
-    log:printDebug("Attempting to authenticate user: " + username);
-    // Query user credentials table from separate credentials database
-    types:UserCredentials|sql:Error credentials = credentialsDbClient->queryRow(
-        `SELECT user_id as userId, username, display_name as displayName,
-                password_hash as passwordHash, password_salt as passwordSalt,
-                created_at as createdAt, updated_at as updatedAt
-         FROM user_credentials
-         WHERE username = ${username}`
+const int LOCKOUT_THRESHOLD = 3;
+const int LOCKOUT_BASE_MINUTES = 1;
+const int LOCKOUT_MAX_MINUTES = 2;
+
+isolated function parseIntOrZero(string? s) returns int {
+    if s is () { return 0; }
+    int|error n = int:fromString(s);
+    return n is int ? n : 0;
+}
+
+isolated function lockoutRetryAfterSeconds(int failedAttempts, string? lastFailedAt, time:Utc now) returns int {
+    if failedAttempts < LOCKOUT_THRESHOLD || lastFailedAt is () { return 0; }
+    int tier = failedAttempts / LOCKOUT_THRESHOLD - 1;
+    int lockoutSeconds = int:min(LOCKOUT_BASE_MINUTES * (1 << tier), LOCKOUT_MAX_MINUTES) * 60;
+    time:Utc|error lastFailed = time:utcFromString(lastFailedAt);
+    if lastFailed is error { return 0; }
+    int remaining = lockoutSeconds - <int>time:utcDiffSeconds(now, lastFailed);
+    return int:max(remaining, 0);
+}
+
+isolated function getUserAttr(string userId, string attrName) returns string?|error {
+    log:printDebug("Getting user attribute", userId = userId, attrName = attrName);
+    record {string attr_value;}|sql:Error row = credentialsDbClient->queryRow(
+        `SELECT attr_value FROM user_attributes
+         WHERE user_id = ${userId} AND attr_name = ${attrName} AND profile_id = 'default'`
     );
-
-    if credentials is sql:Error {
-        log:printError("Error getting credentials from database", credentials);
-        return error("Invalid credentials");
+    if row is sql:NoRowsError { return (); }
+    if row is sql:Error {
+        log:printError("Error reading user attribute", row, userId = userId, attrName = attrName);
+        return row;
     }
+    return row.attr_value;
+}
 
-    // Validate password
-    boolean|error matches = verifyPassword(password, credentials.passwordHash, credentials.passwordSalt);
-    if matches is error {
-        log:printError("Unable to verify password", matches);
-        return error("Invalid credentials");
-    } else if !matches {
-        log:printError("Invalid password", username = username);
-        return error("Invalid credentials");
-    }
+isolated function upsertUserAttr(string userId, string attrName, string attrValue) returns error? {
+    log:printDebug("Upserting user attribute", userId = userId, attrName = attrName, attrValue = attrValue);
+    _ = check credentialsDbClient->execute(
+        `INSERT INTO user_attributes (user_id, attr_name, attr_value, updated_at)
+         VALUES (${userId}, ${attrName}, ${attrValue}, CURRENT_TIMESTAMP)
+         ON CONFLICT ON CONSTRAINT uk_user_attr_profile
+         DO UPDATE SET attr_value = ${attrValue}, updated_at = CURRENT_TIMESTAMP`
+    );
+}
 
-    // Return user details from credentials (converting UserCredentials to User type)
-    types:User user = {
-        userId: credentials.userId,
-        username: credentials.username,
-        displayName: credentials.displayName,
-        createdAt: credentials?.createdAt,
-        updatedAt: credentials?.updatedAt
-    };
+isolated function clearLockoutAttrs(string userId) returns error? {
+    log:printDebug("Clearing lockout attributes", userId = userId);
+    _ = check credentialsDbClient->execute(
+        `DELETE FROM user_attributes
+         WHERE user_id = ${userId} AND attr_name IN ('failedLoginAttempts', 'lastFailedLoginAt')`
+    );
+}
 
-    return user;
+isolated function recordFailedLogin(string userId, int currentFailedAttempts) returns error? {
+    string now = time:utcToString(time:utcNow());
+    log:printDebug("Recording failed login", userId = userId, newCount = currentFailedAttempts + 1, timestamp = now);
+    check upsertUserAttr(userId, "failedLoginAttempts", (currentFailedAttempts + 1).toString());
+    check upsertUserAttr(userId, "lastFailedLoginAt", now);
 }
 
 isolated function getUserCredentialsById(string userId) returns types:UserCredentials|error {
