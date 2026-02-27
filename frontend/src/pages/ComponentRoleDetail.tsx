@@ -235,26 +235,32 @@ export default function ComponentRoleDetail(): JSX.Element {
         </Authorized>
       </Stack>
 
-      {loadingGroups ? (
-        <Loading />
-      ) : filteredGroups.length === 0 ? (
-        <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
-          No records to display
-        </Typography>
-      ) : (
-        <Table>
-          <TableHead>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Group Name</TableCell>
+            <TableCell>Mapping Level</TableCell>
+            <TableCell align="center">Applicable Environment</TableCell>
+            <Authorized permissions={roleModifyPerms}>
+              <TableCell width={80}>Actions</TableCell>
+            </Authorized>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {loadingGroups ? (
             <TableRow>
-              <TableCell>Group Name</TableCell>
-              <TableCell>Mapping Level</TableCell>
-              <TableCell align="center">Applicable Environment</TableCell>
-              <Authorized permissions={roleModifyPerms}>
-                <TableCell width={80}>Actions</TableCell>
-              </Authorized>
+              <TableCell colSpan={4}>
+                <Loading />
+              </TableCell>
             </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredGroups.map((g) => (
+          ) : filteredGroups.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} align="center">
+                No records to display
+              </TableCell>
+            </TableRow>
+          ) : (
+            filteredGroups.map((g) => (
               <TableRow key={g.id}>
                 <TableCell>{g.groupName ?? g.groupId}</TableCell>
                 <TableCell>
@@ -279,10 +285,10 @@ export default function ComponentRoleDetail(): JSX.Element {
                   </TableCell>
                 </Authorized>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            ))
+          )}
+        </TableBody>
+      </Table>
 
       {addingGroups && componentId && (
         <AssignRoleToGroupsDialog orgHandler={orgHandler} projectId={projectId} componentId={componentId} roleId={roleId} roleName={role.roleName} existingGroupIds={roleGroups.map((g) => g.groupId)} onClose={() => setAddingGroups(false)} />

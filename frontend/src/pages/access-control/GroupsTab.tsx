@@ -533,46 +533,54 @@ export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }:
           </TableRow>
         </TableHead>
         <TableBody>
-          {filtered.map((g) => (
-            <TableRow
-              key={g.groupId}
-              hover
-              sx={{ cursor: 'pointer' }}
-              tabIndex={0}
-              aria-label={`View details for ${g.groupName}`}
-              onClick={() => setViewingGroup(g)}
-              onKeyDown={(e) => {
-                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                  if (e.key === ' ') e.preventDefault();
-                  setViewingGroup(g);
-                }
-              }}>
-              <TableCell>{g.groupName}</TableCell>
-              <TableCell>{g.description}</TableCell>
-              <TableCell align="right">
-                <IconButton
-                  size="small"
-                  aria-label={`Edit ${g.groupName}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setViewingGroup(g);
-                  }}>
-                  <Pencil size={16} />
-                </IconButton>
-                {!effectiveReadOnly && (
-                  <IconButton
-                    size="small"
-                    aria-label={`Delete ${g.groupName}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeletingGroup(g);
-                    }}>
-                    <Trash2 size={16} />
-                  </IconButton>
-                )}
+          {filtered.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={3} align="center">
+                No records to display
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            filtered.map((g) => (
+              <TableRow
+                key={g.groupId}
+                hover
+                sx={{ cursor: 'pointer' }}
+                tabIndex={0}
+                aria-label={`View details for ${g.groupName}`}
+                onClick={() => setViewingGroup(g)}
+                onKeyDown={(e) => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    if (e.key === ' ') e.preventDefault();
+                    setViewingGroup(g);
+                  }
+                }}>
+                <TableCell>{g.groupName}</TableCell>
+                <TableCell>{g.description}</TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    size="small"
+                    aria-label={`Edit ${g.groupName}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewingGroup(g);
+                    }}>
+                    <Pencil size={16} />
+                  </IconButton>
+                  {!effectiveReadOnly && (
+                    <IconButton
+                      size="small"
+                      aria-label={`Delete ${g.groupName}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingGroup(g);
+                      }}>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
       {creating && (

@@ -154,9 +154,16 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
           </TableRow>
         </TableHead>
         <TableBody>
-          {filtered.map((r) => (
-            <TableRow
-              key={r.roleId}
+          {filtered.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={3} align="center">
+                No records to display
+              </TableCell>
+            </TableRow>
+          ) : (
+            filtered.map((r) => (
+              <TableRow
+                key={r.roleId}
               hover
               sx={{ cursor: 'pointer' }}
               tabIndex={0}
@@ -193,7 +200,8 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
                 )}
               </TableCell>
             </TableRow>
-          ))}
+            ))
+          )}
         </TableBody>
       </Table>
       {creating && allPermsData && (

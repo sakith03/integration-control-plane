@@ -357,111 +357,119 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
           </TableRow>
         </TableHead>
         <TableBody>
-          {filtered.map((u) => (
-            <TableRow
-              key={u.userId}
-              ref={u.username === newUsername ? newRowRef : undefined}
-              tabIndex={u.username === newUsername ? -1 : 0}
-              aria-label={`View details for ${u.displayName}`}
-              hover
-              sx={{
-                cursor: 'pointer',
-                ...(u.username === newUsername && {
-                  '@keyframes rowHighlight': { '0%': { backgroundColor: 'rgba(255, 193, 7, 0.3)' }, '100%': { backgroundColor: 'transparent' } },
-                  '@media (prefers-reduced-motion: no-preference)': { animation: 'rowHighlight 2s ease-out forwards' },
-                  '@media (prefers-reduced-motion: reduce)': { outline: '2px solid', outlineColor: 'warning.main' },
-                }),
-              }}
-              onClick={() => setViewingUserId(u.userId)}
-              onKeyDown={(e) => {
-                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                  e.preventDefault();
-                  setViewingUserId(u.userId);
-                }
-              }}>
-              <TableCell>
-                <Stack direction="row" alignItems="center" gap={1}>
-                  {u.displayName}
-                  {u.isOidcUser && <Chip label="OIDC" size="small" color="info" />}
-                </Stack>
-              </TableCell>
-              <TableCell>{u.username}</TableCell>
-              <TableCell>
-                {u.groupCount > 0 ? (
-                  u.groups.map((g) => <Chip key={g.groupId} label={g.groupName} size="small" sx={{ mr: 0.5 }} />)
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No groups
-                  </Typography>
-                )}
-              </TableCell>
-              <TableCell align="right">
-                {!u.isSuperAdmin && (
-                  <Authorized permissions={Permissions.USER_MANAGE_USERS}>
-                    <Tooltip title={u.isOidcUser ? 'Cannot reset password of OIDC user' : 'Reset Password'}>
-                      <IconButton
-                        size="small"
-                        aria-label={u.isOidcUser ? 'Cannot reset password of OIDC user' : 'Reset Password'}
-                        disabled={u.isOidcUser}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setResettingUserId(u.userId);
-                        }}>
-                        <Key size={16} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Revoke Sessions">
-                      <IconButton
-                        size="small"
-                        aria-label="Revoke Sessions"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRevokingUserId(u.userId);
-                        }}>
-                        <LogOut size={16} />
-                      </IconButton>
-                    </Tooltip>
-                    {/* Unlock is credential-store only; hide for OIDC users */}
-                    {!u.isOidcUser && (
-                      <Tooltip title="Unlock Account">
-                        <IconButton
-                          size="small"
-                          aria-label="Unlock Account"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setUnlockingUserId(u.userId);
-                          }}>
-                          <LockOpen size={16} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                    <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        aria-label="Edit user"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setViewingUserId(u.userId);
-                        }}>
-                        <Pencil size={16} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton
-                        size="small"
-                        aria-label="Delete user"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingUserId(u.userId);
-                        }}>
-                        <Trash2 size={16} />
-                      </IconButton>
-                    </Tooltip>
-                  </Authorized>
-                )}
+          {filtered.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} align="center">
+                No records to display
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            filtered.map((u) => (
+              <TableRow
+                key={u.userId}
+                ref={u.username === newUsername ? newRowRef : undefined}
+                tabIndex={u.username === newUsername ? -1 : 0}
+                aria-label={`View details for ${u.displayName}`}
+                hover
+                sx={{
+                  cursor: 'pointer',
+                  ...(u.username === newUsername && {
+                    '@keyframes rowHighlight': { '0%': { backgroundColor: 'rgba(255, 193, 7, 0.3)' }, '100%': { backgroundColor: 'transparent' } },
+                    '@media (prefers-reduced-motion: no-preference)': { animation: 'rowHighlight 2s ease-out forwards' },
+                    '@media (prefers-reduced-motion: reduce)': { outline: '2px solid', outlineColor: 'warning.main' },
+                  }),
+                }}
+                onClick={() => setViewingUserId(u.userId)}
+                onKeyDown={(e) => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    setViewingUserId(u.userId);
+                  }
+                }}>
+                <TableCell>
+                  <Stack direction="row" alignItems="center" gap={1}>
+                    {u.displayName}
+                    {u.isOidcUser && <Chip label="OIDC" size="small" color="info" />}
+                  </Stack>
+                </TableCell>
+                <TableCell>{u.username}</TableCell>
+                <TableCell>
+                  {u.groupCount > 0 ? (
+                    u.groups.map((g) => <Chip key={g.groupId} label={g.groupName} size="small" sx={{ mr: 0.5 }} />)
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No groups
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell align="right">
+                  {!u.isSuperAdmin && (
+                    <Authorized permissions={Permissions.USER_MANAGE_USERS}>
+                      <Tooltip title={u.isOidcUser ? 'Cannot reset password of OIDC user' : 'Reset Password'}>
+                        <IconButton
+                          size="small"
+                          aria-label={u.isOidcUser ? 'Cannot reset password of OIDC user' : 'Reset Password'}
+                          disabled={u.isOidcUser}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setResettingUserId(u.userId);
+                          }}>
+                          <Key size={16} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Revoke Sessions">
+                        <IconButton
+                          size="small"
+                          aria-label="Revoke Sessions"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRevokingUserId(u.userId);
+                          }}>
+                          <LogOut size={16} />
+                        </IconButton>
+                      </Tooltip>
+                      {/* Unlock is credential-store only; hide for OIDC users */}
+                      {!u.isOidcUser && (
+                        <Tooltip title="Unlock Account">
+                          <IconButton
+                            size="small"
+                            aria-label="Unlock Account"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUnlockingUserId(u.userId);
+                            }}>
+                            <LockOpen size={16} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      <Tooltip title="Edit">
+                        <IconButton
+                          size="small"
+                          aria-label="Edit user"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingUserId(u.userId);
+                          }}>
+                          <Pencil size={16} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton
+                          size="small"
+                          aria-label="Delete user"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingUserId(u.userId);
+                          }}>
+                          <Trash2 size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    </Authorized>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
       {creating && (
