@@ -247,7 +247,7 @@ function GroupDetailView({
   const [removingUser, setRemovingUser] = useState<{ userId: string; displayName: string; username: string } | null>(null);
   const [removingRole, setRemovingRole] = useState<{ id: number; roleName: string } | null>(null);
   const filteredUsers = useFiltered(groupUsers, search, (u) => `${u.displayName} ${u.username}`);
-  const filteredRoles = useFiltered(groupRoles, search, (r) => r.roleName);
+  const filteredRoles = useFiltered(groupRoles, search, (r) => `${r.roleName} ${r.roleDescription}`);
 
   return (
     <Box>
@@ -503,7 +503,7 @@ export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }:
   const [viewingGroup, setViewingGroup] = useState<Group | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<Group | null>(null);
   const [tableAlert, setTableAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const filtered = useFiltered(groups ?? [], search, (g) => g.groupName);
+  const filtered = useFiltered(groups ?? [], search, (g) => `${g.groupName} ${g.description ?? ''}`);
 
   if (isLoading) return <Loading />;
   if (viewingGroup) {

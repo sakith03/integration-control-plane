@@ -121,7 +121,7 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
   const [creating, setCreating] = useState(false);
   const [deletingRole, setDeletingRole] = useState<Role | null>(null);
   const [tableAlert, setTableAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const filtered = useFiltered(roles ?? [], search, (r) => r.roleName);
+  const filtered = useFiltered(roles ?? [], search, (r) => `${r.roleName} ${r.description}`);
 
   const getRoleDetailUrl = (roleId: string) => {
     if (componentHandler && projectHandler) return componentRoleDetailUrl(orgHandler, projectHandler, componentHandler, roleId);
