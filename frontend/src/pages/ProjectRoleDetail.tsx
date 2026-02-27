@@ -36,6 +36,7 @@ import SearchField from '../components/SearchField';
 import { useRoleDetail, useRoleGroups, useGroups, useAddRolesToGroup, useRemoveRoleFromGroup } from '../api/authQueries';
 import { Permissions, ALL_ROLE_MODIFY_PERMISSIONS } from '../constants/permissions';
 import Authorized from '../components/Authorized';
+import { useAccessControl } from '../contexts/AccessControlContext';
 import type { RoleGroupMapping, Group } from '../api/auth';
 import { useAllEnvironments, useProjectByHandler } from '../api/queries';
 import { projectAccessControlUrl } from '../paths';
@@ -156,9 +157,11 @@ const envLabel = (m: { envUuid?: string | null }, environments: { id: string; na
 export default function ProjectRoleDetail(): JSX.Element {
   const { orgHandler = 'default', projectHandler = '', roleId = '' } = useParams();
   const navigate = useNavigate();
+  const { hasAnyPermission } = useAccessControl();
   const { data: projectData, isLoading: loadingProject } = useProjectByHandler(projectHandler);
   const projectId = projectData?.id ?? '';
   const roleModifyPerms = [...ALL_ROLE_MODIFY_PERMISSIONS, Permissions.PROJECT_EDIT, Permissions.PROJECT_MANAGE];
+  const colSpan = hasAnyPermission(roleModifyPerms, projectId || undefined) ? 4 : 3;
 
   const { data: role, isLoading: loadingRole } = useRoleDetail(orgHandler, roleId, projectId);
   const { data: roleGroups = [], isLoading: loadingGroups } = useRoleGroups(orgHandler, roleId, projectId);
@@ -259,7 +262,7 @@ export default function ProjectRoleDetail(): JSX.Element {
         <TableBody>
           {loadingGroups ? (
             <TableRow>
-              <TableCell colSpan={4}>
+              <TableCell colSpan={colSpan}>
                 <Loading />
               </TableCell>
             </TableRow>

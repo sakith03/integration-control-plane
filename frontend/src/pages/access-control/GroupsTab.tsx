@@ -254,7 +254,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
   const [removingRole, setRemovingRole] = useState<{ id: number; roleName: string } | null>(null);
   const [viewAlert, setViewAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const filteredUsers = useFiltered(groupUsers, search, (u) => `${u.displayName} ${u.username}`);
-  const filteredRoles = useFiltered(groupRoles, search, (r) => `${r.roleName} ${r.roleDescription}`);
+  const filteredRoles = useFiltered(groupRoles, search, (r) => `${r.roleName} ${r.roleDescription ?? ''}`);
 
   return (
     <Box>
@@ -369,7 +369,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
               groupId={group.groupId}
               existingUserIds={groupUsers.map((u) => u.userId)}
               onClose={() => setAddingUsers(false)}
-              onAdded={() => setViewAlert({ type: 'success', message: 'Users added to group successfully.' })}
+              onAdded={() => setViewAlert({ type: 'success', message: 'User(s) added to group successfully.' })}
             />
           )}
           {removingUser && (
@@ -472,7 +472,7 @@ function GroupDetailView({ orgHandler, projectId, componentId, group, onBack, sh
               groupId={group.groupId}
               existingRoleIds={groupRoles.map((r) => r.roleId)}
               onClose={() => setAddingRoles(false)}
-              onAdded={() => setViewAlert({ type: 'success', message: 'Role added to group successfully.' })}
+              onAdded={() => setViewAlert({ type: 'success', message: 'Role(s) added to group successfully.' })}
             />
           )}
           {removingRole && (
