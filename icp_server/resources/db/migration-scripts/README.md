@@ -99,7 +99,7 @@ The replace strategy gives the old system full priority: any user account that w
 
 ICP v1 stored passwords as:
 
-```
+```text
 Base64( Digest( password + salt ) )
 ```
 

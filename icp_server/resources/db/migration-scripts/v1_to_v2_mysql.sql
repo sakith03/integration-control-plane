@@ -289,8 +289,8 @@ SET @sql = CONCAT('
          WHERE ug.group_name = ''Developers'')         AS in_developers_group,
         SUM(require_password_change)                  AS require_password_change
     FROM `', @new_main_db, '`.users
-    WHERE user_id IN (
-        SELECT UM_USER_ID FROM `', @old_db, '`.UM_USER WHERE UM_TENANT_ID = -1234
+    WHERE username IN (
+        SELECT UM_USER_NAME FROM `', @old_db, '`.UM_USER WHERE UM_TENANT_ID = -1234
     )
 ');
 PREPARE stmt FROM @sql;
