@@ -53,6 +53,7 @@ import { useNavigate, useParams } from 'react-router';
 import SearchField from '../components/SearchField';
 import { Permissions, ALL_ROLE_MODIFY_PERMISSIONS } from '../constants/permissions';
 import Authorized from '../components/Authorized';
+import { useAccessControl } from '../contexts/AccessControlContext';
 import { useGroups, useGroupRoles, useGroupUsers, useAddRolesToGroup, useRemoveRoleFromGroup, useAddUsersToGroup, useRemoveUserFromGroup, useUsers, useRoles } from '../api/authQueries';
 import { useAllEnvironments } from '../api/queries';
 import type { Group, Role } from '../api/auth';
@@ -181,6 +182,9 @@ function AddUsersToGroupDialog({ orgHandler, groupId, existingUserIds, onClose, 
 
 function GroupDetailView({ orgHandler, group, onBack }: { orgHandler: string; group: Group; onBack: () => void }) {
   const roleModifyPerms: string[] = [...ALL_ROLE_MODIFY_PERMISSIONS];
+  const { hasAnyPermission } = useAccessControl();
+  const canManageGroups = hasAnyPermission([Permissions.USER_MANAGE_GROUPS]);
+  const canModifyRoles = hasAnyPermission(roleModifyPerms);
   const { data: groupRoles = [], isLoading: loadingRoles } = useGroupRoles(orgHandler, group.groupId);
   const { data: groupUsers = [], isLoading: loadingUsers } = useGroupUsers(orgHandler, group.groupId);
   const { data: allEnvironments = [] } = useAllEnvironments();
@@ -270,13 +274,13 @@ function GroupDetailView({ orgHandler, group, onBack }: { orgHandler: string; gr
             <TableBody>
               {loadingUsers ? (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={canManageGroups ? 3 : 2} align="center">
                     <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
               ) : filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={canManageGroups ? 3 : 2} align="center">
                     No records to display
                   </TableCell>
                 </TableRow>
@@ -365,13 +369,13 @@ function GroupDetailView({ orgHandler, group, onBack }: { orgHandler: string; gr
             <TableBody>
               {loadingRoles ? (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">
+                  <TableCell colSpan={canModifyRoles ? 4 : 3} align="center">
                     <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
               ) : filteredRoles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">
+                  <TableCell colSpan={canModifyRoles ? 4 : 3} align="center">
                     No records to display
                   </TableCell>
                 </TableRow>
@@ -453,13 +457,19 @@ function GroupDetailView({ orgHandler, group, onBack }: { orgHandler: string; gr
 export default function EditGroup(): JSX.Element {
   const { orgHandler = 'default', groupId = '' } = useParams();
   const navigate = useNavigate();
-  const { data: groups, isLoading } = useGroups(orgHandler);
+  const { data: groups, isLoading, isError } = useGroups(orgHandler);
   const backUrl = orgAccessControlUrl(orgHandler, 'groups');
 
   if (isLoading)
     return (
       <PageContent>
         <CircularProgress sx={{ display: 'block', mx: 'auto', py: 8 }} />
+      </PageContent>
+    );
+  if (isError)
+    return (
+      <PageContent>
+        <Typography>Failed to load groups</Typography>
       </PageContent>
     );
 

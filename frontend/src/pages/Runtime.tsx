@@ -58,7 +58,9 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
   const isLoading = runtimeQueries.some((q) => q.isLoading);
   const allRuntimes = runtimeQueries.flatMap((q) => q.data ?? []);
   const filtered = allRuntimes.filter((r) => !query || r.runtimeId.toLowerCase().includes(query.toLowerCase()) || r.runtimeType.toLowerCase().includes(query.toLowerCase()));
-  const paged = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const maxPage = Math.max(0, Math.ceil(filtered.length / rowsPerPage) - 1);
+  const safePage = Math.min(page, maxPage);
+  const paged = filtered.slice(safePage * rowsPerPage, safePage * rowsPerPage + rowsPerPage);
 
   return (
     <PageContent>
@@ -118,7 +120,7 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
           <TablePagination
             component="div"
             count={filtered.length}
-            page={page}
+            page={safePage}
             onPageChange={(_, p) => setPage(p)}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => {

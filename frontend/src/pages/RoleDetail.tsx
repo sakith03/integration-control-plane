@@ -55,6 +55,8 @@ import { useRoleDetail, useAllPermissions, useRoleGroups, useUpdateRole, useGrou
 import type { Permission, RoleGroupMapping, Group } from '../api/auth';
 import { useAllEnvironments } from '../api/queries';
 import { orgAccessControlUrl } from '../paths';
+import Authorized from '../components/Authorized';
+import { ALL_ROLE_MODIFY_PERMISSIONS } from '../constants/permissions';
 
 function Loading() {
   return <CircularProgress sx={{ display: 'block', mx: 'auto', py: 8 }} />;
@@ -204,6 +206,7 @@ const envLabel = (m: { envUuid?: string | null }, environments: { id: string; na
 export default function RoleDetail(): JSX.Element {
   const { orgHandler = 'default', roleId = '' } = useParams();
   const navigate = useNavigate();
+  const roleModifyPerms: string[] = [...ALL_ROLE_MODIFY_PERMISSIONS];
   const { data: role, isLoading: loadingRole } = useRoleDetail(orgHandler, roleId);
   const { data: allPermsData } = useAllPermissions();
   const { data: roleGroups = [], isLoading: loadingGroups } = useRoleGroups(orgHandler, roleId);
@@ -314,25 +317,27 @@ export default function RoleDetail(): JSX.Element {
       {subTab === 'permissions' && (
         <>
           <PermissionsEditor allPermissions={grouped} selectedIds={permIds} onChange={setSelectedIds} />
-          <Stack direction="row" sx={{ mt: 2 }}>
-            <Button
-              variant="contained"
-              disabled={!dirty || updateMutation.isPending}
-              onClick={() =>
-                updateMutation.mutate(
-                  { roleId, roleName: role.roleName, description: role.description, permissionIds: [...permIds] },
-                  {
-                    onSuccess: () => {
-                      setSelectedIds(null);
-                      setPageAlert({ type: 'success', message: 'Permissions saved successfully.' });
+          <Authorized permissions={roleModifyPerms}>
+            <Stack direction="row" sx={{ mt: 2 }}>
+              <Button
+                variant="contained"
+                disabled={!dirty || updateMutation.isPending}
+                onClick={() =>
+                  updateMutation.mutate(
+                    { roleId, roleName: role.roleName, description: role.description, permissionIds: [...permIds] },
+                    {
+                      onSuccess: () => {
+                        setSelectedIds(null);
+                        setPageAlert({ type: 'success', message: 'Permissions saved successfully.' });
+                      },
+                      onError: (error) => setPageAlert({ type: 'error', message: (error as Error).message ?? 'Failed to save permissions. Please try again.' }),
                     },
-                    onError: (error) => setPageAlert({ type: 'error', message: (error as Error).message ?? 'Failed to save permissions. Please try again.' }),
-                  },
-                )
-              }>
-              Save Permissions
-            </Button>
-          </Stack>
+                  )
+                }>
+                Save Permissions
+              </Button>
+            </Stack>
+          </Authorized>
         </>
       )}
       {subTab === 'groups' && (

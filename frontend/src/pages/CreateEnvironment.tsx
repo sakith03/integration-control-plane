@@ -82,10 +82,11 @@ export default function CreateEnvironment(scope: OrgScope): JSX.Element {
       return;
     }
 
+    const trimmedName = name.trim();
     mutation.mutate(
-      { name, description, critical },
+      { name: trimmedName, description: description.trim(), critical },
       {
-        onSuccess: () => navigate(resourceUrl(scope, 'environments'), { state: { success: true, environmentName: name } }),
+        onSuccess: () => navigate(resourceUrl(scope, 'environments'), { state: { success: true, environmentName: trimmedName } }),
         onError: (err) => {
           console.error('Environment creation error:', err.message); // Debug log
           setError(formatErrorMessage(err));

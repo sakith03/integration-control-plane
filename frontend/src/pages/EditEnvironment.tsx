@@ -81,12 +81,18 @@ function EditEnvironmentForm({ env, orgHandler }: { env: GqlEnvironment; orgHand
 
 export default function EditEnvironment(): JSX.Element {
   const { orgHandler = 'default', envId = '' } = useParams();
-  const { data: environments, isLoading } = useAllEnvironments();
+  const { data: environments, isLoading, isError } = useAllEnvironments();
 
   if (isLoading)
     return (
       <PageContent>
         <CircularProgress sx={{ display: 'block', mx: 'auto', py: 8 }} />
+      </PageContent>
+    );
+  if (isError)
+    return (
+      <PageContent>
+        <Typography>Failed to load environments</Typography>
       </PageContent>
     );
   const env = environments?.find((e) => e.id === envId);

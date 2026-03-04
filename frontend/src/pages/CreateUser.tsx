@@ -107,7 +107,7 @@ export default function CreateUser(): JSX.Element {
         <Button variant="outlined" onClick={() => navigate(backUrl)}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={submit} disabled={!username.trim() || mutation.isPending}>
+        <Button variant="contained" onClick={submit} disabled={!username.trim() || !password.trim() || mutation.isPending}>
           Create
         </Button>
       </Stack>

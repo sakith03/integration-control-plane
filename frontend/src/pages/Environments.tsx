@@ -159,9 +159,9 @@ export default function Environments(scope: OrgScope | ProjectScope): JSX.Elemen
     return environments.filter((env) => env.name.toLowerCase().includes(s) || env.description?.toLowerCase().includes(s));
   }, [environments, search]);
 
-  const paginatedEnvironments = useMemo(() => {
-    return filteredEnvironments.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [filteredEnvironments, page, rowsPerPage]);
+  const maxPage = Math.max(0, Math.ceil(filteredEnvironments.length / rowsPerPage) - 1);
+  const safePage = Math.min(page, maxPage);
+  const paginatedEnvironments = filteredEnvironments.slice(safePage * rowsPerPage, safePage * rowsPerPage + rowsPerPage);
 
   return (
     <PageContent>
@@ -244,7 +244,7 @@ export default function Environments(scope: OrgScope | ProjectScope): JSX.Elemen
           <TablePagination
             component="div"
             count={filteredEnvironments.length}
-            page={page}
+            page={safePage}
             onPageChange={(_, p) => setPage(p)}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => {
