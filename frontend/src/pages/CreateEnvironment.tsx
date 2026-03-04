@@ -23,40 +23,27 @@ import { useNavigate } from 'react-router';
 import { useCreateEnvironment } from '../api/mutations';
 import { resourceUrl, type OrgScope } from '../nav';
 
-function formatErrorMessage(error: Error): string {
-  const message = error.message || '';
+function formatErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message: unknown }).message === 'string' ? (error as { message: string }).message : '';
   const lowerMessage = message.toLowerCase();
 
-  // Check for duplicate/conflict errors - expanded patterns
   if (lowerMessage.includes('already exists') || lowerMessage.includes('duplicate') || lowerMessage.includes('exists') || lowerMessage.includes('conflict') || lowerMessage.includes('unique')) {
     return 'An environment with this name already exists. Please choose a different name.';
   }
 
-  // Handle generic backend error - likely a duplicate or constraint violation
   if (lowerMessage.includes('unexpected error') && lowerMessage.includes('administrator')) {
     return 'Unable to create environment. This name may already be in use or violates system constraints.';
   }
 
-  // Check for validation errors
   if (lowerMessage.includes('invalid') || lowerMessage.includes('validation')) {
-    return `Invalid input: ${message}`;
+    return 'Invalid input. Please check the environment name and try again.';
   }
 
-  // Check for permission errors
   if (lowerMessage.includes('permission') || lowerMessage.includes('unauthorized') || lowerMessage.includes('forbidden')) {
     return 'You do not have permission to create environments.';
   }
 
-  // If there's a meaningful error message, return it
-  if (message && !lowerMessage.includes('unexpected') && !lowerMessage.includes('administrator') && !lowerMessage.includes('please contact') && message.length > 0) {
-    // If the message seems generic, provide better context
-    if (lowerMessage.includes('failed') || lowerMessage.includes('error')) {
-      return `Unable to create environment: ${message}`;
-    }
-    return message;
-  }
-
-  return 'Failed to create environment. Please try again or contact support if the issue persists.';
+  return 'An unexpected error occurred. Please try again or contact support if the issue persists.';
 }
 
 export default function CreateEnvironment(scope: OrgScope): JSX.Element {
