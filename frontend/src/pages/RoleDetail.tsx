@@ -1,3 +1,21 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import {
   Alert,
   Autocomplete,
@@ -17,20 +35,17 @@ import {
   Radio,
   RadioGroup,
   Stack,
-  Tab,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
-  Tabs,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
   Typography,
   PageContent,
-  PageTitle,
 } from '@wso2/oxygen-ui';
 import { ArrowLeft, ChevronDown, ChevronUp, Link2, Lock, Plus, Trash2 } from '@wso2/oxygen-ui-icons-react';
 import { useState, useMemo, useCallback, type JSX } from 'react';
@@ -73,8 +88,8 @@ function PermissionsEditor({ allPermissions, selectedIds, onChange }: { allPermi
         return (
           <Box key={domain} sx={{ mb: 1 }}>
             <Stack direction="row" alignItems="center" sx={{ cursor: 'pointer' }} onClick={() => toggle(domain)}>
-              <Checkbox checked={allChecked} indeterminate={indeterminate} onClick={(e) => e.stopPropagation()} onChange={() => toggleDomain(domain, perms)} />
-              <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+              <Checkbox checked={allChecked} indeterminate={indeterminate} inputProps={{ 'aria-label': domain }} onClick={(e) => e.stopPropagation()} onChange={() => toggleDomain(domain, perms)} />
+              <Typography variant="subtitle2" component="p" sx={{ flexGrow: 1 }}>
                 {domain} ({count}/{perms.length})
               </Typography>
               {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -201,7 +216,8 @@ export default function RoleDetail(): JSX.Element {
   const [addingGroups, setAddingGroups] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState<RoleGroupMapping | null>(null);
   const [pageAlert, setPageAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const permIds = useMemo(() => selectedIds ?? (role ? new Set(role.permissions.map((p) => p.permissionId)) : new Set<string>()), [role, selectedIds]);
+  const originalPermIds = useMemo(() => new Set(role?.permissions.map((p) => p.permissionId) ?? []), [role]);
+  const permIds = useMemo(() => selectedIds ?? originalPermIds, [selectedIds, originalPermIds]);
   const grouped = allPermsData?.groupedByDomain ?? {};
   const getSearchStr = useCallback((g: RoleGroupMapping) => (g.groupName ?? '') + (g.groupId ?? ''), []);
   const filteredGroups = useMemo(() => {
@@ -244,23 +260,16 @@ export default function RoleDetail(): JSX.Element {
         <Typography>Role not found</Typography>
       </PageContent>
     );
-  const dirty = selectedIds !== null;
+  const dirty = selectedIds !== null && (selectedIds.size !== originalPermIds.size || [...selectedIds].some((id) => !originalPermIds.has(id)));
 
   return (
     <PageContent>
-      <PageTitle>
-        <PageTitle.Header>Access Control</PageTitle.Header>
-      </PageTitle>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={1}>
-          <Tab label="Users" onClick={() => navigate(orgAccessControlUrl(orgHandler, 'users'))} />
-          <Tab label="Roles" />
-          <Tab label="Groups" onClick={() => navigate(orgAccessControlUrl(orgHandler, 'groups'))} />
-        </Tabs>
-      </Box>
       <Button startIcon={<ArrowLeft size={16} />} onClick={onBack} sx={{ mb: 2 }}>
         Back to Role List
       </Button>
+      <Typography variant="h1" sx={{ mb: 4 }}>
+        Manage Role
+      </Typography>
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
         <Stack>
           <Typography variant="h6">Role : {role.roleName}</Typography>
@@ -305,27 +314,25 @@ export default function RoleDetail(): JSX.Element {
       {subTab === 'permissions' && (
         <>
           <PermissionsEditor allPermissions={grouped} selectedIds={permIds} onChange={setSelectedIds} />
-          {dirty && (
-            <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
-              <Button
-                variant="contained"
-                disabled={updateMutation.isPending}
-                onClick={() =>
-                  updateMutation.mutate(
-                    { roleId, roleName: role.roleName, description: role.description, permissionIds: [...permIds] },
-                    {
-                      onSuccess: () => {
-                        setSelectedIds(null);
-                        setPageAlert({ type: 'success', message: 'Permissions saved successfully.' });
-                      },
-                      onError: (error) => setPageAlert({ type: 'error', message: (error as Error).message ?? 'Failed to save permissions. Please try again.' }),
+          <Stack direction="row" sx={{ mt: 2 }}>
+            <Button
+              variant="contained"
+              disabled={!dirty || updateMutation.isPending}
+              onClick={() =>
+                updateMutation.mutate(
+                  { roleId, roleName: role.roleName, description: role.description, permissionIds: [...permIds] },
+                  {
+                    onSuccess: () => {
+                      setSelectedIds(null);
+                      setPageAlert({ type: 'success', message: 'Permissions saved successfully.' });
                     },
-                  )
-                }>
-                Save Permissions
-              </Button>
-            </Stack>
-          )}
+                    onError: (error) => setPageAlert({ type: 'error', message: (error as Error).message ?? 'Failed to save permissions. Please try again.' }),
+                  },
+                )
+              }>
+              Save Permissions
+            </Button>
+          </Stack>
         </>
       )}
       {subTab === 'groups' && (
