@@ -21,7 +21,6 @@ import { ArrowLeft } from '@wso2/oxygen-ui-icons-react';
 import { useState, type JSX } from 'react';
 import { useNavigate } from 'react-router';
 import { useCreateEnvironment } from '../api/mutations';
-import { useAllEnvironments } from '../api/queries';
 import { resourceUrl, type OrgScope } from '../nav';
 
 function formatErrorMessage(error: Error): string {
@@ -68,29 +67,15 @@ export default function CreateEnvironment(scope: OrgScope): JSX.Element {
   const [critical, setCritical] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mutation = useCreateEnvironment();
-  const { data: existingEnvironments } = useAllEnvironments();
 
   const submit = () => {
     setError(null);
-
-    // Client-side duplicate check
-    const normalizedName = name.trim().toLowerCase();
-    const isDuplicate = existingEnvironments?.some((env) => env.name.toLowerCase() === normalizedName);
-
-    if (isDuplicate) {
-      setError('An environment with this name already exists. Please choose a different name.');
-      return;
-    }
-
     const trimmedName = name.trim();
     mutation.mutate(
       { name: trimmedName, description: description.trim(), critical },
       {
         onSuccess: () => navigate(resourceUrl(scope, 'environments'), { state: { success: true, environmentName: trimmedName } }),
-        onError: (err) => {
-          console.error('Environment creation error:', err.message); // Debug log
-          setError(formatErrorMessage(err));
-        },
+        onError: (err) => setError(formatErrorMessage(err)),
       },
     );
   };

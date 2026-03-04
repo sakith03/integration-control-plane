@@ -185,8 +185,8 @@ function GroupDetailView({ orgHandler, group, onBack }: { orgHandler: string; gr
   const { hasAnyPermission } = useAccessControl();
   const canManageGroups = hasAnyPermission([Permissions.USER_MANAGE_GROUPS]);
   const canModifyRoles = hasAnyPermission(roleModifyPerms);
-  const { data: groupRoles = [], isLoading: loadingRoles } = useGroupRoles(orgHandler, group.groupId);
-  const { data: groupUsers = [], isLoading: loadingUsers } = useGroupUsers(orgHandler, group.groupId);
+  const { data: groupRoles = [], isLoading: loadingRoles, isError: rolesError } = useGroupRoles(orgHandler, group.groupId);
+  const { data: groupUsers = [], isLoading: loadingUsers, isError: usersError } = useGroupUsers(orgHandler, group.groupId);
   const { data: allEnvironments = [] } = useAllEnvironments();
   const removeRoleMutation = useRemoveRoleFromGroup(orgHandler);
   const removeUserMutation = useRemoveUserFromGroup(orgHandler);
@@ -276,6 +276,12 @@ function GroupDetailView({ orgHandler, group, onBack }: { orgHandler: string; gr
                 <TableRow>
                   <TableCell colSpan={canManageGroups ? 3 : 2} align="center">
                     <CircularProgress size={24} />
+                  </TableCell>
+                </TableRow>
+              ) : usersError ? (
+                <TableRow>
+                  <TableCell colSpan={canManageGroups ? 3 : 2} align="center">
+                    Failed to load users
                   </TableCell>
                 </TableRow>
               ) : filteredUsers.length === 0 ? (
@@ -371,6 +377,12 @@ function GroupDetailView({ orgHandler, group, onBack }: { orgHandler: string; gr
                 <TableRow>
                   <TableCell colSpan={canModifyRoles ? 4 : 3} align="center">
                     <CircularProgress size={24} />
+                  </TableCell>
+                </TableRow>
+              ) : rolesError ? (
+                <TableRow>
+                  <TableCell colSpan={canModifyRoles ? 4 : 3} align="center">
+                    Failed to load roles
                   </TableCell>
                 </TableRow>
               ) : filteredRoles.length === 0 ? (

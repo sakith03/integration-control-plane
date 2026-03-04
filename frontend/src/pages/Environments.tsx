@@ -155,7 +155,7 @@ export default function Environments(scope: OrgScope | ProjectScope): JSX.Elemen
   const filteredEnvironments = useMemo(() => {
     if (!environments) return [];
     if (!search.trim()) return environments;
-    const s = search.toLowerCase();
+    const s = search.trim().toLowerCase();
     return environments.filter((env) => env.name.toLowerCase().includes(s) || env.description?.toLowerCase().includes(s));
   }, [environments, search]);
 
@@ -225,12 +225,12 @@ export default function Environments(scope: OrgScope | ProjectScope): JSX.Elemen
                     <Authorized permissions={Permissions.ENVIRONMENT_MANAGE} fallback={<TableCell align="right" />}>
                       <TableCell align="right">
                         <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => navigate(editEnvironmentUrl(scope.org, env.id))}>
+                          <IconButton size="small" aria-label={`Edit ${env.name}`} onClick={() => navigate(editEnvironmentUrl(scope.org, env.id))}>
                             <Pencil size={16} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setDeleting(env)}>
+                          <IconButton size="small" aria-label={`Delete ${env.name}`} onClick={() => setDeleting(env)}>
                             <Trash2 size={16} />
                           </IconButton>
                         </Tooltip>
