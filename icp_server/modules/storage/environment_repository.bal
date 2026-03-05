@@ -367,6 +367,31 @@ public isolated function resolveRuntimeJwtSecretByRuntimeId(string runtimeId) re
     return error(string `No JWT secret provisioned for runtime '${runtimeId}'. Generate component environment secret for the corresponding component+environment pair first.`);
 }
 
+// Get the existing JWT HMAC secret for a component+environment pair, generating
+// a new one only when none has been provisioned yet.  Safe to call on every
+// "Configure Runtime" dialog open — it never overwrites an existing secret.
+public isolated function getOrGenerateComponentEnvironmentSecret(string componentId, string environmentId) returns string|error {
+    stream<record {|string jwt_hmac_secret;|}, sql:Error?> secretStream =
+        dbClient->query(`
+            SELECT jwt_hmac_secret
+            FROM component_environment_secrets
+            WHERE component_id = ${componentId}
+              AND environment_id = ${environmentId}
+        `);
+
+    record {|string jwt_hmac_secret;|}[] records = check from record {|string jwt_hmac_secret;|} r in secretStream
+        select r;
+
+    if records.length() > 0 {
+        log:printDebug(string `Returning existing JWT HMAC secret for component: ${componentId}, environment: ${environmentId}`);
+        return records[0].jwt_hmac_secret;
+    }
+
+    // No secret provisioned yet — generate and persist one.
+    log:printInfo(string `No existing secret found; generating for component: ${componentId}, environment: ${environmentId}`);
+    return check generateComponentEnvironmentSecret(componentId, environmentId);
+}
+
 // Generate (or rotate) the JWT HMAC secret for a component+environment pair.
 // Two UUIDs are concatenated to produce a 72-character secret — well above
 // the 32-character minimum required for HS256 signing.
