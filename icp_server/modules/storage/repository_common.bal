@@ -1044,7 +1044,7 @@ public isolated function sendArtifactTracingChange(types:Runtime runtime, string
 
 // Helper: generate HMAC JWT used to call ICP internal APIs
 public isolated function issueRuntimeHmacToken() returns string|error {
-    string hmacSecret = check utils:resolveConfig(defaultRuntimeJwtHMACSecret, secrets);
+    string hmacSecret = check utils:resolveConfig(runtimeJwtHMACSecret, secrets);
     jwt:IssuerConfig issConfig = {
         username: "icp-artifact-fetcher",
         issuer: jwtIssuer,

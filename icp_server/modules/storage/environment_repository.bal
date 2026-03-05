@@ -15,6 +15,7 @@
 // under the License.
 
 import icp_server.types as types;
+import icp_server.utils;
 
 import ballerina/log;
 import ballerina/sql;
@@ -218,9 +219,15 @@ public isolated function createEnvironment(types:EnvironmentInput environment) r
     if result is sql:Error {
         log:printError(string `Failed to insert environment: ${environment.name}`, 'error = result);
         match classifySqlError(result) {
-            DUPLICATE_KEY => { return (); }
-            VALUE_TOO_LONG => { return error("The provided value exceeds the maximum allowed length", result); }
-            _ => { return error("An unexpected error occurred. Please contact your administrator.", result); }
+            DUPLICATE_KEY => {
+                return ();
+            }
+            VALUE_TOO_LONG => {
+                return error("The provided value exceeds the maximum allowed length", result);
+            }
+            _ => {
+                return error("An unexpected error occurred. Please contact your administrator.", result);
+            }
         }
     }
 
@@ -248,9 +255,15 @@ public isolated function updateEnvironment(string environmentId, string? name, s
     if result is sql:Error {
         log:printError(string `Failed to update environment ${environmentId}`, 'error = result);
         match classifySqlError(result) {
-            DUPLICATE_KEY => { return error("An environment with this name already exists", result); }
-            VALUE_TOO_LONG => { return error("The provided value exceeds the maximum allowed length", result); }
-            _ => { return error("An unexpected error occurred. Please contact your administrator.", result); }
+            DUPLICATE_KEY => {
+                return error("An environment with this name already exists", result);
+            }
+            VALUE_TOO_LONG => {
+                return error("The provided value exceeds the maximum allowed length", result);
+            }
+            _ => {
+                return error("An unexpected error occurred. Please contact your administrator.", result);
+            }
         }
     }
     log:printInfo(string `Successfully updated environment ${environmentId}`);
@@ -291,12 +304,95 @@ public isolated function deleteEnvironment(string environmentId) returns error? 
     if result is sql:Error {
         log:printError(string `Failed to delete environment ${environmentId}`, 'error = result);
         match classifySqlError(result) {
-            FOREIGN_KEY_VIOLATION => { return error("Cannot delete environment because it has dependent resources", result); }
-            _ => { return error("An unexpected error occurred. Please contact your administrator.", result); }
+            FOREIGN_KEY_VIOLATION => {
+                return error("Cannot delete environment because it has dependent resources", result);
+            }
+            _ => {
+                return error("An unexpected error occurred. Please contact your administrator.", result);
+            }
         }
     }
     log:printInfo(string `Successfully deleted environment ${environmentId}`);
     return ();
+}
+
+// Resolve the JWT HMAC secret for a specific component+environment pair.
+// Looks up the secret in the component_environment_secrets table.
+// Falls back to the global runtimeJwtHMACSecret when no per-component-environment
+// secret has been provisioned yet (e.g. existing deployments before secret rotation).
+public isolated function resolveComponentEnvJwtSecret(string componentId, string environmentId) returns string|error {
+    stream<record {|string jwt_hmac_secret;|}, sql:Error?> secretStream =
+        dbClient->query(`
+            SELECT jwt_hmac_secret
+            FROM component_environment_secrets
+            WHERE component_id = ${componentId}
+              AND environment_id = ${environmentId}
+        `);
+
+    record {|string jwt_hmac_secret;|}[] records = check from record {|string jwt_hmac_secret;|} r in secretStream
+        select r;
+
+    if records.length() > 0 {
+        log:printDebug(string `Using per-component-environment JWT secret for component: ${componentId}, environment: ${environmentId}`);
+        return records[0].jwt_hmac_secret;
+    }
+
+    log:printDebug(string `No component-environment JWT secret found for component '${componentId}' + environment '${environmentId}', using global default`);
+    return check utils:resolveConfig(runtimeJwtHMACSecret, secrets);
+}
+
+// Resolve the JWT HMAC secret for a given runtime ID.
+// Joins runtimes -> component_environment_secrets to retrieve the secret, or
+// falls back to the global runtimeJwtHMACSecret (delta heartbeats only carry
+// the runtime ID so the component+environment pair is resolved via the join).
+public isolated function resolveRuntimeJwtSecretByRuntimeId(string runtimeId) returns string|error {
+    stream<record {|string? jwt_hmac_secret;|}, sql:Error?> secretStream =
+        dbClient->query(`
+            SELECT ces.jwt_hmac_secret
+            FROM component_environment_secrets ces
+            JOIN runtimes r ON ces.component_id = r.component_id
+                           AND ces.environment_id = r.environment_id
+            WHERE r.runtime_id = ${runtimeId}
+        `);
+
+    record {|string? jwt_hmac_secret;|}[] records = check from record {|string? jwt_hmac_secret;|} r in secretStream
+        select r;
+
+    if records.length() > 0 {
+        string? secret = records[0].jwt_hmac_secret;
+        if secret is string && secret.length() > 0 {
+            log:printDebug(string `Using per-component-environment JWT secret for runtime: ${runtimeId}`);
+            return secret;
+        }
+    }
+
+    log:printDebug(string `No component-environment JWT secret found for runtime '${runtimeId}', using global default`);
+    return check utils:resolveConfig(runtimeJwtHMACSecret, secrets);
+}
+
+// Generate (or rotate) the JWT HMAC secret for a component+environment pair.
+// Two UUIDs are concatenated to produce a 72-character secret — well above
+// the 32-character minimum required for HS256 signing.
+// Idempotent: re-running overwrites any existing secret for the same pair (rotation).
+// NOTE: The ON CONFLICT clause uses PostgreSQL/H2 syntax. For MySQL use
+//       INSERT ... ON DUPLICATE KEY UPDATE; for MSSQL use MERGE.
+public isolated function generateComponentEnvironmentSecret(string componentId, string environmentId) returns string|error {
+    string jwtHmacSecret = uuid:createRandomUuid() + uuid:createRandomUuid();
+
+    sql:ExecutionResult|sql:Error result = dbClient->execute(`
+        INSERT INTO component_environment_secrets (component_id, environment_id, jwt_hmac_secret)
+        VALUES (${componentId}, ${environmentId}, ${jwtHmacSecret})
+        ON CONFLICT (component_id, environment_id)
+        DO UPDATE SET jwt_hmac_secret = ${jwtHmacSecret}, updated_at = CURRENT_TIMESTAMP
+    `);
+
+    if result is sql:Error {
+        log:printError(string `Failed to upsert JWT secret for component ${componentId} + environment ${environmentId}`, 'error = result);
+        return error("An unexpected error occurred while generating the component-environment JWT secret.", result);
+    }
+
+    log:printInfo(string `Generated JWT HMAC secret for component: ${componentId}, environment: ${environmentId}`);
+    return jwtHmacSecret;
 }
 
 // Get all environment IDs where a component has runtimes
