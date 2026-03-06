@@ -41,20 +41,15 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
 
   const effectiveHandler = handlerEdited ? handler : toHandler(displayName);
 
-  // Check if error is a duplicate name error
   const errorMessage = mutation.error?.message?.toLowerCase() || '';
-  const isDuplicateError = !!mutation.error && (
-    /already taken/i.test(mutation.error.message) ||
-    errorMessage.includes('already exists') ||
-    errorMessage.includes('duplicate') ||
-    (errorMessage.includes('unexpected error') && errorMessage.includes('administrator'))
-  );
-  
-  const alertMessage = mutation.error?.message === 'Failed to fetch' 
-    ? 'Unable to connect to the server. Please check that the server is running and try again.' 
-    : isDuplicateError 
-    ? 'A project with this name already exists. Please choose a different name.'
-    : mutation.error?.message;
+  const isDuplicateError = !!mutation.error && (/already taken/i.test(mutation.error.message) || errorMessage.includes('already exists') || errorMessage.includes('duplicate'));
+
+  const alertMessage =
+    mutation.error?.message === 'Failed to fetch'
+      ? 'Unable to connect to the server. Please check that the server is running and try again.'
+      : isDuplicateError
+        ? 'A project with this name already exists. Please choose a different name.'
+        : mutation.error?.message;
 
   const resetError = () => {
     if (mutation.error) mutation.reset();
@@ -118,15 +113,15 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
               htmlInput: { 'aria-label': 'Name' },
               input: {
                 endAdornment: (
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
+                    aria-label={handlerEdited ? 'Stop editing name' : 'Edit name'}
                     onClick={() => {
                       if (!handlerEdited) {
                         setHandler(effectiveHandler);
                       }
                       setHandlerEdited(!handlerEdited);
-                    }}
-                  >
+                    }}>
                     <Edit size={16} />
                   </IconButton>
                 ),
