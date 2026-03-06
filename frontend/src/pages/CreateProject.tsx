@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Button, Grid, IconButton, PageContent, Stack, TextField, Typography } from '@wso2/oxygen-ui';
+import { Alert, Button, Grid, IconButton, PageContent, Stack, TextField, Typography } from '@wso2/oxygen-ui';
 import { ArrowLeft, Edit } from '@wso2/oxygen-ui-icons-react';
 import { useState, type JSX } from 'react';
 import { useNavigate } from 'react-router';
@@ -41,6 +41,20 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
 
   const effectiveHandler = handlerEdited ? handler : toHandler(displayName);
 
+  const errorMessage = mutation.error?.message?.toLowerCase() || '';
+  const isDuplicateError = !!mutation.error && (/already taken/i.test(mutation.error.message) || errorMessage.includes('already exists') || errorMessage.includes('duplicate'));
+
+  const alertMessage =
+    mutation.error?.message === 'Failed to fetch'
+      ? 'Unable to connect to the server. Please check that the server is running and try again.'
+      : isDuplicateError
+        ? 'A project with this name already exists. Please choose a different name.'
+        : mutation.error?.message;
+
+  const resetError = () => {
+    if (mutation.error) mutation.reset();
+  };
+
   const submit = () => {
     const input: CreateProjectInput = {
       name: displayName,
@@ -63,9 +77,26 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
         Create a Project
       </Typography>
 
+      {mutation.error && (
+        <Alert severity="error" role="alert" sx={{ mb: 3 }}>
+          {alertMessage}
+        </Alert>
+      )}
+
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, md: 4 }}>
-          <TextField label="Display Name" placeholder="Enter Project Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} fullWidth slotProps={{ htmlInput: { 'aria-label': 'Display Name' } }} />
+          <TextField
+            label="Display Name"
+            required
+            placeholder="Enter Project Name"
+            value={displayName}
+            onChange={(e) => {
+              setDisplayName(e.target.value);
+              resetError();
+            }}
+            fullWidth
+            slotProps={{ htmlInput: { 'aria-label': 'Display Name' } }}
+          />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
           <TextField
@@ -74,6 +105,7 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
             onChange={(e) => {
               setHandler(e.target.value);
               setHandlerEdited(true);
+              resetError();
             }}
             fullWidth
             disabled={!handlerEdited}
@@ -81,7 +113,15 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
               htmlInput: { 'aria-label': 'Name' },
               input: {
                 endAdornment: (
-                  <IconButton size="small" onClick={() => setHandlerEdited(!handlerEdited)}>
+                  <IconButton
+                    size="small"
+                    aria-label={handlerEdited ? 'Stop editing name' : 'Edit name'}
+                    onClick={() => {
+                      if (!handlerEdited) {
+                        setHandler(effectiveHandler);
+                      }
+                      setHandlerEdited(!handlerEdited);
+                    }}>
                     <Edit size={16} />
                   </IconButton>
                 ),
