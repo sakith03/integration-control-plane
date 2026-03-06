@@ -611,9 +611,11 @@ runtimeJwtHMACSecret = "${secret || '<generating…>'}"\n# icp_url = "https://ic
                 }}
               />
             </IconButton>
-            <Button variant="contained" startIcon={<Settings size={16} />} onClick={handleOpenConfigDialog}>
-              Configure Runtime
-            </Button>
+            <Authorized permissions={Permissions.INTEGRATION_MANAGE}>
+              <Button variant="contained" startIcon={<Settings size={16} />} onClick={handleOpenConfigDialog}>
+                Configure Runtime
+              </Button>
+            </Authorized>
           </Stack>
         </Stack>
         <Dialog open={configDialogOpen} onClose={() => setConfigDialogOpen(false)} maxWidth="sm" fullWidth>

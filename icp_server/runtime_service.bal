@@ -135,7 +135,7 @@ isolated function validateRuntimeJwt(http:Request request, string hmacSecret) re
     jwt:Payload|jwt:Error validatedPayload = jwt:validate(jwtToken, validatorConfig);
     if validatedPayload is jwt:Error {
         log:printDebug(string `JWT validation failed: ${validatedPayload.message()}`);
-        return <http:Unauthorized>{body: string `JWT validation failed: ${validatedPayload.message()}`};
+        return <http:Unauthorized>{body: "Invalid or expired token"};
     }
 
     // Enforce the runtime_agent scope
