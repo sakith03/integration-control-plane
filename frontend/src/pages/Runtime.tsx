@@ -118,7 +118,7 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
               </ListingTable.Body>
             </ListingTable>
             <TablePagination
-              sx={{ borderTop: "1px solid", borderColor: "divider" }}
+              sx={{ borderTop: '1px solid', borderColor: 'divider' }}
               component="div"
               count={filtered.length}
               page={safePage}

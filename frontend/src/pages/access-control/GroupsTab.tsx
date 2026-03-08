@@ -162,7 +162,7 @@ export function GroupsTab({ orgHandler, projectId, componentHandler, readOnly }:
           </ListingTable.Body>
         </ListingTable>
         <TablePagination
-          sx={{ borderTop: "1px solid", borderColor: "divider" }}
+          sx={{ borderTop: '1px solid', borderColor: 'divider' }}
           component="div"
           count={filtered.length}
           page={safePage}

@@ -223,7 +223,7 @@ export default function Environments(scope: OrgScope | ProjectScope): JSX.Elemen
               </ListingTable.Body>
             </ListingTable>
             <TablePagination
-              sx={{ borderTop: "1px solid", borderColor: "divider" }}
+              sx={{ borderTop: '1px solid', borderColor: 'divider' }}
               component="div"
               count={filteredEnvironments.length}
               page={safePage}

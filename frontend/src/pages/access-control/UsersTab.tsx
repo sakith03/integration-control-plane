@@ -237,7 +237,7 @@ export function UsersTab({ orgHandler }: { orgHandler: string }): JSX.Element {
           </ListingTable.Body>
         </ListingTable>
         <TablePagination
-          sx={{ borderTop: "1px solid", borderColor: "divider" }}
+          sx={{ borderTop: '1px solid', borderColor: 'divider' }}
           component="div"
           count={filtered.length}
           page={safePage}
