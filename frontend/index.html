@@ -10,6 +10,12 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/logo/favicon-white/favicon-16x16.png" media="(prefers-color-scheme: dark)" />
     <link rel="apple-touch-icon" href="/assets/images/logo/favicon-black/apple-touch-icon.png" />
     <link rel="manifest" href="/assets/images/logo/favicon-black/site.webmanifest" />
+    <script>
+      const manifest = document.querySelector('link[rel="manifest"]');
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        manifest.href = '/assets/images/logo/favicon-white/site.webmanifest';
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WSO2 Integration Platform</title>
   </head>
