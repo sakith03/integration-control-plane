@@ -32,23 +32,28 @@ import {
   formatRelativeTime,
   Header,
   IconButton,
+  InputAdornment,
+  MenuItem,
   NotificationPanel,
   Box,
+  Popover,
   Sidebar,
+  TextField,
   Tooltip,
+  Typography,
   UserMenu,
   useAppShell,
   useNotifications,
 } from '@wso2/oxygen-ui';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { JSX } from 'react';
-import { useNavigate, Outlet } from 'react-router';
+import { useNavigate, Outlet, NavLink } from 'react-router';
 import Logo from '../components/Logo';
-import { BarChart3, Bell, Building, ChevronDown, ChevronRight, Layers, LayoutDashboard, LogOut, ScrollText, Server, Shield, Sliders, User as UserIcon, X } from '@wso2/oxygen-ui-icons-react';
+import { BarChart3, Bell, Building, ChevronDown, ChevronRight, Layers, LayoutDashboard, LogOut, Plus, ScrollText, Search, Server, Shield, Sliders, User as UserIcon, X } from '@wso2/oxygen-ui-icons-react';
 import { useProjectByHandler, useProjects, useComponents } from '../api/queries';
 import { mockNotifications } from '../mock-data/mockNotifications';
-import { useScope, useResource, resourceUrl, broaden, narrow, sidebarItems, hasProject, hasComponent, type Resource } from '../nav';
-import { cookiePolicyUrl, loginUrl, privacyPolicyUrl, profileUrl } from '../paths';
+import { useScope, useResource, resourceUrl, broaden, narrow, newProjectUrl, newComponentUrl, sidebarItems, hasProject, hasComponent, type Resource } from '../nav';
+import { cookiePolicyUrl, loginUrl, orgUrl, privacyPolicyUrl, profileUrl } from '../paths';
 import { useAuth } from '../auth/AuthContext';
 import { useAccessControl } from '../contexts/AccessControlContext';
 import { ALL_USER_MGT_PERMISSIONS, Permissions } from '../constants/permissions';
@@ -81,6 +86,15 @@ export default function AppLayout(): JSX.Element {
   const { state: shell, actions } = useAppShell({ initialCollapsed: true });
   const [tabIndex, setTabIndex] = useState(0);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const orgCardRef = useRef<HTMLDivElement>(null);
+  const projectCardRef = useRef<HTMLDivElement>(null);
+  const integrationCardRef = useRef<HTMLDivElement>(null);
+  const [projectMenuAnchor, setProjectMenuAnchor] = useState<HTMLElement | null>(null);
+  const [projectMenuDir, setProjectMenuDir] = useState<'right' | 'below'>('right');
+  const [projectSearch, setProjectSearch] = useState('');
+  const [componentMenuAnchor, setComponentMenuAnchor] = useState<HTMLElement | null>(null);
+  const [componentMenuDir, setComponentMenuDir] = useState<'right' | 'below'>('right');
+  const [componentSearch, setComponentSearch] = useState('');
 
   const { notifications, actions: notifActions, unreadCount, unreadNotifications } = useNotifications({ initialNotifications: [...mockNotifications] });
   const alertNotifications = notifications.filter((n) => n.type === 'warning' || n.type === 'error');
@@ -140,46 +154,110 @@ export default function AppLayout(): JSX.Element {
           <Header.Toggle collapsed={shell.sidebarCollapsed} onToggle={actions.toggleSidebar} />
           <Header.Brand>
             <Header.BrandLogo>
+              <NavLink to={orgUrl(scope.org)} style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
               <Logo />
+              </NavLink>
             </Header.BrandLogo>
           </Header.Brand>
           <Header.Switchers showDivider={false}>
-            <ComplexSelect
-              value={scope.org}
-              onChange={() => {}}
-              size="small"
-              sx={{ minWidth: 180 }}
-              IconComponent={() => null}
-              SelectDisplayProps={{ 'aria-label': 'Select organization' }}
-              renderValue={() => (
-                <>
+            <Box ref={orgCardRef} sx={{ display: 'inline-flex', alignSelf: 'center', cursor: 'pointer' }} onClick={() => navigate(orgUrl(scope.org))}>
+              <ComplexSelect
+                value={scope.org}
+                open={false}
+                onChange={() => {}}
+                onOpen={() => {}}
+                size="small"
+                sx={{ minWidth: 180 }}
+                IconComponent={() => null}
+                SelectDisplayProps={{ 'aria-label': 'Select organization' }}
+                renderValue={() => (
+                  <>
+                    <ComplexSelect.MenuItem.Icon>
+                      <Building />
+                    </ComplexSelect.MenuItem.Icon>
+                    <ComplexSelect.MenuItem.Text primary="Default Organization" secondary="Organization" />
+                  </>
+                )}
+                label="Organizations">
+                <ComplexSelect.MenuItem value="default">
                   <ComplexSelect.MenuItem.Icon>
                     <Building />
                   </ComplexSelect.MenuItem.Icon>
                   <ComplexSelect.MenuItem.Text primary="Default Organization" secondary="Organization" />
-                </>
+                </ComplexSelect.MenuItem>
+              </ComplexSelect>
+            </Box>
+            {!hasProject(scope) && !projectMenuAnchor && (
+              <Tooltip title="Select project">
+                <IconButton size="small" onClick={() => { setProjectMenuDir('right'); setProjectMenuAnchor(orgCardRef.current); }}>
+                  <ChevronRight size={18} />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Popover
+              anchorEl={projectMenuAnchor}
+              open={Boolean(projectMenuAnchor)}
+              onClose={() => { setProjectMenuAnchor(null); setProjectSearch(''); }}
+              anchorOrigin={projectMenuDir === 'right' ? { vertical: 'top', horizontal: 'right' } : { vertical: 'bottom', horizontal: 'left' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              marginThreshold={projectMenuDir === 'right' ? 0 : undefined}
+              PaperProps={{ sx: { width: 260, ...(projectMenuDir === 'right' ? { ml: 1 } : { mt: 0.5 }) } }}>
+              <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>Project</Typography>
+                <TextField
+                  size="small"
+                  fullWidth
+                  placeholder="Search"
+                  autoFocus
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                  InputProps={{ endAdornment: <InputAdornment position="end"><Search size={16} /></InputAdornment> }}
+                />
+              </Box>
+              <Button
+                variant="text"
+                size="small"
+                startIcon={<Plus size={16} />}
+                fullWidth
+                sx={{ justifyContent: 'flex-start', px: 2, py: 1 }}
+                onClick={() => { setProjectMenuAnchor(null); setProjectSearch(''); navigate(newProjectUrl({ org: scope.org })); }}>
+                Create Project
+              </Button>
+              <Divider />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 2, pt: 1, pb: 0.5 }}>All Projects</Typography>
+              {projects.filter((p) => !projectSearch.trim() || p.name.toLowerCase().includes(projectSearch.trim().toLowerCase())).length === 0 ? (
+                <MenuItem disabled>No projects found</MenuItem>
+              ) : (
+                projects
+                  .filter((p) => !projectSearch.trim() || p.name.toLowerCase().includes(projectSearch.trim().toLowerCase()))
+                  .map((p) => (
+                    <MenuItem
+                      key={p.id}
+                      selected={hasProject(scope) && scope.project === p.handler}
+                      onClick={() => {
+                        setProjectMenuAnchor(null);
+                        setProjectSearch('');
+                        const newScope = narrow({ level: 'organizations', org: scope.org }, p.handler);
+                        const target = resource ?? 'overview';
+                        navigate(resourceUrl(newScope, canAccessResource(newScope, target)));
+                      }}>
+                      {p.name}
+                    </MenuItem>
+                  ))
               )}
-              label="Organizations">
-              <ComplexSelect.MenuItem value="default">
-                <ComplexSelect.MenuItem.Icon>
-                  <Building />
-                </ComplexSelect.MenuItem.Icon>
-                <ComplexSelect.MenuItem.Text primary="Default Organization" secondary="Organization" />
-              </ComplexSelect.MenuItem>
-            </ComplexSelect>
+            </Popover>
             {hasProject(scope) && (
-              <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+              <>
+              <Box ref={projectCardRef} sx={{ position: 'relative', display: 'inline-flex', cursor: 'pointer' }} onClick={() => navigate(resourceUrl({ level: 'projects' as const, org: scope.org, project: scope.project }, 'overview'))}>
                 <ComplexSelect
                   value={scope.project}
-                  onChange={(e) => {
-                    const newScope = narrow({ level: 'organizations', org: scope.org }, String(e.target.value));
-                    const target = resource ?? 'overview';
-                    navigate(resourceUrl(newScope, canAccessResource(newScope, target)));
-                  }}
+                  open={false}
+                  onChange={() => {}}
+                  onOpen={() => {}}
                   size="small"
                   sx={{ minWidth: 160 }}
                   IconComponent={({ ownerState: _ownerState, ...props }) => (
-                    <span {...props} style={{ position: 'absolute', top: 'auto', bottom: '0', right: '6px', display: 'flex', pointerEvents: 'none' }}>
+                    <span {...props} style={{ position: 'absolute', top: 'auto', bottom: '0', right: '6px', display: 'flex', pointerEvents: 'all', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setProjectMenuDir('below'); setProjectMenuAnchor(projectCardRef.current); }}>
                       <ChevronDown size={18} />
                     </span>
                   )}
@@ -206,20 +284,78 @@ export default function AppLayout(): JSX.Element {
                   <X size={16} />
                 </IconButton>
               </Box>
+              {!hasComponent(scope) && !componentMenuAnchor && (
+                <Tooltip title="Select integration">
+                  <IconButton size="small" onClick={() => { setComponentMenuDir('right'); setComponentMenuAnchor(projectCardRef.current); }}>
+                    <ChevronRight size={18} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Popover
+                anchorEl={componentMenuAnchor}
+                open={Boolean(componentMenuAnchor)}
+                onClose={() => { setComponentMenuAnchor(null); setComponentSearch(''); }}
+                anchorOrigin={componentMenuDir === 'right' ? { vertical: 'top', horizontal: 'right' } : { vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                marginThreshold={componentMenuDir === 'right' ? 0 : undefined}
+                PaperProps={{ sx: { width: 260, ...(componentMenuDir === 'right' ? { ml: 1 } : { mt: 0.5 }) } }}>
+                <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>Integration</Typography>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Search"
+                    autoFocus
+                    value={componentSearch}
+                    onChange={(e) => setComponentSearch(e.target.value)}
+                    InputProps={{ endAdornment: <InputAdornment position="end"><Search size={16} /></InputAdornment> }}
+                  />
+                </Box>
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<Plus size={16} />}
+                  fullWidth
+                  sx={{ justifyContent: 'flex-start', px: 2, py: 1 }}
+                  onClick={() => { setComponentMenuAnchor(null); setComponentSearch(''); navigate(newComponentUrl({ org: scope.org, project: scope.project })); }}>
+                  Create Integration
+                </Button>
+                <Divider />
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 2, pt: 1, pb: 0.5 }}>All Integrations</Typography>
+                {components.filter((c) => !componentSearch.trim() || c.displayName.toLowerCase().includes(componentSearch.trim().toLowerCase())).length === 0 ? (
+                  <MenuItem disabled>No integrations found</MenuItem>
+                ) : (
+                  components
+                    .filter((c) => !componentSearch.trim() || c.displayName.toLowerCase().includes(componentSearch.trim().toLowerCase()))
+                    .map((c) => (
+                      <MenuItem
+                        key={c.id}
+                        selected={hasComponent(scope) && scope.component === c.handler}
+                        onClick={() => {
+                          setComponentMenuAnchor(null);
+                          setComponentSearch('');
+                          const newScope = narrow({ level: 'projects', org: scope.org, project: scope.project }, c.handler);
+                          const target = resource ?? 'overview';
+                          navigate(resourceUrl(newScope, canAccessResource(newScope, target)));
+                        }}>
+                        {c.displayName}
+                      </MenuItem>
+                    ))
+                )}
+              </Popover>
+              </>
             )}
             {hasComponent(scope) && (
-              <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+              <Box ref={integrationCardRef} sx={{ position: 'relative', display: 'inline-flex', cursor: 'pointer' }} onClick={() => navigate(resourceUrl(scope, 'overview'))}>
                 <ComplexSelect
                   value={scope.component}
-                  onChange={(e) => {
-                    const newScope = narrow({ level: 'projects', org: scope.org, project: scope.project }, String(e.target.value));
-                    const target = resource ?? 'overview';
-                    navigate(resourceUrl(newScope, canAccessResource(newScope, target)));
-                  }}
+                  open={false}
+                  onChange={() => {}}
+                  onOpen={() => {}}
                   size="small"
                   sx={{ minWidth: 160 }}
                   IconComponent={({ ownerState: _ownerState, ...props }) => (
-                    <span {...props} style={{ position: 'absolute', top: 'auto', bottom: '0', right: '6px', display: 'flex', pointerEvents: 'none' }}>
+                    <span {...props} style={{ position: 'absolute', top: 'auto', bottom: '0', right: '6px', display: 'flex', pointerEvents: 'all', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setComponentMenuDir('below'); setComponentMenuAnchor(integrationCardRef.current); }}>
                       <ChevronDown size={18} />
                     </span>
                   )}
