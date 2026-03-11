@@ -2356,9 +2356,7 @@ service /graphql on graphqlListener {
                 entryName = entryInfo.name,
                 entryType = entryInfo.'type ?: "unknown");
 
-        // Return the local entry type as a JSON string since the management API
-        // does not expose the entry value (use icp/artifacts API for the value)
-        return string `{"name":"${entryInfo.name}","type":"${entryInfo.'type ?: ""}"}`;
+        return entryInfo.value ?: "";
     }
 
     // Get Inbound Endpoint parameters from management API via ICP internal API
@@ -2509,6 +2507,292 @@ service /graphql on graphqlListener {
                 artifactName = artifactName,
                 paramCount = params.length());
         return params;
+    }
+
+    // Get overview metadata for a data source from the MI Management API.
+    // Returns fields: name, type, description, driverClass, userName, url.
+    isolated resource function get dataSourceOverviewByComponent(
+            graphql:Context context,
+            string componentId,
+            string dataSourceName,
+            string? environmentId = (),
+            string? runtimeId = ()
+        ) returns types:Parameter[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+
+        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+
+        types:Component? component = check storage:getComponentById(componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
+        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to view component artifacts");
+        }
+
+        types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
+        if runtimes.length() == 0 {
+            return error("No runtimes found for this component");
+        }
+
+        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+
+        log:printInfo("Fetching data source overview via MI management API",
+                runtimeId = runtime.runtimeId,
+                managementUrl = baseUrl,
+                dataSourceName = dataSourceName);
+
+        http:Client|error mgmtClientResult = artifactsApiAllowInsecureTLS
+            ? new (baseUrl, {secureSocket: {enable: false}})
+            : new (baseUrl);
+        if mgmtClientResult is error {
+            log:printError("Failed to create management API client", mgmtClientResult);
+            return error("Failed to create management API client");
+        }
+        http:Client mgmtClient = mgmtClientResult;
+
+        string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
+
+        mi_management:MgmtDataSourceInfo overview = check mi_management:fetchDataSourceOverview(
+                mgmtClient, hmacToken, dataSourceName);
+
+        types:Parameter[] result = [];
+        if overview.'type is string {
+            result.push({name: "type", value: <string>overview.'type});
+        }
+        if overview.description is string {
+            result.push({name: "description", value: <string>overview.description});
+        }
+        if overview.driverClass is string {
+            result.push({name: "driverClass", value: <string>overview.driverClass});
+        }
+        if overview.userName is string {
+            result.push({name: "userName", value: <string>overview.userName});
+        }
+        if overview.url is string {
+            result.push({name: "url", value: <string>overview.url});
+        }
+        return result;
+    }
+
+    // Get overview metadata for a message store: name, type, container, size.
+    isolated resource function get messageStoreOverviewByComponent(
+            graphql:Context context,
+            string componentId,
+            string storeName,
+            string? environmentId = (),
+            string? runtimeId = ()
+        ) returns types:Parameter[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+
+        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+
+        types:Component? component = check storage:getComponentById(componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
+        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to view component artifacts");
+        }
+
+        types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
+        if runtimes.length() == 0 {
+            return error("No runtimes found for this component");
+        }
+
+        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+
+        log:printInfo("Fetching message store overview via MI management API",
+                runtimeId = runtime.runtimeId,
+                managementUrl = baseUrl,
+                storeName = storeName);
+
+        http:Client|error mgmtClientResult = artifactsApiAllowInsecureTLS
+            ? new (baseUrl, {secureSocket: {enable: false}})
+            : new (baseUrl);
+        if mgmtClientResult is error {
+            log:printError("Failed to create management API client", mgmtClientResult);
+            return error("Failed to create management API client");
+        }
+        http:Client mgmtClient = mgmtClientResult;
+
+        string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
+
+        mi_management:MgmtMessageStoreInfo overview = check mi_management:fetchMessageStoreOverview(
+                mgmtClient, hmacToken, storeName);
+
+        types:Parameter[] result = [];
+        result.push({name: "name", value: overview.name});
+        if overview.'type is string {
+            result.push({name: "type", value: <string>overview.'type});
+        }
+        if overview.container is string {
+            result.push({name: "container", value: <string>overview.container});
+        }
+        if overview.size is int {
+            result.push({name: "size", value: (<int>overview.size).toString()});
+        }
+        return result;
+    }
+
+    // Get overview metadata for a message processor: name, type, messageStore, status.
+    isolated resource function get messageProcessorOverviewByComponent(
+            graphql:Context context,
+            string componentId,
+            string processorName,
+            string? environmentId = (),
+            string? runtimeId = ()
+        ) returns types:Parameter[]|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+
+        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+
+        types:Component? component = check storage:getComponentById(componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
+        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to view component artifacts");
+        }
+
+        types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
+        if runtimes.length() == 0 {
+            return error("No runtimes found for this component");
+        }
+
+        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+
+        log:printInfo("Fetching message processor overview via MI management API",
+                runtimeId = runtime.runtimeId,
+                managementUrl = baseUrl,
+                processorName = processorName);
+
+        http:Client|error mgmtClientResult = artifactsApiAllowInsecureTLS
+            ? new (baseUrl, {secureSocket: {enable: false}})
+            : new (baseUrl);
+        if mgmtClientResult is error {
+            log:printError("Failed to create management API client", mgmtClientResult);
+            return error("Failed to create management API client");
+        }
+        http:Client mgmtClient = mgmtClientResult;
+
+        string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
+
+        mi_management:MgmtMessageProcessorInfo overview = check mi_management:fetchMessageProcessorOverview(
+                mgmtClient, hmacToken, processorName);
+
+        types:Parameter[] result = [];
+        result.push({name: "name", value: overview.name});
+        if overview.'type is string {
+            result.push({name: "type", value: <string>overview.'type});
+        }
+        if overview.messageStore is string {
+            result.push({name: "messageStore", value: <string>overview.messageStore});
+        }
+        if overview.status is string {
+            result.push({name: "status", value: <string>overview.status});
+        }
+        return result;
+    }
+
+    // Get structured overview for a data service: dataSources, queries, resources, operations.
+    isolated resource function get dataServiceOverviewByComponent(
+            graphql:Context context,
+            string componentId,
+            string dataServiceName,
+            string? environmentId = (),
+            string? runtimeId = ()
+        ) returns types:DataServiceOverview|error {
+        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+        if authHeader !is string {
+            return error("Authorization header missing in request");
+        }
+
+        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+
+        types:Component? component = check storage:getComponentById(componentId);
+        if component is () {
+            return error("Integration not found");
+        }
+
+        types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
+        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+            return error("Insufficient permissions to view component artifacts");
+        }
+
+        types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
+        if runtimes.length() == 0 {
+            return error("No runtimes found for this component");
+        }
+
+        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
+
+        log:printInfo("Fetching data service overview via MI management API",
+                runtimeId = runtime.runtimeId,
+                managementUrl = baseUrl,
+                dataServiceName = dataServiceName);
+
+        http:Client|error mgmtClientResult = artifactsApiAllowInsecureTLS
+            ? new (baseUrl, {secureSocket: {enable: false}})
+            : new (baseUrl);
+        if mgmtClientResult is error {
+            log:printError("Failed to create management API client", mgmtClientResult);
+            return error("Failed to create management API client");
+        }
+        http:Client mgmtClient = mgmtClientResult;
+
+        string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
+
+        mi_management:MgmtDataServiceOverview overview = check mi_management:fetchDataServiceOverview(
+                mgmtClient, hmacToken, dataServiceName);
+
+        types:DataServiceDataSourceEntry[] dataSources = from mi_management:MgmtDataServiceDataSource ds in overview.dataSources
+            select {
+                dataSourceId: ds.dataSourceId,
+                dataSourceType: ds.dataSourceType,
+                properties: from mi_management:MgmtArtifactParameter p in ds.properties
+                    select {name: p.key, value: p.value}
+            };
+
+        types:DataServiceQueryEntry[] queries = from mi_management:MgmtDataServiceQuery q in overview.queries
+            select {id: q.id, dataSourceId: q.dataSourceId, namespace: q.namespace};
+
+        types:DataServiceResourceEntry[] resources = from mi_management:MgmtDataServiceResource r in overview.resources
+            select {resourcePath: r.resourcePath, resourceMethod: r.resourceMethod, resourceQuery: r.resourceQuery};
+
+        types:DataServiceOperationEntry[] operations = from mi_management:MgmtDataServiceOperation op in overview.operations
+            select {operationName: op.operationName, queryName: op.queryName};
+
+        return {
+            serviceName: overview.serviceName,
+            serviceDescription: overview.serviceDescription,
+            wsdl1_1: overview.wsdl1_1,
+            wsdl2_0: overview.wsdl2_0,
+            swagger_url: overview.swagger_url,
+            dataSources: dataSources,
+            queries: queries,
+            resources: resources,
+            operations: operations
+        };
     }
 }
 

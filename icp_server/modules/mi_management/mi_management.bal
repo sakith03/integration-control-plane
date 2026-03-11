@@ -77,13 +77,19 @@ public type MgmtSequenceInfo record {|
 // GET /management/tasks?taskName={name}
 public type MgmtTaskInfo record {|
     string name;
+    string configuration?;
+    string triggerType?;
+    string triggerInterval?;
+    string triggerCount?;
+    string implementation?;
+    string taskGroup?;
 |};
 
 // GET /management/local-entries?name={name}
-// NOTE: The management API does NOT return the entry value — only name and type.
 public type MgmtLocalEntryInfo record {|
     string name;
     string 'type?;
+    string value?;
 |};
 
 // GET /management/message-stores?name={name}
@@ -91,6 +97,7 @@ public type MgmtMessageStoreInfo record {|
     string name;
     string 'type?;
     int size?;
+    string container?;
 |};
 
 // GET /management/message-processors?name={name}
@@ -98,6 +105,7 @@ public type MgmtMessageProcessorInfo record {|
     string name;
     string 'type?;
     string status?;
+    string messageStore?;
 |};
 
 // GET /management/inbound-endpoints?inboundEndpointName={name}
@@ -131,10 +139,49 @@ public type MgmtDataServiceInfo record {|
     string wsdl2_0?;
 |};
 
+public type MgmtDataServiceDataSource record {|
+    string dataSourceId;
+    string dataSourceType?;
+    MgmtArtifactParameter[] properties;
+|};
+
+public type MgmtDataServiceQuery record {|
+    string id;
+    string dataSourceId?;
+    string namespace?;
+|};
+
+public type MgmtDataServiceResource record {|
+    string resourcePath;
+    string resourceMethod?;
+    string resourceQuery?;
+|};
+
+public type MgmtDataServiceOperation record {|
+    string operationName;
+    string queryName?;
+|};
+
+public type MgmtDataServiceOverview record {|
+    string serviceName;
+    string serviceDescription?;
+    string wsdl1_1?;
+    string wsdl2_0?;
+    string swagger_url?;
+    MgmtDataServiceDataSource[] dataSources;
+    MgmtDataServiceQuery[] queries;
+    MgmtDataServiceResource[] resources;
+    MgmtDataServiceOperation[] operations;
+|};
+
 // GET /management/data-sources?name={name}
 public type MgmtDataSourceInfo record {|
     string name;
     string 'type?;
+    string description?;
+    string driverClass?;
+    string userName?;
+    string url?;
 |};
 
 // Artifact entry inside a carbon app
@@ -249,6 +296,7 @@ isolated function fetchRawArtifactItem(
     boolean isConnector = false;
     boolean isTemplate = false;
     boolean isCarbonApp = false;
+    boolean isTask = false;
 
     // Artifact type values are the exact strings sent by the frontend
     // (kebab-case, with "api" as the special case for RestApi).
@@ -262,6 +310,7 @@ isolated function fetchRawArtifactItem(
         path = string `${MGMT_API_PATH}/sequences?sequenceName=${artifactName}`;
     } else if artifactType == "task" {
         path = string `${MGMT_API_PATH}/tasks?taskName=${artifactName}`;
+        isTask = true;
     } else if artifactType == "local-entry" {
         path = string `${MGMT_API_PATH}/local-entries?name=${artifactName}`;
     } else if artifactType == "message-store" {
@@ -311,7 +360,7 @@ isolated function fetchRawArtifactItem(
         return error(string `Connector '${artifactName}' not found in MI management API response`);
     }
 
-    if isTemplate || isCarbonApp {
+    if isTemplate || isCarbonApp || isTask {
         return payload;
     }
 
@@ -337,11 +386,32 @@ public isolated function fetchArtifactDetails(
 
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName);
 
-    // The 'configuration' field holds the full synapse XML source
+    // The 'configuration' field holds the full synapse XML source.
+    // For some artifact types (e.g. tasks) the management API may return the
+    // configuration at the top level of the response, or inside a 'list' array.
+    // Both layouts are handled below.
     if item is map<json> {
-        json configField = (<map<json>>item)["configuration"];
+        map<json> itemMap = <map<json>>item;
+
+        // Case 1: configuration is a top-level field (direct-object response or
+        //         hybrid response where task details sit alongside a 'list' field).
+        json configField = itemMap["configuration"];
         if configField is string && configField.length() > 0 {
             return configField;
+        }
+
+        // Case 2: configuration is inside a 'list' array item (list-format response
+        //         where the item was not already extracted by extractFirstFromMgmtList).
+        json listField = itemMap["list"];
+        if listField is json[] {
+            foreach json listItem in <json[]>listField {
+                if listItem is map<json> {
+                    json listConfigField = (<map<json>>listItem)["configuration"];
+                    if listConfigField is string && listConfigField.length() > 0 {
+                        return listConfigField;
+                    }
+                }
+            }
         }
     }
 
@@ -427,11 +497,9 @@ public isolated function fetchWsdlContent(string wsdlUrl, boolean allowInsecureT
     return wsdlContent;
 }
 
-// fetchLocalEntryInfo returns the name and type for the named local entry.
+// fetchLocalEntryInfo returns the name, type, and value for the named local entry.
 //
 // Management-API equivalent of: GET /icp/artifacts/local-entry?name={name}
-//
-// NOTE: The management API does NOT return the entry value — only name and type.
 public isolated function fetchLocalEntryInfo(
         http:Client mgmtClient,
         string hmacToken,
@@ -446,9 +514,11 @@ public isolated function fetchLocalEntryInfo(
     map<json> m = <map<json>>item;
     json nameField = m["name"];
     json typeField = m["type"];
+    json valueField = m["value"];
     return {
         name: nameField is string ? nameField : entryName,
-        'type: typeField is string ? typeField : ()
+        'type: typeField is string ? typeField : (),
+        value: valueField is string ? valueField : ()
     };
 }
 
@@ -489,9 +559,9 @@ public isolated function fetchInboundEndpointInfo(
 //
 // Management-API equivalent of: GET /icp/artifacts/parameters?type={type}&name={name}
 //
-// When the response includes a 'parameters' array (e.g. inbound endpoints return
-// [{name, value}, ...]), those are used directly. Otherwise all scalar metadata
-// fields (excluding 'name' and 'configuration') are returned as pairs.
+// For inbound endpoints: extracts the 'parameters' array [{name, value}, ...].
+// For data sources: extracts the 'configurationParameters' object as key-value pairs.
+// For message processors: extracts the 'parameters' object {key: value, ...} as key-value pairs.
 public isolated function fetchArtifactParameterInfo(
         http:Client mgmtClient,
         string hmacToken,
@@ -506,8 +576,29 @@ public isolated function fetchArtifactParameterInfo(
     }
     map<json> itemMap = <map<json>>item;
 
-    // The management API returns a 'parameters' array for inbound endpoints:
-    // [{name, value}, ...]. Field name is 'name' (not 'key') inside each entry.
+    // Data sources: configurationParameters is a JSON object {key: value, ...}
+    if artifactType == "data-source" {
+        json configParams = itemMap["configurationParameters"];
+        if configParams is map<json> {
+            foreach [string, json] [k, v] in (<map<json>>configParams).entries() {
+                params.push({key: k, value: v.toJsonString()});
+            }
+        }
+        return params;
+    }
+
+    // Message processors: parameters is a JSON object {key: value, ...}
+    if artifactType == "message-processor" {
+        json procParams = itemMap["parameters"];
+        if procParams is map<json> {
+            foreach [string, json] [k, v] in (<map<json>>procParams).entries() {
+                params.push({key: k, value: v is string ? <string>v : v.toJsonString()});
+            }
+        }
+        return params;
+    }
+
+    // Inbound endpoints: 'parameters' array [{name, value}, ...]
     json paramsField = itemMap["parameters"];
     if paramsField is json[] {
         foreach json p in paramsField {
@@ -522,4 +613,168 @@ public isolated function fetchArtifactParameterInfo(
     }
 
     return params;
+}
+
+// fetchDataSourceOverview returns overview metadata for the named data source.
+// Overview fields: name, type, description, driverClass, userName, url.
+public isolated function fetchDataSourceOverview(
+        http:Client mgmtClient,
+        string hmacToken,
+        string dataSourceName
+) returns MgmtDataSourceInfo|error {
+    log:printDebug("Fetching data source overview from MI management API", dataSourceName = dataSourceName);
+
+    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "data-source", dataSourceName);
+    if item !is map<json> {
+        return error(string `Unexpected response format for data source '${dataSourceName}'`);
+    }
+    map<json> m = <map<json>>item;
+    return {
+        name: (m["name"] is string) ? <string>m["name"] : dataSourceName,
+        'type: m["type"] is string ? <string>m["type"] : (),
+        description: m["description"] is string ? <string>m["description"] : (),
+        driverClass: m["driverClass"] is string ? <string>m["driverClass"] : (),
+        userName: m["userName"] is string ? <string>m["userName"] : (),
+        url: m["url"] is string ? <string>m["url"] : ()
+    };
+}
+
+// fetchMessageStoreOverview returns overview metadata for the named message store.
+// Overview fields: name, type, container, size.
+public isolated function fetchMessageStoreOverview(
+        http:Client mgmtClient,
+        string hmacToken,
+        string storeName
+) returns MgmtMessageStoreInfo|error {
+    log:printDebug("Fetching message store overview from MI management API", storeName = storeName);
+
+    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "message-store", storeName);
+    if item !is map<json> {
+        return error(string `Unexpected response format for message store '${storeName}'`);
+    }
+    map<json> m = <map<json>>item;
+    return {
+        name: m["name"] is string ? <string>m["name"] : storeName,
+        'type: m["type"] is string ? <string>m["type"] : (),
+        size: m["size"] is int ? <int>m["size"] : (),
+        container: m["container"] is string ? <string>m["container"] : ()
+    };
+}
+
+// fetchMessageProcessorOverview returns overview metadata for the named message processor.
+// Overview fields: name, type, messageStore.
+public isolated function fetchMessageProcessorOverview(
+        http:Client mgmtClient,
+        string hmacToken,
+        string processorName
+) returns MgmtMessageProcessorInfo|error {
+    log:printDebug("Fetching message processor overview from MI management API", processorName = processorName);
+
+    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "message-processor", processorName);
+    if item !is map<json> {
+        return error(string `Unexpected response format for message processor '${processorName}'`);
+    }
+    map<json> m = <map<json>>item;
+    return {
+        name: m["name"] is string ? <string>m["name"] : processorName,
+        'type: m["type"] is string ? <string>m["type"] : (),
+        status: m["status"] is string ? <string>m["status"] : (),
+        messageStore: m["messageStore"] is string ? <string>m["messageStore"] : ()
+    };
+}
+
+// fetchDataServiceOverview parses the full MI management API response for a data service
+// and returns structured overview data: dataSources, queries, resources, operations.
+public isolated function fetchDataServiceOverview(
+        http:Client mgmtClient,
+        string hmacToken,
+        string dataServiceName
+) returns MgmtDataServiceOverview|error {
+    log:printDebug("Fetching data service overview from MI management API", dataServiceName = dataServiceName);
+
+    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "data-service", dataServiceName);
+    if item !is map<json> {
+        return error(string `Unexpected response format for data service '${dataServiceName}'`);
+    }
+    map<json> m = <map<json>>item;
+
+    // Parse dataSources: [{dataSourceId, dataSourceType, dataSourceProperties:{k:v}}]
+    MgmtDataServiceDataSource[] dataSources = [];
+    json dsField = m["dataSources"];
+    if dsField is json[] {
+        foreach json ds in <json[]>dsField {
+            if ds is map<json> {
+                map<json> dsMap = <map<json>>ds;
+                string dsId = dsMap["dataSourceId"] is string ? <string>dsMap["dataSourceId"] : "";
+                string? dsType = dsMap["dataSourceType"] is string ? <string>dsMap["dataSourceType"] : ();
+                MgmtArtifactParameter[] props = [];
+                json propsField = dsMap["dataSourceProperties"];
+                if propsField is map<json> {
+                    foreach [string, json] [k, v] in (<map<json>>propsField).entries() {
+                        props.push({key: k, value: v is string ? <string>v : v.toJsonString()});
+                    }
+                }
+                dataSources.push({dataSourceId: dsId, dataSourceType: dsType, properties: props});
+            }
+        }
+    }
+
+    // Parse queries: [{id, dataSourceId, namespace}]
+    MgmtDataServiceQuery[] queries = [];
+    json queriesField = m["queries"];
+    if queriesField is json[] {
+        foreach json q in <json[]>queriesField {
+            if q is map<json> {
+                map<json> qMap = <map<json>>q;
+                queries.push({
+                    id: qMap["id"] is string ? <string>qMap["id"] : "",
+                    dataSourceId: qMap["dataSourceId"] is string ? <string>qMap["dataSourceId"] : (),
+                    namespace: qMap["namespace"] is string ? <string>qMap["namespace"] : ()
+                });
+            }
+        }
+    }
+
+    // Parse resources: [{resourcePath, resourceMethod, resourceQuery}]
+    MgmtDataServiceResource[] resources = [];
+    json resourcesField = m["resources"];
+    if resourcesField is json[] {
+        foreach json r in <json[]>resourcesField {
+            if r is map<json> {
+                map<json> rMap = <map<json>>r;
+                resources.push({
+                    resourcePath: rMap["resourcePath"] is string ? <string>rMap["resourcePath"] : "",
+                    resourceMethod: rMap["resourceMethod"] is string ? <string>rMap["resourceMethod"] : (),
+                    resourceQuery: rMap["resourceQuery"] is string ? <string>rMap["resourceQuery"] : ()
+                });
+            }
+        }
+    }
+
+    // Parse operations: [{operationName, queryName}]
+    MgmtDataServiceOperation[] operations = [];
+    json opsField = m["operations"];
+    if opsField is json[] {
+        foreach json op in <json[]>opsField {
+            if op is map<json> {
+                map<json> opMap = <map<json>>op;
+                operations.push({
+                    operationName: opMap["operationName"] is string ? <string>opMap["operationName"] : "",
+                    queryName: opMap["queryName"] is string ? <string>opMap["queryName"] : ()
+                });
+            }
+        }
+    }
+
+    return {
+        serviceName: m["serviceName"] is string ? <string>m["serviceName"] : dataServiceName,
+        serviceDescription: m["serviceDescription"] is string ? <string>m["serviceDescription"] : (),
+        wsdl1_1: m["wsdl1_1"] is string ? <string>m["wsdl1_1"] : (),
+        wsdl2_0: m["wsdl2_0"] is string ? <string>m["wsdl2_0"] : (),
+        swagger_url: m["swagger_url"] is string ? <string>m["swagger_url"] : (),
+        dataSources: dataSources,
+        queries: queries,
+        resources: resources,
+        operations: operations
+    };
 }

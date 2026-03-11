@@ -709,8 +709,8 @@ public isolated function getDataSourcesForRuntime(string runtimeId) returns type
 public isolated function getConnectorsForRuntime(string runtimeId) returns types:Connector[]|error {
     types:Connector[] connectorList = [];
     stream<types:Connector, sql:Error?> connectorStream = dbClient->query(`
-        SELECT connector_name, package, version, state
-        FROM mi_connector_artifacts 
+        SELECT connector_name, package, version, description, state
+        FROM mi_connector_artifacts
         WHERE runtime_id = ${runtimeId}
     `);
 

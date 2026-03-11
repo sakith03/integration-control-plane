@@ -19,7 +19,7 @@
 import { Accordion, AccordionSummary, AccordionDetails, Box, Card, CardContent, Chip, CircularProgress, Divider, Stack, Typography } from '@wso2/oxygen-ui';
 import { ChevronDown } from '@wso2/oxygen-ui-icons-react';
 import { useMemo } from 'react';
-import { useArtifactSource, useArtifactParams, useArtifactWsdl, useLocalEntryValue, ARTIFACT_TYPE_TO_SOURCE_TYPE } from '../api/queries';
+import { useArtifactSource, useArtifactParams, useArtifactWsdl, useLocalEntryValue, useDataSourceOverview, useDataServiceOverview, useMessageProcessorOverview, ARTIFACT_TYPE_TO_SOURCE_TYPE } from '../api/queries';
 import { WSDL_NS, SOAP_NS, SOAP12_NS } from '../paths';
 import CodeViewer from './CodeViewer';
 import DataTable, { emptySx } from './DataTable';
@@ -108,6 +108,185 @@ export function ArtifactValue({ artifact, envId, componentId }: TabProps) {
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (!value) return <Typography sx={emptySx}>No value available.</Typography>;
   return <CodeViewer code={value} language="xml" />;
+}
+
+const DATA_SOURCE_OVERVIEW_FIELDS = ['name', 'type', 'description', 'driverClass', 'userName', 'url'];
+
+export function DataSourceOverview({ artifact, envId, componentId }: TabProps) {
+  const artifactName = artifact.name?.toString() ?? '';
+  const { data: params, isLoading, error } = useDataSourceOverview(componentId, artifactName, envId);
+  if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
+  if (error || !params) return <Typography sx={emptySx}>No overview available.</Typography>;
+
+  const ordered = DATA_SOURCE_OVERVIEW_FIELDS.map((field) => params.find((p) => p.name === field)).filter((p): p is { name: string; value: string } => !!p);
+  const rest = params.filter((p) => !DATA_SOURCE_OVERVIEW_FIELDS.includes(p.name));
+
+  return (
+    <Stack gap={1.5}>
+      {[...ordered, ...rest].map((p) => (
+        <Stack key={p.name} direction="row" gap={2} alignItems="baseline">
+          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 120, textTransform: 'capitalize' }}>
+            {p.name.replace(/([a-z])([A-Z])/g, '$1 $2')}
+          </Typography>
+          <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+            {p.value || '—'}
+          </Typography>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+function DataServiceSection({ title, items, renderSummary, renderDetails }: { title: string; items: unknown[]; renderSummary: (item: unknown) => string; renderDetails: (item: unknown) => [string, string][] }) {
+  if (items.length === 0) return null;
+  return (
+    <Box>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+        {title}
+      </Typography>
+      <Stack gap={0.75}>
+        {items.map((item, i) => (
+          <Accordion key={i} disableGutters sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ChevronDown size={16} />} sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
+              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+                {renderSummary(item)}
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ bgcolor: 'background.paper', p: 0 }}>
+              <DataTable rows={renderDetails(item)} emptyMsg="No details." />
+            </AccordionDetails>
+          </Accordion>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+export function DataServiceOverview({ artifact, envId, componentId }: TabProps) {
+  const artifactName = artifact.name?.toString() ?? '';
+  const { data, isLoading, error } = useDataServiceOverview(componentId, artifactName, envId);
+  if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
+  if (error || !data) return <Typography sx={emptySx}>No overview available.</Typography>;
+
+  return (
+    <Stack gap={3}>
+      {/* Header fields */}
+      <Stack gap={1.5}>
+        {[
+          { label: 'Service Name', value: data.serviceName },
+          { label: 'Description', value: data.serviceDescription },
+          { label: 'WSDL 1.1', value: data.wsdl1_1 },
+          { label: 'WSDL 2.0', value: data.wsdl2_0 },
+          { label: 'Swagger URL', value: data.swagger_url },
+        ]
+          .filter((f) => f.value)
+          .map((f) => (
+            <Stack key={f.label} direction="row" gap={2} alignItems="baseline">
+              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 120 }}>
+                {f.label}
+              </Typography>
+              {f.label.includes('WSDL') || f.label.includes('Swagger') ? (
+                <Typography variant="body2" component="a" href={f.value} target="_blank" rel="noopener noreferrer" sx={{ wordBreak: 'break-all' }}>
+                  {f.value}
+                </Typography>
+              ) : (
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {f.value}
+                </Typography>
+              )}
+            </Stack>
+          ))}
+      </Stack>
+
+      <Divider />
+
+      {/* Data Sources */}
+      <DataServiceSection
+        title="Data Sources"
+        items={data.dataSources}
+        renderSummary={(item) => {
+          const ds = item as { dataSourceId: string; dataSourceType: string };
+          return ds.dataSourceId;
+        }}
+        renderDetails={(item) => {
+          const ds = item as { dataSourceId: string; dataSourceType: string; properties: { name: string; value: string }[] };
+          return [['ID', ds.dataSourceId], ['Type', ds.dataSourceType], ...ds.properties.map((p): [string, string] => [p.name, p.value])];
+        }}
+      />
+
+      {/* Queries */}
+      <DataServiceSection
+        title="Queries"
+        items={data.queries}
+        renderSummary={(item) => (item as { id: string }).id}
+        renderDetails={(item) => {
+          const q = item as { id: string; dataSourceId: string; namespace?: string };
+          return [['ID', q.id], ['Data Source', q.dataSourceId], ...(q.namespace ? [['Namespace', q.namespace] as [string, string]] : [])];
+        }}
+      />
+
+      {/* Resources */}
+      <DataServiceSection
+        title="Resources"
+        items={data.resources}
+        renderSummary={(item) => (item as { resourcePath: string }).resourcePath}
+        renderDetails={(item) => {
+          const r = item as { resourcePath: string; resourceMethod: string; resourceQuery?: string };
+          return [['Path', r.resourcePath], ['Method', r.resourceMethod], ...(r.resourceQuery ? [['Query', r.resourceQuery] as [string, string]] : [])];
+        }}
+      />
+
+      {/* Operations */}
+      <DataServiceSection
+        title="Operations"
+        items={data.operations}
+        renderSummary={(item) => (item as { operationName: string }).operationName}
+        renderDetails={(item) => {
+          const o = item as { operationName: string; queryName: string };
+          return [
+            ['Operation Name', o.operationName],
+            ['Query Name', o.queryName],
+          ];
+        }}
+      />
+    </Stack>
+  );
+}
+
+const MESSAGE_PROCESSOR_OVERVIEW_FIELDS = ['name', 'type', 'messageStore', 'status'];
+
+export function MessageProcessorOverview({ artifact, envId, componentId }: TabProps) {
+  const artifactName = artifact.name?.toString() ?? '';
+  const { data: params, isLoading, error } = useMessageProcessorOverview(componentId, artifactName, envId);
+  if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
+  if (error || !params) return <Typography sx={emptySx}>No overview available.</Typography>;
+
+  const overviewParams = params.filter((p: { name: string; value: string }) => MESSAGE_PROCESSOR_OVERVIEW_FIELDS.includes(p.name));
+  const ordered = MESSAGE_PROCESSOR_OVERVIEW_FIELDS.map((field) => overviewParams.find((p: { name: string; value: string }) => p.name === field)).filter((p): p is { name: string; value: string } => !!p);
+
+  return (
+    <Stack gap={1.5}>
+      {ordered.map((p) => (
+        <Stack key={p.name} direction="row" gap={2} alignItems="baseline">
+          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 120, textTransform: 'capitalize' }}>
+            {p.name.replace(/([a-z])([A-Z])/g, '$1 $2')}
+          </Typography>
+          <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+            {p.value || '—'}
+          </Typography>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+export function MessageProcessorParameters({ artifact, envId, componentId }: TabProps) {
+  const artifactName = artifact.name?.toString() ?? '';
+  const { data: params, isLoading, error } = useArtifactParams(componentId, 'message-processor', artifactName, envId);
+  if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
+  if (error) return <Typography sx={emptySx}>Failed to load parameters.</Typography>;
+  if (!params || params.length === 0) return <Typography sx={emptySx}>No parameters found.</Typography>;
+  return <DataTable headers={['Name', 'Value']} rows={params.map((p) => [p.name, p.value])} emptyMsg="No parameters found." />;
 }
 
 export function ArtifactCarbonArtifacts({ artifact }: TabProps) {

@@ -270,13 +270,10 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
           {carbonApp && <Divider orientation="vertical" flexItem />}
           {showStatusChip && artifact.state && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>Status</Typography>
-              <Chip
-                label={String(artifact.state).charAt(0).toUpperCase() + String(artifact.state).slice(1).toLowerCase()}
-                size="small"
-                variant="outlined"
-                color={toEnabled(artifact.state) ? 'success' : 'default'}
-              />
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                Status
+              </Typography>
+              <Chip label={String(artifact.state).charAt(0).toUpperCase() + String(artifact.state).slice(1).toLowerCase()} size="small" variant="outlined" color={toEnabled(artifact.state) ? 'success' : 'default'} />
             </Box>
           )}
           {showStatusChip && artifact.state && (showStatusToggle || showTracingToggle || showStatisticsToggle || showListenerToggle) && <Divider orientation="vertical" flexItem />}
