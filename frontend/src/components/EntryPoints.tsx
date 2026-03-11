@@ -556,11 +556,12 @@ export default function Environment({
   const [newPassword, setNewPassword] = useState('');
   const [newIsAdmin, setNewIsAdmin] = useState(false);
   const [createUserError, setCreateUserError] = useState<string | null>(null);
+  const [deleteUserError, setDeleteUserError] = useState<string | null>(null);
 
   const generateSecretMutation = useGenerateComponentEnvironmentJwtSecret();
   const rotateSecretMutation = useRotateComponentEnvironmentJwtSecret();
 
-  const { data: runtimes = [], error: runtimesError, isLoading: runtimesLoading } = useComponentRuntimes(env.id, projectId, componentId);
+  const { data: runtimes = [], error: runtimesError, isLoading: runtimesLoading } = useComponentRuntimes(env.id, projectId, componentId, componentType === 'MI' && settingsPanelOpen && !!env.id && !!projectId && !!componentId);
   const validatedRuntimeId = runtimes.some((r) => r.runtimeId === selectedRuntimeId) ? selectedRuntimeId : '';
   const activeRuntimeId = validatedRuntimeId || (runtimes.length === 1 ? runtimes[0].runtimeId : '');
   const createMiUser = useCreateMiUser();
@@ -869,22 +870,49 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
         </Dialog>
 
         {/* Delete MI User confirmation dialog */}
-        <Dialog open={deleteUserTarget !== null} onClose={() => setDeleteUserTarget(null)} maxWidth="xs" fullWidth>
+        <Dialog
+          open={deleteUserTarget !== null}
+          onClose={() => {
+            setDeleteUserTarget(null);
+            setDeleteUserError(null);
+          }}
+          maxWidth="xs"
+          fullWidth>
           <DialogTitle>Delete User</DialogTitle>
           <DialogContent>
+            {deleteUserError && (
+              <Alert severity="error" onClose={() => setDeleteUserError(null)} sx={{ mb: 2 }}>
+                {deleteUserError}
+              </Alert>
+            )}
             <DialogContentText>
               Are you sure you want to delete user <strong>{deleteUserTarget}</strong> from the runtime? This action cannot be undone.
             </DialogContentText>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setDeleteUserTarget(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setDeleteUserTarget(null);
+                setDeleteUserError(null);
+              }}>
+              Cancel
+            </Button>
             <Button
               variant="contained"
               color="error"
               disabled={deleteMiUser.isPending}
               onClick={() => {
                 if (!deleteUserTarget) return;
-                deleteMiUser.mutate({ componentId, runtimeId: activeRuntimeId, username: deleteUserTarget }, { onSettled: () => setDeleteUserTarget(null) });
+                deleteMiUser.mutate(
+                  { componentId, runtimeId: activeRuntimeId, username: deleteUserTarget },
+                  {
+                    onSuccess: () => {
+                      setDeleteUserTarget(null);
+                      setDeleteUserError(null);
+                    },
+                    onError: (err) => setDeleteUserError(err.message),
+                  },
+                );
               }}>
               {deleteMiUser.isPending ? 'Deleting…' : 'Delete'}
             </Button>

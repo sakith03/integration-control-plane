@@ -211,11 +211,11 @@ const COMPONENT_RUNTIMES_QUERY = `
     }
   }`;
 
-export function useComponentRuntimes(envId: string, projectId: string, componentId: string) {
+export function useComponentRuntimes(envId: string, projectId: string, componentId: string, enabled = true) {
   return useQuery({
     queryKey: ['componentRuntimes', envId, projectId, componentId],
     queryFn: () => gql<{ runtimes: GqlRuntime[] }>(COMPONENT_RUNTIMES_QUERY, { environmentId: envId, projectId, componentId }).then((d) => d.runtimes),
-    enabled: !!envId && !!projectId && !!componentId,
+    enabled: enabled && !!envId && !!projectId && !!componentId,
   });
 }
 
