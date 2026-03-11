@@ -36,7 +36,7 @@ const miUsersKey = (componentId: string, runtimeId: string) => ['mi-users', comp
 export function useListMiUsers(componentId: string, runtimeId: string, enabled = true) {
   return useQuery({
     queryKey: miUsersKey(componentId, runtimeId),
-    queryFn: () => miUsersFetch<{ users: MiUser[] }>(`/api/components/${componentId}/runtimes/${runtimeId}/mi-users`).then((d) => d.users),
+    queryFn: () => miUsersFetch<{ users: MiUser[] }>(`/api/components/${componentId}/runtimes/${encodeURIComponent(runtimeId)}/mi-users`).then((d) => d.users),
     enabled: enabled && !!componentId && !!runtimeId,
   });
 }
@@ -45,7 +45,7 @@ export function useCreateMiUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ componentId, runtimeId, userId, password, isAdmin }: { componentId: string; runtimeId: string; userId: string; password: string; isAdmin: boolean }) =>
-      miUsersFetch<{ userId: string; status: string }>(`/api/components/${componentId}/runtimes/${runtimeId}/mi-users`, { method: 'POST', body: JSON.stringify({ userId, password, isAdmin }) }),
+      miUsersFetch<{ userId: string; status: string }>(`/api/components/${componentId}/runtimes/${encodeURIComponent(runtimeId)}/mi-users`, { method: 'POST', body: JSON.stringify({ userId, password, isAdmin }) }),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: miUsersKey(vars.componentId, vars.runtimeId) }),
   });
 }
@@ -54,7 +54,7 @@ export function useDeleteMiUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ componentId, runtimeId, username }: { componentId: string; runtimeId: string; username: string }) =>
-      miUsersFetch<{ userId: string; status: string }>(`/api/components/${componentId}/runtimes/${runtimeId}/mi-users/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+      miUsersFetch<{ userId: string; status: string }>(`/api/components/${componentId}/runtimes/${encodeURIComponent(runtimeId)}/mi-users/${encodeURIComponent(username)}`, { method: 'DELETE' }),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: miUsersKey(vars.componentId, vars.runtimeId) }),
   });
 }

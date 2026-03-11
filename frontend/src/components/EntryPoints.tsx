@@ -561,7 +561,8 @@ export default function Environment({
   const rotateSecretMutation = useRotateComponentEnvironmentJwtSecret();
 
   const { data: runtimes = [], error: runtimesError, isLoading: runtimesLoading } = useComponentRuntimes(env.id, projectId, componentId);
-  const activeRuntimeId = selectedRuntimeId || (runtimes.length === 1 ? runtimes[0].runtimeId : '');
+  const validatedRuntimeId = runtimes.some((r) => r.runtimeId === selectedRuntimeId) ? selectedRuntimeId : '';
+  const activeRuntimeId = validatedRuntimeId || (runtimes.length === 1 ? runtimes[0].runtimeId : '');
   const createMiUser = useCreateMiUser();
   const deleteMiUser = useDeleteMiUser();
   const { data: miUsers = [], error: miUsersError, isLoading: miUsersLoading } = useListMiUsers(componentId, activeRuntimeId, componentType === 'MI' && settingsPanelOpen && !!activeRuntimeId);

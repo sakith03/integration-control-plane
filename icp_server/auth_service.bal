@@ -3107,12 +3107,10 @@ service /auth on httpListener {
             return utils:createInternalServerError("Failed to fetch users from runtime");
         }
 
-        string|error listPayloadText = listResponse.getTextPayload();
         log:printInfo("MI user management: GET /users response",
                 runtimeId = runtimeId,
                 url = listUrl,
-                statusCode = listResponse.statusCode,
-                body = listPayloadText is string ? listPayloadText : "<unreadable>");
+                statusCode = listResponse.statusCode);
 
         if listResponse.statusCode != http:STATUS_OK {
             log:printError("MI user management: GET /users returned non-OK status",
@@ -3136,6 +3134,10 @@ service /auth on httpListener {
             userList = listField;
         }
 
+        log:printInfo("MI user management: GET /users parsed",
+                runtimeId = runtimeId,
+                userCount = userList.length());
+
         json[] enrichedUsers = [];
         foreach json u in userList {
             json|error userId = u.userId;
@@ -3155,12 +3157,10 @@ service /auth on httpListener {
                 "Accept": "application/json"
             });
             if detailResponse is http:Response {
-                string|error detailPayloadText = detailResponse.getTextPayload();
                 log:printInfo("MI user management: GET /users/{userId} response",
                         runtimeId = runtimeId,
                         url = detailUrl,
-                        statusCode = detailResponse.statusCode,
-                        body = detailPayloadText is string ? detailPayloadText : "<unreadable>");
+                        statusCode = detailResponse.statusCode);
                 if detailResponse.statusCode == http:STATUS_OK {
                     json|error detailBody = detailResponse.getJsonPayload();
                     if detailBody is json {
@@ -3286,12 +3286,10 @@ service /auth on httpListener {
             return utils:createInternalServerError("Failed to create user on runtime");
         }
 
-        string|error createPayloadText = createResponse.getTextPayload();
         log:printInfo("MI user management: POST /users response",
                 runtimeId = runtimeId,
                 url = createUrl,
-                statusCode = createResponse.statusCode,
-                body = createPayloadText is string ? createPayloadText : "<unreadable>");
+                statusCode = createResponse.statusCode);
 
         if createResponse.statusCode == http:STATUS_BAD_REQUEST {
             json|error errBody = createResponse.getJsonPayload();
@@ -3404,12 +3402,10 @@ service /auth on httpListener {
             return utils:createInternalServerError("Failed to delete user on runtime");
         }
 
-        string|error deletePayloadText = deleteResponse.getTextPayload();
         log:printInfo("MI user management: DELETE /users/{userId} response",
                 runtimeId = runtimeId,
                 url = deleteUrl,
-                statusCode = deleteResponse.statusCode,
-                body = deletePayloadText is string ? deletePayloadText : "<unreadable>");
+                statusCode = deleteResponse.statusCode);
 
         if deleteResponse.statusCode == http:STATUS_NOT_FOUND {
             return <http:NotFound>{body: {message: string `User '${username}' not found on runtime`}};
