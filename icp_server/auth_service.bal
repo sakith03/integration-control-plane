@@ -23,6 +23,7 @@ import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
 import ballerina/sql;
+import ballerina/url;
 
 // Initialized in init() with resolved (decrypted) secrets
 final http:Client authBackendClient;
@@ -3142,13 +3143,14 @@ service /auth on httpListener {
                 continue;
             }
             string userIdStr = userId.toString();
-            string detailUrl = string `${baseUrl}/management/users/${userIdStr}`;
+            string encodedUsername = check url:encode(userIdStr, "UTF-8");
+            string detailUrl = string `${baseUrl}/management/users/${encodedUsername}`;
             log:printInfo("MI user management: GET /users/{userId} request",
                     runtimeId = runtimeId,
                     url = detailUrl);
 
             boolean isAdmin = false;
-            http:Response|error detailResponse = mgmtClient->get(string `/management/users/${userIdStr}`, {
+            http:Response|error detailResponse = mgmtClient->get(string `/management/users/${encodedUsername}`, {
                 "Authorization": string `Bearer ${bearerToken}`,
                 "Accept": "application/json"
             });
@@ -3224,11 +3226,11 @@ service /auth on httpListener {
         if userId is error || password is error {
             return utils:createBadRequestError("userId and password are required");
         }
-        if userId.toString().trim().length() == 0 {
-            return utils:createBadRequestError("userId must not be empty");
+        if userId !is string || userId.trim().length() == 0 {
+            return utils:createBadRequestError("userId must be a non-empty string");
         }
-        if password.toString().trim().length() == 0 {
-            return utils:createBadRequestError("password must not be empty");
+        if password !is string || password.trim().length() == 0 {
+            return utils:createBadRequestError("password must be a non-empty string");
         }
 
         boolean isAdmin = false;

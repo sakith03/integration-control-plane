@@ -560,15 +560,11 @@ export default function Environment({
   const generateSecretMutation = useGenerateComponentEnvironmentJwtSecret();
   const rotateSecretMutation = useRotateComponentEnvironmentJwtSecret();
 
-  const { data: runtimes = [] } = useComponentRuntimes(env.id, componentId);
+  const { data: runtimes = [], error: runtimesError, isLoading: runtimesLoading } = useComponentRuntimes(env.id, projectId, componentId);
   const activeRuntimeId = selectedRuntimeId || (runtimes.length === 1 ? runtimes[0].runtimeId : '');
   const createMiUser = useCreateMiUser();
   const deleteMiUser = useDeleteMiUser();
-  const { data: miUsers = [], isLoading: miUsersLoading } = useListMiUsers(
-    componentId,
-    activeRuntimeId,
-    componentType === 'MI' && settingsPanelOpen && !!activeRuntimeId,
-  );
+  const { data: miUsers = [], error: miUsersError, isLoading: miUsersLoading } = useListMiUsers(componentId, activeRuntimeId, componentType === 'MI' && settingsPanelOpen && !!activeRuntimeId);
 
   // The currently displayed secret — updated by both generate and rotate.
   const activeSecret = rotateSecretMutation.data ?? generateSecretMutation.data ?? '';
@@ -713,12 +709,7 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
           </DialogActions>
         </Dialog>
         {/* Settings side panel */}
-        <Drawer
-          anchor="right"
-          open={settingsPanelOpen}
-          onClose={() => setSettingsPanelOpen(false)}
-          sx={{ '& .MuiDrawer-paper': { width: 400, p: 3, boxSizing: 'border-box' } }}
-        >
+        <Drawer anchor="right" open={settingsPanelOpen} onClose={() => setSettingsPanelOpen(false)} sx={{ '& .MuiDrawer-paper': { width: 400, p: 3, boxSizing: 'border-box' } }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Settings — {env.name}
@@ -765,8 +756,7 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
                         setCreateUserDialogOpen(true);
                       }}
                       disabled={!activeRuntimeId}
-                      aria-label="Add user"
-                    >
+                      aria-label="Add user">
                       <UserPlus size={16} />
                     </IconButton>
                   </span>
@@ -785,7 +775,13 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
                 />
               )}
 
-              {!activeRuntimeId && (
+              {runtimesError && (
+                <Typography variant="body2" color="error">
+                  Failed to load runtimes: {runtimesError.message}
+                </Typography>
+              )}
+
+              {!runtimesError && !runtimesLoading && !activeRuntimeId && (
                 <Typography variant="body2" color="text.secondary">
                   No runtimes available.
                 </Typography>
@@ -793,7 +789,13 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
 
               {activeRuntimeId && miUsersLoading && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', mt: 2 }} />}
 
-              {activeRuntimeId && !miUsersLoading && miUsers.length === 0 && (
+              {activeRuntimeId && !miUsersLoading && miUsersError && (
+                <Typography variant="body2" color="error">
+                  Failed to load users: {miUsersError.message}
+                </Typography>
+              )}
+
+              {activeRuntimeId && !miUsersLoading && !miUsersError && miUsers.length === 0 && (
                 <Typography variant="body2" color="text.secondary">
                   No users found.
                 </Typography>
@@ -811,17 +813,14 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
                             <Trash2 size={14} />
                           </IconButton>
                         </Tooltip>
-                      }
-                    >
+                      }>
                       <ListItemText
                         primary={
                           <Stack direction="row" alignItems="center" gap={1}>
                             <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
                               {u.userId}
                             </Typography>
-                            {u.isAdmin && (
-                              <Chip label="Admin" size="small" color="primary" sx={{ fontSize: 10, height: 18 }} />
-                            )}
+                            {u.isAdmin && <Chip label="Admin" size="small" color="primary" sx={{ fontSize: 10, height: 18 }} />}
                           </Stack>
                         }
                       />
@@ -843,30 +842,9 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
               </Alert>
             )}
             <Stack gap={2} sx={{ mt: 1 }}>
-              <TextField
-                label="Username"
-                required
-                fullWidth
-                size="small"
-                value={newUserId}
-                onChange={(e) => setNewUserId(e.target.value)}
-                autoFocus
-              />
-              <TextField
-                label="Password"
-                required
-                type="password"
-                fullWidth
-                size="small"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
-              <FormControlLabel
-                control={<Switch size="small" checked={newIsAdmin} onChange={(e) => setNewIsAdmin(e.target.checked)} />}
-                label="Admin user"
-                labelPlacement="start"
-                sx={{ m: 0, gap: 1, justifyContent: 'space-between' }}
-              />
+              <TextField label="Username" required fullWidth size="small" value={newUserId} onChange={(e) => setNewUserId(e.target.value)} autoFocus />
+              <TextField label="Password" required type="password" fullWidth size="small" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <FormControlLabel control={<Switch size="small" checked={newIsAdmin} onChange={(e) => setNewIsAdmin(e.target.checked)} />} label="Admin user" labelPlacement="start" sx={{ m: 0, gap: 1, justifyContent: 'space-between' }} />
             </Stack>
           </DialogContent>
           <DialogActions>
@@ -883,8 +861,7 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
                     onError: (err) => setCreateUserError(err.message ?? 'Failed to create user'),
                   },
                 );
-              }}
-            >
+              }}>
               {createMiUser.isPending ? 'Creating…' : 'Create'}
             </Button>
           </DialogActions>
@@ -906,12 +883,8 @@ secret = "${secret || '<generating…>'}"\n# icp_url = "https://icp-server:9443"
               disabled={deleteMiUser.isPending}
               onClick={() => {
                 if (!deleteUserTarget) return;
-                deleteMiUser.mutate(
-                  { componentId, runtimeId: activeRuntimeId, username: deleteUserTarget },
-                  { onSettled: () => setDeleteUserTarget(null) },
-                );
-              }}
-            >
+                deleteMiUser.mutate({ componentId, runtimeId: activeRuntimeId, username: deleteUserTarget }, { onSettled: () => setDeleteUserTarget(null) });
+              }}>
               {deleteMiUser.isPending ? 'Deleting…' : 'Delete'}
             </Button>
           </DialogActions>
