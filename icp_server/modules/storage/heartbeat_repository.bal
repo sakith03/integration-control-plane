@@ -1749,6 +1749,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                     state = VALUES(state),
                     updated_at = CURRENT_TIMESTAMP
             `);
+            log:printDebug(string `Successfully processed connector artifact: ${connector.name} version: ${connector.version.toString()}`);
         }
     }
 

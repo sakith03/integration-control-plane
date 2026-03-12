@@ -57,6 +57,7 @@ const string CONTENT_TYPE_JSON = "application/json";
 // proxy-service, endpoint, message-processor, and task support status (active/inactive/trigger),
 // while api, sequence, inbound-endpoint, and template only support trace/statistics.
 isolated function getManagementPath(string artifactType, boolean statusOnly = false) returns string? {
+    log:printDebug("Resolving management path", artifactType = artifactType, statusOnly = statusOnly);
     match artifactType.toLowerAscii().trim() {
         ARTIFACT_TYPE_PROXY_SERVICE => {
             return MGMT_PATH_PROXY_SERVICES;

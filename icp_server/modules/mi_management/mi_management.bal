@@ -256,6 +256,7 @@ isolated function callMgmtApi(
         string hmacToken,
         string path
 ) returns json|error {
+    log:printDebug("Calling MI management API", path = path);
     http:Response|error respResult = mgmtClient->get(path, {
         "Authorization": string `Bearer ${hmacToken}`,
         "Accept": "application/json"
@@ -342,7 +343,7 @@ isolated function fetchRawArtifactItem(
             artifactType = artifactType, artifactName = artifactName, path = path);
 
     json payload = check callMgmtApi(mgmtClient, hmacToken, path);
-
+    log:printDebug("Received artifact payload from MI management API", artifactType = artifactType, artifactName = artifactName);
     if isConnector {
         if payload is map<json> {
             json listField = (<map<json>>payload)["list"];

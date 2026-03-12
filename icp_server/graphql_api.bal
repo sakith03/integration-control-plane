@@ -2263,6 +2263,9 @@ service /graphql on graphqlListener {
             return error("Failed to create management API client");
         }
         http:Client mgmtClient = mgmtClientResult;
+        log:printDebug("Successfully created management API client",
+                runtimeId = runtime.runtimeId,
+                baseUrl = baseUrl);
 
         // Generate an HMAC JWT to call the ICP internal API
         string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
