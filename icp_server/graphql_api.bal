@@ -2358,7 +2358,7 @@ service /graphql on graphqlListener {
         string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
 
         // Fetch local entry info via MI Management API (/management/local-entries?name=...)
-        mi_management:MgmtLocalEntryInfo entryInfo = check mi_management:fetchLocalEntryInfo(
+        types:MgmtLocalEntryInfo entryInfo = check mi_management:fetchLocalEntryInfo(
                 mgmtClient, hmacToken, entryName);
 
         log:printInfo("Successfully fetched local entry info from MI management API",
@@ -2421,7 +2421,7 @@ service /graphql on graphqlListener {
         string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
 
         // Fetch inbound endpoint info via MI Management API (/management/inbound-endpoints?...)
-        mi_management:MgmtInboundEndpointInfo inboundInfo = check mi_management:fetchInboundEndpointInfo(
+        types:MgmtInboundEndpointInfo inboundInfo = check mi_management:fetchInboundEndpointInfo(
                 mgmtClient, hmacToken, inboundName);
 
         // Convert management API response fields to Parameter[] format
@@ -2431,12 +2431,12 @@ service /graphql on graphqlListener {
         }
 
         // Fetch detailed parameters from the management API response
-        mi_management:MgmtArtifactParameter[] mgmtParams = check mi_management:fetchArtifactParameterInfo(
+        types:MgmtArtifactParameter[] mgmtParams = check mi_management:fetchArtifactParameterInfo(
                 mgmtClient, hmacToken, "inbound-endpoint", inboundName);
 
         // Append each parameter from the management API to the result
         if mgmtParams.length() > 0 {
-            foreach mi_management:MgmtArtifactParameter p in mgmtParams {
+            foreach types:MgmtArtifactParameter p in mgmtParams {
                 params.push({name: p.key, value: p.value});
             }
         }
@@ -2514,11 +2514,11 @@ service /graphql on graphqlListener {
         // fetchArtifactParameterInfo extracts available metadata fields from the
         // appropriate management API endpoint and converts them to Parameter format.
         // For connectors, packageName can be specified to disambiguate connectors with the same name.
-        mi_management:MgmtArtifactParameter[] mgmtParams = check mi_management:fetchArtifactParameterInfo(
+        types:MgmtArtifactParameter[] mgmtParams = check mi_management:fetchArtifactParameterInfo(
                 mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
         // Convert MgmtArtifactParameter[] to types:Parameter[]
-        types:Parameter[] params = from mi_management:MgmtArtifactParameter p in mgmtParams
+        types:Parameter[] params = from types:MgmtArtifactParameter p in mgmtParams
             select {name: p.key, value: p.value};
 
         log:printInfo("Successfully fetched artifact parameters from MI management API",
@@ -2579,7 +2579,7 @@ service /graphql on graphqlListener {
 
         string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
 
-        mi_management:MgmtDataSourceInfo overview = check mi_management:fetchDataSourceOverview(
+        types:MgmtDataSourceInfo overview = check mi_management:fetchDataSourceOverview(
                 mgmtClient, hmacToken, dataSourceName);
 
         types:Parameter[] result = [];
@@ -2651,7 +2651,7 @@ service /graphql on graphqlListener {
 
         string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
 
-        mi_management:MgmtMessageStoreInfo overview = check mi_management:fetchMessageStoreOverview(
+        types:MgmtMessageStoreInfo overview = check mi_management:fetchMessageStoreOverview(
                 mgmtClient, hmacToken, storeName);
 
         types:Parameter[] result = [];
@@ -2717,7 +2717,7 @@ service /graphql on graphqlListener {
 
         string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
 
-        mi_management:MgmtMessageProcessorInfo overview = check mi_management:fetchMessageProcessorOverview(
+        types:MgmtMessageProcessorInfo overview = check mi_management:fetchMessageProcessorOverview(
                 mgmtClient, hmacToken, processorName);
 
         types:Parameter[] result = [];
@@ -2783,24 +2783,24 @@ service /graphql on graphqlListener {
 
         string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
 
-        mi_management:MgmtDataServiceOverview overview = check mi_management:fetchDataServiceOverview(
+        types:MgmtDataServiceOverview overview = check mi_management:fetchDataServiceOverview(
                 mgmtClient, hmacToken, dataServiceName);
 
-        types:DataServiceDataSourceEntry[] dataSources = from mi_management:MgmtDataServiceDataSource ds in overview.dataSources
+        types:DataServiceDataSourceEntry[] dataSources = from types:MgmtDataServiceDataSource ds in overview.dataSources
             select {
                 name: ds.dataSourceId,
                 'type: ds.dataSourceType,
-                properties: from mi_management:MgmtArtifactParameter p in ds.properties
+                properties: from types:MgmtArtifactParameter p in ds.properties
                     select {name: p.key, value: p.value}
             };
 
-        types:DataServiceQueryEntry[] queries = from mi_management:MgmtDataServiceQuery q in overview.queries
+        types:DataServiceQueryEntry[] queries = from types:MgmtDataServiceQuery q in overview.queries
             select {name: q.id, 'type: q.namespace};
 
-        types:DataServiceResourceEntry[] resources = from mi_management:MgmtDataServiceResource r in overview.resources
+        types:DataServiceResourceEntry[] resources = from types:MgmtDataServiceResource r in overview.resources
             select {name: r.resourcePath, 'type: r.resourceMethod};
 
-        types:DataServiceOperationEntry[] operations = from mi_management:MgmtDataServiceOperation op in overview.operations
+        types:DataServiceOperationEntry[] operations = from types:MgmtDataServiceOperation op in overview.operations
             select {name: op.operationName, 'type: op.queryName};
 
         return {

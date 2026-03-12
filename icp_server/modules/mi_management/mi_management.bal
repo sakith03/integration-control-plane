@@ -16,11 +16,8 @@
 
 // Package: mi_management
 // Provides utility functions to call the WSO2 MI Management REST API
-// (at /management path) using HMAC-signed JWT auth — the same auth mechanism
-// used for the /icp/artifacts internal API.
-//
-// Management API swagger: resources/management-api.yaml
-// Server base: https://{host}:{port}/management
+// (at /management path) using HMAC-signed JWT auth
+
 //
 // Response format note: when a name filter is provided (e.g. ?apiName=X), the
 // MI Management API returns the artifact object directly. Without a filter it
@@ -29,183 +26,10 @@
 
 import ballerina/http;
 import ballerina/log;
+import wso2/icp_server.types;
 
 // Path prefix for all Management API endpoints
 const string MGMT_API_PATH = "/management";
-
-// ============================================================
-// Management API Response Types
-// These types reflect what the MI Management REST API returns
-// for single-artifact queries (name-filtered requests).
-// They differ from /icp/artifacts types by design:
-//   - /icp/artifacts  → artifact source XML / configuration
-//   - /management     → operational metadata (status, URLs, etc.)
-// ============================================================
-
-// GET /management/proxy-services?proxyServiceName={name}
-public type MgmtProxyServiceInfo record {|
-    string name;
-    string wsdl1_1?;
-    string wsdl2_0?;
-    string configuration?;
-|};
-
-// GET /management/apis?apiName={name}
-public type MgmtRestApiInfo record {|
-    string name;
-    string url?;
-    string tracing?;
-    string stats?;
-    string configuration?;
-|};
-
-// GET /management/endpoints?endpointName={name}
-public type MgmtEndpointInfo record {|
-    string name;
-    string 'type?;
-    boolean isActive?;
-|};
-
-// GET /management/sequences?sequenceName={name}
-public type MgmtSequenceInfo record {|
-    string name;
-    string container?;
-    string tracing?;
-    string stats?;
-|};
-
-// GET /management/tasks?taskName={name}
-public type MgmtTaskInfo record {|
-    string name;
-    string configuration?;
-    string triggerType?;
-    string triggerInterval?;
-    string triggerCount?;
-    string implementation?;
-    string taskGroup?;
-|};
-
-// GET /management/local-entries?name={name}
-public type MgmtLocalEntryInfo record {|
-    string name;
-    string 'type?;
-    string value?;
-|};
-
-// GET /management/message-stores?name={name}
-public type MgmtMessageStoreInfo record {|
-    string name;
-    string 'type?;
-    int size?;
-    string container?;
-|};
-
-// GET /management/message-processors?name={name}
-public type MgmtMessageProcessorInfo record {|
-    string name;
-    string 'type?;
-    string status?;
-    string messageStore?;
-|};
-
-// GET /management/inbound-endpoints?inboundEndpointName={name}
-// Full single-item response: {name, protocol, sequence, error, status, stats,
-//   tracing, configuration, parameters:[{name,value},...]}
-public type MgmtInboundEndpointInfo record {|
-    string name;
-    string protocol?;
-    string status?;
-    string stats?;
-    string tracing?;
-|};
-
-// GET /management/connectors (no name filter — filtered client-side)
-public type MgmtConnectorInfo record {|
-    string name;
-    string 'package?;
-    string description?;
-    string status?;
-|};
-
-// Individual template entry (used in sequence and endpoint template lists)
-public type MgmtTemplateInfo record {|
-    string name;
-|};
-
-// GET /management/data-services?dataServiceName={name}
-public type MgmtDataServiceInfo record {|
-    string name;
-    string wsdl1_1?;
-    string wsdl2_0?;
-|};
-
-public type MgmtDataServiceDataSource record {|
-    string dataSourceId;
-    string dataSourceType?;
-    MgmtArtifactParameter[] properties;
-|};
-
-public type MgmtDataServiceQuery record {|
-    string id;
-    string dataSourceId?;
-    string namespace?;
-|};
-
-public type MgmtDataServiceResource record {|
-    string resourcePath;
-    string resourceMethod?;
-    string resourceQuery?;
-|};
-
-public type MgmtDataServiceOperation record {|
-    string operationName;
-    string queryName?;
-|};
-
-public type MgmtDataServiceOverview record {|
-    string serviceName;
-    string serviceDescription?;
-    string wsdl1_1?;
-    string wsdl2_0?;
-    string swagger_url?;
-    MgmtDataServiceDataSource[] dataSources;
-    MgmtDataServiceQuery[] queries;
-    MgmtDataServiceResource[] resources;
-    MgmtDataServiceOperation[] operations;
-|};
-
-// GET /management/data-sources?name={name}
-public type MgmtDataSourceInfo record {|
-    string name;
-    string 'type?;
-    string description?;
-    string driverClass?;
-    string userName?;
-    string url?;
-|};
-
-// Artifact entry inside a carbon app
-public type MgmtCarbonAppArtifactInfo record {|
-    string name;
-    string 'type?;
-|};
-
-// GET /management/applications?carbonAppName={name}
-// Response: {"totalCount":N, "activeCount":N, "faultyCount":N, "activeList":[...], "faultyList":[...]}
-public type MgmtCarbonAppInfo record {|
-    string name;
-    string version?;
-    MgmtCarbonAppArtifactInfo[] artifacts?;
-|};
-
-// Key-value pair extracted from a management API artifact response.
-// Equivalent to types:Parameter but sourced from the management API.
-// Note: for inbound endpoints, the management API uses field name 'name'
-// (not 'key') in the parameters array; this type normalises to 'key'.
-public type MgmtArtifactParameter record {|
-    string key;
-    string value;
-|};
 
 // ============================================================
 // Internal helpers
@@ -222,7 +46,7 @@ isolated function extractFirstFromMgmtList(json response, string? expectedName =
     if response !is map<json> {
         return error("Management API response is not a JSON object");
     }
-    map<json> respMap = <map<json>>response;
+    map<json> respMap = response;
     json listField = respMap["list"];
 
     // List format: extract the matching item from the array
@@ -236,7 +60,7 @@ isolated function extractFirstFromMgmtList(json response, string? expectedName =
         }
         foreach json item in items {
             if item is map<json> {
-                json nameField = (<map<json>>item)["name"];
+                json nameField = item["name"];
                 if nameField is string && nameField == expectedName {
                     return item;
                 }
@@ -347,15 +171,15 @@ isolated function fetchRawArtifactItem(
     log:printDebug("Received artifact payload from MI management API", artifactType = artifactType, artifactName = artifactName);
     if isConnector {
         if payload is map<json> {
-            json listField = (<map<json>>payload)["list"];
+            json listField = payload["list"];
             if listField is json[] {
                 json[] matches = [];
                 string[] packages = [];
-                foreach json item in <json[]>listField {
+                foreach json item in listField {
                     if item is map<json> {
-                        json nameField = (<map<json>>item)["name"];
+                        json nameField = item["name"];
                         if nameField is string && nameField == artifactName {
-                            json packageField = (<map<json>>item)["package"];
+                            json packageField = item["package"];
                             // If package is specified, filter by both name and package
                             if packageName is string {
                                 if packageField is string && packageField == packageName {
@@ -404,8 +228,6 @@ isolated function fetchRawArtifactItem(
 
 // fetchArtifactDetails returns the synapse configuration XML for the named
 // artifact, or the full metadata JSON when no 'configuration' field is present.
-//
-// Management-API equivalent of: GET /icp/artifacts?type={type}&name={name}
 public isolated function fetchArtifactDetails(
         http:Client mgmtClient,
         string hmacToken,
@@ -423,7 +245,7 @@ public isolated function fetchArtifactDetails(
     // configuration at the top level of the response, or inside a 'list' array.
     // Both layouts are handled below.
     if item is map<json> {
-        map<json> itemMap = <map<json>>item;
+        map<json> itemMap = item;
 
         // Case 1: configuration is a top-level field (direct-object response or
         //         hybrid response where task details sit alongside a 'list' field).
@@ -436,9 +258,9 @@ public isolated function fetchArtifactDetails(
         //         where the item was not already extracted by extractFirstFromMgmtList).
         json listField = itemMap["list"];
         if listField is json[] {
-            foreach json listItem in <json[]>listField {
+            foreach json listItem in listField {
                 if listItem is map<json> {
-                    json listConfigField = (<map<json>>listItem)["configuration"];
+                    json listConfigField = listItem["configuration"];
                     if listConfigField is string && listConfigField.length() > 0 {
                         return listConfigField;
                     }
@@ -452,9 +274,6 @@ public isolated function fetchArtifactDetails(
 
 // fetchArtifactWsdlUrl returns the WSDL 1.1 URL for a proxy service or data
 // service, as reported by the MI Management API.
-//
-// Management-API equivalent of: GET /icp/artifacts/wsdl?proxy={name}
-//                             or GET /icp/artifacts/wsdl?service={name}
 //
 // Use fetchWsdlContent to retrieve the actual XML from the returned URL.
 public isolated function fetchArtifactWsdlUrl(
@@ -474,7 +293,7 @@ public isolated function fetchArtifactWsdlUrl(
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
     if item is map<json> {
-        json wsdlUrl = (<map<json>>item)["wsdl1_1"];
+        json wsdlUrl = item["wsdl1_1"];
         if wsdlUrl is string && wsdlUrl.length() > 0 {
             log:printDebug("Got WSDL URL from MI management API",
                     artifactName = artifactName, wsdlUrl = wsdlUrl);
@@ -482,6 +301,16 @@ public isolated function fetchArtifactWsdlUrl(
         }
     }
     return error(string `WSDL URL not found for '${artifactName}' in MI management API response`);
+}
+
+// isLocalhostVariant checks if a hostname represents localhost or a local development machine.
+// Returns true for: localhost, 127.0.0.1, ::1, localhost.localdomain, and *.local hostnames
+isolated function isLocalhostVariant(string hostname) returns boolean {
+    return hostname == "localhost"
+        || hostname == "127.0.0.1"
+        || hostname == "::1"
+        || hostname == "localhost.localdomain"
+        || hostname.endsWith(".local");
 }
 
 // fetchWsdlContent fetches the actual WSDL XML from the URL returned by the
@@ -518,8 +347,18 @@ public isolated function fetchWsdlContent(string wsdlUrl, string trustedHost, bo
         urlHost = hostAndPort.substring(0, portSeparatorPos);
     }
 
-    // Validate that the URL host matches the trusted runtime host
-    if urlHost != trustedHost {
+    // Validate that the URL host matches the trusted runtime host (SSRF protection)
+    // Strategy:
+    //   - Exact match: always allowed
+    //   - Localhost variants: if BOTH are localhost variants (127.0.0.1, ::1, *.local, etc), allow
+    //   - Production hostnames: require exact match
+    boolean urlIsLocalhost = isLocalhostVariant(urlHost);
+    boolean trustedIsLocalhost = isLocalhostVariant(trustedHost);
+
+    boolean isHostTrusted = urlHost == trustedHost
+        || (urlIsLocalhost && trustedIsLocalhost);
+
+    if !isHostTrusted {
         return error(string `WSDL URL host '${urlHost}' does not match trusted runtime host '${trustedHost}' (potential SSRF attack)`);
     }
 
@@ -557,33 +396,23 @@ public isolated function fetchWsdlContent(string wsdlUrl, string trustedHost, bo
 }
 
 // fetchLocalEntryInfo returns the name, type, and value for the named local entry.
-//
-// Management-API equivalent of: GET /icp/artifacts/local-entry?name={name}
 public isolated function fetchLocalEntryInfo(
         http:Client mgmtClient,
         string hmacToken,
         string entryName
-) returns MgmtLocalEntryInfo|error {
+) returns types:MgmtLocalEntryInfo|error {
     log:printDebug("Fetching local entry info from MI management API", entryName = entryName);
 
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "local-entry", entryName);
-    if item !is map<json> {
-        return error(string `Unexpected response format for local entry '${entryName}'`);
+    types:MgmtLocalEntryInfo|error result = item.cloneWithType(types:MgmtLocalEntryInfo);
+    if result is error {
+        log:printError("Failed to parse local entry info from MI management API", result, entryName = entryName);
+        return error(string `Invalid response format for local entry '${entryName}': ${result.message()}`);
     }
-    map<json> m = <map<json>>item;
-    json nameField = m["name"];
-    json typeField = m["type"];
-    json valueField = m["value"];
-    return {
-        name: nameField is string ? nameField : entryName,
-        'type: typeField is string ? typeField : (),
-        value: valueField is string ? valueField : ()
-    };
+    return result;
 }
 
 // fetchInboundEndpointInfo returns metadata for the named inbound endpoint.
-//
-// Management-API equivalent of: GET /icp/artifacts/inbound/parameters?name={name}
 //
 // NOTE: Use fetchArtifactParameterInfo to get the full protocol-specific
 // parameter list (the 'parameters' array in the management API response).
@@ -591,32 +420,20 @@ public isolated function fetchInboundEndpointInfo(
         http:Client mgmtClient,
         string hmacToken,
         string inboundName
-) returns MgmtInboundEndpointInfo|error {
+) returns types:MgmtInboundEndpointInfo|error {
     log:printDebug("Fetching inbound endpoint info from MI management API", inboundName = inboundName);
 
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "inbound-endpoint", inboundName);
-    if item !is map<json> {
-        return error(string `Unexpected response format for inbound endpoint '${inboundName}'`);
+    types:MgmtInboundEndpointInfo|error result = item.cloneWithType(types:MgmtInboundEndpointInfo);
+    if result is error {
+        log:printError("Failed to parse inbound endpoint info from MI management API", result, inboundName = inboundName);
+        return error(string `Invalid response format for inbound endpoint '${inboundName}': ${result.message()}`);
     }
-    map<json> m = <map<json>>item;
-    json nameField = m["name"];
-    json protocolField = m["protocol"];
-    json statusField = m["status"];
-    json statsField = m["stats"];
-    json tracingField = m["tracing"];
-    return {
-        name: nameField is string ? nameField : inboundName,
-        protocol: protocolField is string ? protocolField : (),
-        status: statusField is string ? statusField : (),
-        stats: statsField is string ? statsField : (),
-        tracing: tracingField is string ? tracingField : ()
-    };
+    return result;
 }
 
 // fetchArtifactParameterInfo extracts key-value parameters from the management
 // API response for the given artifact.
-//
-// Management-API equivalent of: GET /icp/artifacts/parameters?type={type}&name={name}
 //
 // For inbound endpoints: extracts the 'parameters' array [{name, value}, ...].
 // For data sources: extracts the 'configurationParameters' object as key-value pairs.
@@ -627,20 +444,20 @@ public isolated function fetchArtifactParameterInfo(
         string artifactType,
         string artifactName,
         string? packageName = ()
-) returns MgmtArtifactParameter[]|error {
+) returns types:MgmtArtifactParameter[]|error {
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
-    MgmtArtifactParameter[] params = [];
+    types:MgmtArtifactParameter[] params = [];
     if item !is map<json> {
         return params;
     }
-    map<json> itemMap = <map<json>>item;
+    map<json> itemMap = item;
 
     // Data sources: configurationParameters is a JSON object {key: value, ...}
     if artifactType == "data-source" {
         json configParams = itemMap["configurationParameters"];
         if configParams is map<json> {
-            foreach [string, json] [k, v] in (<map<json>>configParams).entries() {
+            foreach [string, json] [k, v] in configParams.entries() {
                 params.push({key: k, value: v.toJsonString()});
             }
         }
@@ -651,7 +468,7 @@ public isolated function fetchArtifactParameterInfo(
     if artifactType == "message-processor" {
         json procParams = itemMap["parameters"];
         if procParams is map<json> {
-            foreach [string, json] [k, v] in (<map<json>>procParams).entries() {
+            foreach [string, json] [k, v] in procParams.entries() {
                 params.push({key: k, value: v is string ? <string>v : v.toJsonString()});
             }
         }
@@ -663,8 +480,8 @@ public isolated function fetchArtifactParameterInfo(
     if paramsField is json[] {
         foreach json p in paramsField {
             if p is map<json> {
-                json nameField = (<map<json>>p)["name"];
-                json valueField = (<map<json>>p)["value"];
+                json nameField = p["name"];
+                json valueField = p["value"];
                 if nameField is string && valueField is string {
                     params.push({key: nameField, value: valueField});
                 }
@@ -681,22 +498,16 @@ public isolated function fetchDataSourceOverview(
         http:Client mgmtClient,
         string hmacToken,
         string dataSourceName
-) returns MgmtDataSourceInfo|error {
+) returns types:MgmtDataSourceInfo|error {
     log:printDebug("Fetching data source overview from MI management API", dataSourceName = dataSourceName);
 
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "data-source", dataSourceName);
-    if item !is map<json> {
-        return error(string `Unexpected response format for data source '${dataSourceName}'`);
+    types:MgmtDataSourceInfo|error result = item.cloneWithType(types:MgmtDataSourceInfo);
+    if result is error {
+        log:printError("Failed to parse data source info from MI management API", result, dataSourceName = dataSourceName);
+        return error(string `Invalid response format for data source '${dataSourceName}': ${result.message()}`);
     }
-    map<json> m = <map<json>>item;
-    return {
-        name: (m["name"] is string) ? <string>m["name"] : dataSourceName,
-        'type: m["type"] is string ? <string>m["type"] : (),
-        description: m["description"] is string ? <string>m["description"] : (),
-        driverClass: m["driverClass"] is string ? <string>m["driverClass"] : (),
-        userName: m["userName"] is string ? <string>m["userName"] : (),
-        url: m["url"] is string ? <string>m["url"] : ()
-    };
+    return result;
 }
 
 // fetchMessageStoreOverview returns overview metadata for the named message store.
@@ -705,20 +516,16 @@ public isolated function fetchMessageStoreOverview(
         http:Client mgmtClient,
         string hmacToken,
         string storeName
-) returns MgmtMessageStoreInfo|error {
+) returns types:MgmtMessageStoreInfo|error {
     log:printDebug("Fetching message store overview from MI management API", storeName = storeName);
 
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "message-store", storeName);
-    if item !is map<json> {
-        return error(string `Unexpected response format for message store '${storeName}'`);
+    types:MgmtMessageStoreInfo|error result = item.cloneWithType(types:MgmtMessageStoreInfo);
+    if result is error {
+        log:printError("Failed to parse message store info from MI management API", result, storeName = storeName);
+        return error(string `Invalid response format for message store '${storeName}': ${result.message()}`);
     }
-    map<json> m = <map<json>>item;
-    return {
-        name: m["name"] is string ? <string>m["name"] : storeName,
-        'type: m["type"] is string ? <string>m["type"] : (),
-        size: m["size"] is int ? <int>m["size"] : (),
-        container: m["container"] is string ? <string>m["container"] : ()
-    };
+    return result;
 }
 
 // fetchMessageProcessorOverview returns overview metadata for the named message processor.
@@ -727,20 +534,16 @@ public isolated function fetchMessageProcessorOverview(
         http:Client mgmtClient,
         string hmacToken,
         string processorName
-) returns MgmtMessageProcessorInfo|error {
+) returns types:MgmtMessageProcessorInfo|error {
     log:printDebug("Fetching message processor overview from MI management API", processorName = processorName);
 
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "message-processor", processorName);
-    if item !is map<json> {
-        return error(string `Unexpected response format for message processor '${processorName}'`);
+    types:MgmtMessageProcessorInfo|error result = item.cloneWithType(types:MgmtMessageProcessorInfo);
+    if result is error {
+        log:printError("Failed to parse message processor info from MI management API", result, processorName = processorName);
+        return error(string `Invalid response format for message processor '${processorName}': ${result.message()}`);
     }
-    map<json> m = <map<json>>item;
-    return {
-        name: m["name"] is string ? <string>m["name"] : processorName,
-        'type: m["type"] is string ? <string>m["type"] : (),
-        status: m["status"] is string ? <string>m["status"] : (),
-        messageStore: m["messageStore"] is string ? <string>m["messageStore"] : ()
-    };
+    return result;
 }
 
 // fetchDataServiceOverview parses the full MI management API response for a data service
@@ -749,28 +552,28 @@ public isolated function fetchDataServiceOverview(
         http:Client mgmtClient,
         string hmacToken,
         string dataServiceName
-) returns MgmtDataServiceOverview|error {
+) returns types:MgmtDataServiceOverview|error {
     log:printDebug("Fetching data service overview from MI management API", dataServiceName = dataServiceName);
 
     json item = check fetchRawArtifactItem(mgmtClient, hmacToken, "data-service", dataServiceName);
     if item !is map<json> {
         return error(string `Unexpected response format for data service '${dataServiceName}'`);
     }
-    map<json> m = <map<json>>item;
+    map<json> m = item;
 
     // Parse dataSources: [{dataSourceId, dataSourceType, dataSourceProperties:{k:v}}]
-    MgmtDataServiceDataSource[] dataSources = [];
+    types:MgmtDataServiceDataSource[] dataSources = [];
     json dsField = m["dataSources"];
     if dsField is json[] {
-        foreach json ds in <json[]>dsField {
+        foreach json ds in dsField {
             if ds is map<json> {
-                map<json> dsMap = <map<json>>ds;
+                map<json> dsMap = ds;
                 string dsId = dsMap["dataSourceId"] is string ? <string>dsMap["dataSourceId"] : "";
                 string? dsType = dsMap["dataSourceType"] is string ? <string>dsMap["dataSourceType"] : ();
-                MgmtArtifactParameter[] props = [];
+                types:MgmtArtifactParameter[] props = [];
                 json propsField = dsMap["dataSourceProperties"];
                 if propsField is map<json> {
-                    foreach [string, json] [k, v] in (<map<json>>propsField).entries() {
+                    foreach [string, json] [k, v] in propsField.entries() {
                         props.push({key: k, value: v is string ? <string>v : v.toJsonString()});
                     }
                 }
@@ -780,12 +583,12 @@ public isolated function fetchDataServiceOverview(
     }
 
     // Parse queries: [{id, dataSourceId, namespace}]
-    MgmtDataServiceQuery[] queries = [];
+    types:MgmtDataServiceQuery[] queries = [];
     json queriesField = m["queries"];
     if queriesField is json[] {
-        foreach json q in <json[]>queriesField {
+        foreach json q in queriesField {
             if q is map<json> {
-                map<json> qMap = <map<json>>q;
+                map<json> qMap = q;
                 queries.push({
                     id: qMap["id"] is string ? <string>qMap["id"] : "",
                     dataSourceId: qMap["dataSourceId"] is string ? <string>qMap["dataSourceId"] : (),
@@ -796,12 +599,12 @@ public isolated function fetchDataServiceOverview(
     }
 
     // Parse resources: [{resourcePath, resourceMethod, resourceQuery}]
-    MgmtDataServiceResource[] resources = [];
+    types:MgmtDataServiceResource[] resources = [];
     json resourcesField = m["resources"];
     if resourcesField is json[] {
-        foreach json r in <json[]>resourcesField {
+        foreach json r in resourcesField {
             if r is map<json> {
-                map<json> rMap = <map<json>>r;
+                map<json> rMap = r;
                 resources.push({
                     resourcePath: rMap["resourcePath"] is string ? <string>rMap["resourcePath"] : "",
                     resourceMethod: rMap["resourceMethod"] is string ? <string>rMap["resourceMethod"] : (),
@@ -812,12 +615,12 @@ public isolated function fetchDataServiceOverview(
     }
 
     // Parse operations: [{operationName, queryName}]
-    MgmtDataServiceOperation[] operations = [];
+    types:MgmtDataServiceOperation[] operations = [];
     json opsField = m["operations"];
     if opsField is json[] {
-        foreach json op in <json[]>opsField {
+        foreach json op in opsField {
             if op is map<json> {
-                map<json> opMap = <map<json>>op;
+                map<json> opMap = op;
                 operations.push({
                     operationName: opMap["operationName"] is string ? <string>opMap["operationName"] : "",
                     queryName: opMap["queryName"] is string ? <string>opMap["queryName"] : ()

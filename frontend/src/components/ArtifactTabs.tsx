@@ -97,7 +97,7 @@ export function ServiceResources({ artifact }: TabProps) {
 
 export function ArtifactWsdl({ envId, componentId, artifactType, artifact }: TabProps) {
   const backendType = ARTIFACT_TYPE_TO_SOURCE_TYPE[artifactType] ?? artifactType.toLowerCase();
-  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name, envId, undefined, artifact.package?.toString());
+  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name?.toString() ?? '', envId, undefined, artifact.package?.toString());
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (error || !wsdl) return <Typography sx={emptySx}>No WSDL content available.</Typography>;
   return <CodeViewer code={wsdl} language="xml" />;
@@ -137,7 +137,7 @@ export function DataSourceOverview({ artifact, envId, componentId }: TabProps) {
   );
 }
 
-function DataServiceSection({ title, items, renderSummary, renderDetails }: { title: string; items: unknown[]; renderSummary: (item: unknown) => string; renderDetails: (item: unknown) => [string, string][] }) {
+function DataServiceSection<T>({ title, items, renderSummary, renderDetails }: { title: string; items: T[]; renderSummary: (item: T) => string; renderDetails: (item: T) => [string, string][] }) {
   if (items.length === 0) return null;
   return (
     <Box>
@@ -485,7 +485,7 @@ function OperationRow({ op }: { op: WsdlOperation }) {
 
 export function ProxyApiReference({ envId, componentId, artifactType, artifact }: TabProps) {
   const backendType = ARTIFACT_TYPE_TO_SOURCE_TYPE[artifactType] ?? artifactType.toLowerCase();
-  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name, envId, undefined, artifact.package?.toString());
+  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name?.toString() ?? '', envId, undefined, artifact.package?.toString());
 
   const info = useMemo(() => (wsdl ? parseWsdl(wsdl) : null), [wsdl]);
 
