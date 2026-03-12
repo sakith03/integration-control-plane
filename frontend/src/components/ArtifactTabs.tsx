@@ -27,7 +27,7 @@ import type { TabProps } from './artifact-config';
 
 export function ArtifactSource({ envId, componentId, artifactType, artifact }: TabProps) {
   const sourceType = ARTIFACT_TYPE_TO_SOURCE_TYPE[artifactType] ?? artifactType.toLowerCase();
-  const { data: source, isLoading, error } = useArtifactSource(envId, componentId, sourceType, artifact.name?.toString() ?? '');
+  const { data: source, isLoading, error } = useArtifactSource(envId, componentId, sourceType, artifact.name?.toString() ?? '', artifact.package?.toString());
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (error || !source) return <Typography sx={emptySx}>No source content available.</Typography>;
 
@@ -97,7 +97,7 @@ export function ServiceResources({ artifact }: TabProps) {
 
 export function ArtifactWsdl({ envId, componentId, artifactType, artifact }: TabProps) {
   const backendType = ARTIFACT_TYPE_TO_SOURCE_TYPE[artifactType] ?? artifactType.toLowerCase();
-  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name, envId);
+  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name, envId, undefined, artifact.package?.toString());
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (error || !wsdl) return <Typography sx={emptySx}>No WSDL content available.</Typography>;
   return <CodeViewer code={wsdl} language="xml" />;
@@ -279,7 +279,7 @@ export function MessageProcessorOverview({ artifact, envId, componentId }: TabPr
 
 export function MessageProcessorParameters({ artifact, envId, componentId }: TabProps) {
   const artifactName = artifact.name?.toString() ?? '';
-  const { data: params, isLoading, error } = useArtifactParams(componentId, 'message-processor', artifactName, envId);
+  const { data: params, isLoading, error } = useArtifactParams(componentId, 'message-processor', artifactName, envId, undefined, artifact.package?.toString());
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (error) return <Typography sx={emptySx}>Failed to load parameters.</Typography>;
   if (!params || params.length === 0) return <Typography sx={emptySx}>No parameters found.</Typography>;
@@ -312,7 +312,7 @@ export function ArtifactRuntimes({ artifact }: TabProps) {
 export function InboundEndpointParameters({ artifact, envId, componentId, artifactType }: TabProps) {
   const artifactName = artifact.name?.toString() ?? '';
   const backendType = ARTIFACT_TYPE_TO_SOURCE_TYPE[artifactType] ?? artifactType.toLowerCase();
-  const { data: params, isLoading, error } = useArtifactParams(componentId, backendType, artifactName, envId);
+  const { data: params, isLoading, error } = useArtifactParams(componentId, backendType, artifactName, envId, undefined, artifact.package?.toString());
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (error) return <Typography sx={emptySx}>Failed to load parameters.</Typography>;
   if (!params || params.length === 0) return <Typography sx={emptySx}>No parameters found.</Typography>;
@@ -485,7 +485,7 @@ function OperationRow({ op }: { op: WsdlOperation }) {
 
 export function ProxyApiReference({ envId, componentId, artifactType, artifact }: TabProps) {
   const backendType = ARTIFACT_TYPE_TO_SOURCE_TYPE[artifactType] ?? artifactType.toLowerCase();
-  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name, envId);
+  const { data: wsdl, isLoading, error } = useArtifactWsdl(componentId, backendType, artifact.name, envId, undefined, artifact.package?.toString());
 
   const info = useMemo(() => (wsdl ? parseWsdl(wsdl) : null), [wsdl]);
 
