@@ -340,11 +340,21 @@ public isolated function fetchWsdlContent(string wsdlUrl, string trustedHost, bo
 
     // Extract hostname (before the port if present)
     string urlHost;
-    int? portSeparatorPos = hostAndPort.indexOf(":");
-    if portSeparatorPos is () {
-        urlHost = hostAndPort;
+    if hostAndPort.startsWith("[") {
+        // IPv6 literal: extract the bracketed address
+        int? ipv6EndPos = hostAndPort.indexOf("]");
+        if ipv6EndPos is () {
+            return error(string `Invalid WSDL URL (unterminated IPv6 host): ${wsdlUrl}`);
+        }
+        urlHost = hostAndPort.substring(1, ipv6EndPos);
     } else {
-        urlHost = hostAndPort.substring(0, portSeparatorPos);
+        // IPv4 or hostname: split on the port separator
+        int? portSeparatorPos = hostAndPort.indexOf(":");
+        if portSeparatorPos is () {
+            urlHost = hostAndPort;
+        } else {
+            urlHost = hostAndPort.substring(0, portSeparatorPos);
+        }
     }
 
     // Validate that the URL host matches the trusted runtime host (SSRF protection)
