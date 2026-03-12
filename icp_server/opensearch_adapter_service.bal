@@ -110,17 +110,17 @@ listener http:Listener openSerachObservabilityListener = new (defaultOpensearchA
 );
 
 @http:ServiceConfig {
-    // auth: [
-    //     {
-    //         jwtValidatorConfig: {
-    //             issuer: frontendJwtIssuer,
-    //             audience: frontendJwtAudience,
-    //             signatureConfig: {
-    //                 secret: defaultobservabilityJwtHMACSecret
-    //             }
-    //         }
-    //     }
-    // ],
+    auth: [
+        {
+            jwtValidatorConfig: {
+                issuer: observabilityJwtIssuer,
+                audience: observabilityJwtAudience,
+                signatureConfig: {
+                    secret: resolvedObservabilityJwtHMACSecret
+                }
+            }
+        }
+    ],
     cors: {
         allowOrigins: ["*"],
         allowHeaders: ["Content-Type", "Authorization"]

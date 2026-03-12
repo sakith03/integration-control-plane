@@ -85,8 +85,12 @@ configurable string logLevel = "INFO"; // DEBUG, INFO, WARN, ERROR
 configurable boolean enableAuditLogging = true;
 configurable boolean enableMetrics = true;
 
+// Observability Adapter configuration
 configurable string observabilityBackendURL = "https://localhost:" + defaultOpensearchAdaptorPort.toString();
 configurable string observabilityJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
+configurable string observabilityJwtIssuer = "icp-observability-jwt-issuer";
+configurable string observabilityJwtAudience = "icp-observability-adaptor";
+configurable decimal observabilityJwtExpiryTimeSeconds = 120; // 2 minutes
 
 // OpenSearch configuration
 configurable string opensearchUrl = "https://localhost:9200";

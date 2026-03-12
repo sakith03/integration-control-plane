@@ -14,11 +14,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Stage 1: Build stage with Ballerina and Gradle
+# Stage 1: Build frontend using Node.js 22 (Vite requires v20.19+ or v22.12+)
+FROM node:22-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Required for pnpm to run non-interactively in Docker (no TTY)
+ENV CI=true
+
+COPY frontend/ ./
+
+# --no-frozen-lockfile: pnpm-lock.yaml was generated on macOS; allow pnpm to
+# resolve platform-native optional deps (e.g. @rollup/rollup-linux-arm64-musl)
+RUN npm install -g pnpm && \
+    pnpm install --no-frozen-lockfile && \
+    pnpm build
+
+# Stage 2: Build stage with Ballerina and Gradle
 FROM ballerina/ballerina:2201.13.1 AS builder
 
 # Install required dependencies (using apk for Alpine-based image)
 USER root
+
+# Required for pnpm to run non-interactively in a Docker build (no TTY)
+ENV CI=true
+
 RUN apk add --no-cache wget unzip zip bash
 
 # Set working directory
@@ -34,6 +54,7 @@ COPY gradle.properties ./
 
 # Copy source code
 COPY icp_server/ ./icp_server/
+COPY frontend/ ./frontend/
 COPY www/ ./www/
 COPY conf/ ./conf/
 COPY distribution/ ./distribution/
@@ -41,10 +62,13 @@ COPY distribution/ ./distribution/
 # Make gradlew executable
 RUN chmod +x ./gradlew
 
-# Build the project
-RUN ./gradlew clean build
+# Copy the pre-built frontend dist from stage 1 (avoids needing Node.js in this stage)
+COPY --from=frontend-builder /app/frontend/dist/ ./frontend/dist/
 
-# Stage 2: Runtime stage
+# Build the project, skipping buildFrontend since the dist is already present
+RUN ./gradlew clean build -x buildFrontend
+
+# Stage 3: Runtime stage
 FROM eclipse-temurin:21-jdk
 
 # Define build argument for ICP version

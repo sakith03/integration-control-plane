@@ -18,9 +18,32 @@ import icp_server.storage as storage;
 import icp_server.types as types;
 
 import ballerina/http;
+import ballerina/jwt;
 import ballerina/log;
 
-// HTTP client for OpenSearch with SSL verification disabled
+// Generate a short-lived JWT token for authenticating with opensearch adapter service
+// Called on each request for simplicity and security
+isolated function generateObservabilityToken() returns string|error {
+    jwt:IssuerConfig issuerConfig = {
+        issuer: observabilityJwtIssuer,
+        audience: observabilityJwtAudience,
+        expTime: observabilityJwtExpiryTimeSeconds,
+        signatureConfig: {
+            algorithm: jwt:HS256,
+            config: resolvedObservabilityJwtHMACSecret
+        }
+    };
+
+    string|jwt:Error jwtToken = jwt:issue(issuerConfig);
+    if jwtToken is jwt:Error {
+        log:printError("Error generating observability JWT token", jwtToken);
+        return error("Failed to generate observability JWT token", jwtToken);
+    }
+
+    return jwtToken;
+}
+
+// HTTP client for OpenSearch adapter (without auth in config - added per request)
 final http:Client observabilityClient = check new (observabilityBackendURL,
     config = {
         secureSocket: {
@@ -49,7 +72,7 @@ listener http:Listener observabilityListener = new (observabilityServerPort,
                 issuer: frontendJwtIssuer,
                 audience: frontendJwtAudience,
                 signatureConfig: {
-                    secret: resolvedObservabilityJwtHMACSecret
+                    secret: resolvedFrontendJwtHMACSecret
                 }
             }
         }
@@ -109,8 +132,10 @@ service /icp/observability on observabilityListener {
 
         log:printInfo("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs");
 
-        // Invoke observability adapter service
-        return check observabilityClient->post(string `/observability/logs/${componentType.toString()}`, adaptorRequest);
+        // Generate fresh JWT token and invoke observability adapter service
+        string token = check generateObservabilityToken();
+        map<string|string[]> headers = {"Authorization": "Bearer " + token};
+        return check observabilityClient->post(string `/observability/logs/${componentType.toString()}`, adaptorRequest, headers);
     }
 
     resource function post metrics(http:Request request, types:ICPMetricEntryRequest metricRequest) returns types:MetricEntriesResponse|error {
@@ -154,8 +179,10 @@ service /icp/observability on observabilityListener {
 
         log:printInfo("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs for component type: " + componentType.toString());
 
-        // Invoke observability adapter service with component type path param
-        return check observabilityClient->post(string `/observability/metrics/${componentType.toString()}`, adaptorRequest);
+        // Generate fresh JWT token and invoke observability adapter service with component type path param
+        string token = check generateObservabilityToken();
+        map<string|string[]> headers = {"Authorization": "Bearer " + token};
+        return check observabilityClient->post(string `/observability/metrics/${componentType.toString()}`, adaptorRequest, headers);
     }
 }
 
