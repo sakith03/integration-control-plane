@@ -205,12 +205,12 @@ export function DataServiceOverview({ artifact, envId, componentId }: TabProps) 
         title="Data Sources"
         items={data.dataSources}
         renderSummary={(item) => {
-          const ds = item as { dataSourceId: string; dataSourceType: string };
-          return ds.dataSourceId;
+          const ds = item as { name: string; type?: string };
+          return ds.name;
         }}
         renderDetails={(item) => {
-          const ds = item as { dataSourceId: string; dataSourceType: string; properties: { name: string; value: string }[] };
-          return [['ID', ds.dataSourceId], ['Type', ds.dataSourceType], ...ds.properties.map((p): [string, string] => [p.name, p.value])];
+          const ds = item as { name: string; type?: string; properties: { name: string; value: string }[] };
+          return [['Name', ds.name], ...(ds.type ? [['Type', ds.type] as [string, string]] : []), ...ds.properties.map((p): [string, string] => [p.name, p.value])];
         }}
       />
 
@@ -218,10 +218,10 @@ export function DataServiceOverview({ artifact, envId, componentId }: TabProps) 
       <DataServiceSection
         title="Queries"
         items={data.queries}
-        renderSummary={(item) => (item as { id: string }).id}
+        renderSummary={(item) => (item as { name: string }).name}
         renderDetails={(item) => {
-          const q = item as { id: string; dataSourceId: string; namespace?: string };
-          return [['ID', q.id], ['Data Source', q.dataSourceId], ...(q.namespace ? [['Namespace', q.namespace] as [string, string]] : [])];
+          const q = item as { name: string; type?: string };
+          return [['Name', q.name], ...(q.type ? [['Type', q.type] as [string, string]] : [])];
         }}
       />
 
@@ -229,10 +229,10 @@ export function DataServiceOverview({ artifact, envId, componentId }: TabProps) 
       <DataServiceSection
         title="Resources"
         items={data.resources}
-        renderSummary={(item) => (item as { resourcePath: string }).resourcePath}
+        renderSummary={(item) => (item as { name: string }).name}
         renderDetails={(item) => {
-          const r = item as { resourcePath: string; resourceMethod: string; resourceQuery?: string };
-          return [['Path', r.resourcePath], ['Method', r.resourceMethod], ...(r.resourceQuery ? [['Query', r.resourceQuery] as [string, string]] : [])];
+          const r = item as { name: string; type?: string };
+          return [['Name', r.name], ...(r.type ? [['Type', r.type] as [string, string]] : [])];
         }}
       />
 
@@ -240,13 +240,10 @@ export function DataServiceOverview({ artifact, envId, componentId }: TabProps) 
       <DataServiceSection
         title="Operations"
         items={data.operations}
-        renderSummary={(item) => (item as { operationName: string }).operationName}
+        renderSummary={(item) => (item as { name: string }).name}
         renderDetails={(item) => {
-          const o = item as { operationName: string; queryName: string };
-          return [
-            ['Operation Name', o.operationName],
-            ['Query Name', o.queryName],
-          ];
+          const o = item as { name: string; type?: string };
+          return [['Name', o.name], ...(o.type ? [['Type', o.type] as [string, string]] : [])];
         }}
       />
     </Stack>

@@ -339,19 +339,20 @@ export { ARTIFACT_QUERY_MAP };
 // ── Artifact detail panel queries ──
 
 const ARTIFACT_SOURCE_QUERY = `
-  query GetArtifactSource($environmentId: String!, $componentId: String!, $artifactType: String!, $artifactName: String!) {
-    artifactSourceByComponent(environmentId: $environmentId, componentId: $componentId, artifactType: $artifactType, artifactName: $artifactName)
+  query GetArtifactSource($environmentId: String!, $componentId: String!, $artifactType: String!, $artifactName: String!, $packageName: String) {
+    artifactSourceByComponent(environmentId: $environmentId, componentId: $componentId, artifactType: $artifactType, artifactName: $artifactName, packageName: $packageName)
   }`;
 
-export function useArtifactSource(envId: string, componentId: string, artifactType: string, artifactName: string) {
+export function useArtifactSource(envId: string, componentId: string, artifactType: string, artifactName: string, packageName?: string) {
   return useQuery({
-    queryKey: ['artifactSource', envId, componentId, artifactType, artifactName],
+    queryKey: ['artifactSource', envId, componentId, artifactType, artifactName, packageName],
     queryFn: () =>
       gql<{ artifactSourceByComponent: string }>(ARTIFACT_SOURCE_QUERY, {
         environmentId: envId,
         componentId,
         artifactType,
         artifactName,
+        packageName,
       }).then((d) => d.artifactSourceByComponent),
     enabled: !!envId && !!componentId && !!artifactType && !!artifactName,
   });
@@ -406,10 +407,10 @@ export interface GqlDataServiceOverview {
   wsdl1_1?: string;
   wsdl2_0?: string;
   swagger_url?: string;
-  dataSources: Array<{ dataSourceId: string; dataSourceType: string; properties: GqlArtifactParam[] }>;
-  queries: Array<{ id: string; dataSourceId: string; namespace?: string }>;
-  resources: Array<{ resourcePath: string; resourceMethod: string; resourceQuery?: string }>;
-  operations: Array<{ operationName: string; queryName: string }>;
+  dataSources: Array<{ name: string; type?: string; properties: GqlArtifactParam[] }>;
+  queries: Array<{ name: string; type?: string }>;
+  resources: Array<{ name: string; type?: string }>;
+  operations: Array<{ name: string; type?: string }>;
 }
 
 const DATA_SERVICE_OVERVIEW_QUERY = `
@@ -425,23 +426,21 @@ const DATA_SERVICE_OVERVIEW_QUERY = `
       wsdl2_0
       swagger_url
       dataSources {
-        dataSourceId
-        dataSourceType
+        name
+        type
         properties { name value }
       }
       queries {
-        id
-        dataSourceId
-        namespace
+        name
+        type
       }
       resources {
-        resourcePath
-        resourceMethod
-        resourceQuery
+        name
+        type
       }
       operations {
-        operationName
-        queryName
+        name
+        type
       }
     }
   }`;
@@ -512,22 +511,23 @@ export interface GqlArtifactParam {
 }
 
 const ARTIFACT_PARAMS_QUERY = `
-  query ArtifactParams($componentId: String!, $artifactType: String!, $artifactName: String!, $environmentId: String, $runtimeId: String) {
+  query ArtifactParams($componentId: String!, $artifactType: String!, $artifactName: String!, $environmentId: String, $runtimeId: String, $packageName: String) {
     artifactParametersByComponent(
       componentId: $componentId,
       artifactType: $artifactType,
       artifactName: $artifactName,
       environmentId: $environmentId,
-      runtimeId: $runtimeId
+      runtimeId: $runtimeId,
+      packageName: $packageName
     ) {
       name
       value
     }
   }`;
 
-export function useArtifactParams(componentId: string, artifactType: string, artifactName: string, envId: string, runtimeId?: string) {
+export function useArtifactParams(componentId: string, artifactType: string, artifactName: string, envId: string, runtimeId?: string, packageName?: string) {
   return useQuery({
-    queryKey: ['artifactParams', componentId, artifactType, artifactName, envId, runtimeId],
+    queryKey: ['artifactParams', componentId, artifactType, artifactName, envId, runtimeId, packageName],
     queryFn: () =>
       gql<{ artifactParametersByComponent: GqlArtifactParam[] }>(ARTIFACT_PARAMS_QUERY, {
         componentId,
@@ -535,25 +535,27 @@ export function useArtifactParams(componentId: string, artifactType: string, art
         artifactName,
         environmentId: envId,
         runtimeId,
+        packageName,
       }).then((d) => d.artifactParametersByComponent),
     enabled: !!componentId && !!artifactType && !!artifactName && !!envId,
   });
 }
 
 const ARTIFACT_WSDL_QUERY = `
-  query ArtifactWsdl($componentId: String!, $artifactType: String!, $artifactName: String!, $environmentId: String, $runtimeId: String) {
+  query ArtifactWsdl($componentId: String!, $artifactType: String!, $artifactName: String!, $environmentId: String, $runtimeId: String, $packageName: String) {
     artifactWsdlByComponent(
       componentId: $componentId,
       artifactType: $artifactType,
       artifactName: $artifactName,
       environmentId: $environmentId,
-      runtimeId: $runtimeId
+      runtimeId: $runtimeId,
+      packageName: $packageName
     )
   }`;
 
-export function useArtifactWsdl(componentId: string, artifactType: string, artifactName: string, envId: string, runtimeId?: string) {
+export function useArtifactWsdl(componentId: string, artifactType: string, artifactName: string, envId: string, runtimeId?: string, packageName?: string) {
   return useQuery({
-    queryKey: ['artifactWsdl', componentId, artifactType, artifactName, envId, runtimeId],
+    queryKey: ['artifactWsdl', componentId, artifactType, artifactName, envId, runtimeId, packageName],
     queryFn: () =>
       gql<{ artifactWsdlByComponent: string }>(ARTIFACT_WSDL_QUERY, {
         componentId,
@@ -561,6 +563,7 @@ export function useArtifactWsdl(componentId: string, artifactType: string, artif
         artifactName,
         environmentId: envId,
         runtimeId,
+        packageName,
       }).then((d) => d.artifactWsdlByComponent),
     enabled: !!componentId && !!artifactType && !!artifactName && !!envId,
   });

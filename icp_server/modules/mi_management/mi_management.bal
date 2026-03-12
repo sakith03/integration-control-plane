@@ -291,7 +291,8 @@ isolated function fetchRawArtifactItem(
         http:Client mgmtClient,
         string hmacToken,
         string artifactType,
-        string artifactName
+        string artifactName,
+        string? packageName = ()
 ) returns json|error {
     string path;
     boolean isConnector = false;
@@ -348,13 +349,42 @@ isolated function fetchRawArtifactItem(
         if payload is map<json> {
             json listField = (<map<json>>payload)["list"];
             if listField is json[] {
+                json[] matches = [];
+                string[] packages = [];
                 foreach json item in <json[]>listField {
                     if item is map<json> {
                         json nameField = (<map<json>>item)["name"];
                         if nameField is string && nameField == artifactName {
-                            return item;
+                            json packageField = (<map<json>>item)["package"];
+                            // If package is specified, filter by both name and package
+                            if packageName is string {
+                                if packageField is string && packageField == packageName {
+                                    return item;
+                                }
+                            } else {
+                                // No package specified, collect all matches for ambiguity detection
+                                matches.push(item);
+                                if packageField is string {
+                                    packages.push(packageField);
+                                }
+                            }
                         }
                     }
+                }
+
+                // If package was specified but not found
+                if packageName is string {
+                    return error(string `Connector '${artifactName}' with package '${packageName}' not found in MI management API response`);
+                }
+
+                // Package not specified - check for ambiguity
+                if matches.length() == 0 {
+                    return error(string `Connector '${artifactName}' not found in MI management API response`);
+                } else if matches.length() > 1 {
+                    string packageList = string:'join(", ", ...packages);
+                    return error(string `Ambiguous connector '${artifactName}' found in multiple packages: ${packageList}`);
+                } else {
+                    return matches[0];
                 }
             }
         }
@@ -380,12 +410,13 @@ public isolated function fetchArtifactDetails(
         http:Client mgmtClient,
         string hmacToken,
         string artifactType,
-        string artifactName
+        string artifactName,
+        string? packageName = ()
 ) returns string|error {
     log:printDebug("Fetching artifact details from MI management API",
             artifactType = artifactType, artifactName = artifactName);
 
-    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName);
+    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
     // The 'configuration' field holds the full synapse XML source.
     // For some artifact types (e.g. tasks) the management API may return the
@@ -430,7 +461,8 @@ public isolated function fetchArtifactWsdlUrl(
         http:Client mgmtClient,
         string hmacToken,
         string artifactType,
-        string artifactName
+        string artifactName,
+        string? packageName = ()
 ) returns string|error {
     if artifactType != "proxy-service" && artifactType != "data-service" {
         return error(string `WSDL not available via MI management API for artifact type: ${artifactType}`);
@@ -439,7 +471,7 @@ public isolated function fetchArtifactWsdlUrl(
     log:printDebug("Fetching WSDL URL from MI management API",
             artifactType = artifactType, artifactName = artifactName);
 
-    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName);
+    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
     if item is map<json> {
         json wsdlUrl = (<map<json>>item)["wsdl1_1"];
@@ -593,9 +625,10 @@ public isolated function fetchArtifactParameterInfo(
         http:Client mgmtClient,
         string hmacToken,
         string artifactType,
-        string artifactName
+        string artifactName,
+        string? packageName = ()
 ) returns MgmtArtifactParameter[]|error {
-    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName);
+    json item = check fetchRawArtifactItem(mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
     MgmtArtifactParameter[] params = [];
     if item !is map<json> {

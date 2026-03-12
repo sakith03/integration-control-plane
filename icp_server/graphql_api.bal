@@ -2140,7 +2140,8 @@ service /graphql on graphqlListener {
             string artifactType,
             string artifactName,
             string? environmentId = (),
-            string? runtimeId = ()
+            string? runtimeId = (),
+            string? packageName = ()
     ) returns string|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
@@ -2195,7 +2196,7 @@ service /graphql on graphqlListener {
                 artifactName = artifactName
         );
         string artifactDetails = check mi_management:fetchArtifactDetails(
-                mgmtClientResult, hmacToken, artifactType, artifactName);
+                mgmtClientResult, hmacToken, artifactType, artifactName, packageName);
 
         log:printInfo("Successfully fetched artifact details from MI management API",
                 runtimeId = runtime.runtimeId,
@@ -2212,7 +2213,8 @@ service /graphql on graphqlListener {
             string artifactType,
             string artifactName,
             string? environmentId = (),
-            string? runtimeId = ()
+            string? runtimeId = (),
+            string? packageName = ()
     ) returns string|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
@@ -2273,7 +2275,7 @@ service /graphql on graphqlListener {
         // Step 1: Retrieve the WSDL URL from the MI Management API
         // (management API returns wsdl1_1 / wsdl2_0 URLs, not the WSDL content directly)
         string wsdlUrl = check mi_management:fetchArtifactWsdlUrl(
-                mgmtClient, hmacToken, artifactType, artifactName);
+                mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
         log:printDebug("Retrieved WSDL URL from MI management API",
                 runtimeId = runtime.runtimeId,
@@ -2453,7 +2455,8 @@ service /graphql on graphqlListener {
             string artifactType,
             string artifactName,
             string? environmentId = (),
-            string? runtimeId = ()
+            string? runtimeId = (),
+            string? packageName = ()
         ) returns types:Parameter[]|error {
         value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
         if authHeader !is string {
@@ -2510,8 +2513,9 @@ service /graphql on graphqlListener {
         // NOTE: The management API does not have a dedicated parameters endpoint.
         // fetchArtifactParameterInfo extracts available metadata fields from the
         // appropriate management API endpoint and converts them to Parameter format.
+        // For connectors, packageName can be specified to disambiguate connectors with the same name.
         mi_management:MgmtArtifactParameter[] mgmtParams = check mi_management:fetchArtifactParameterInfo(
-                mgmtClient, hmacToken, artifactType, artifactName);
+                mgmtClient, hmacToken, artifactType, artifactName, packageName);
 
         // Convert MgmtArtifactParameter[] to types:Parameter[]
         types:Parameter[] params = from mi_management:MgmtArtifactParameter p in mgmtParams
@@ -2784,20 +2788,20 @@ service /graphql on graphqlListener {
 
         types:DataServiceDataSourceEntry[] dataSources = from mi_management:MgmtDataServiceDataSource ds in overview.dataSources
             select {
-                dataSourceId: ds.dataSourceId,
-                dataSourceType: ds.dataSourceType,
+                name: ds.dataSourceId,
+                'type: ds.dataSourceType,
                 properties: from mi_management:MgmtArtifactParameter p in ds.properties
                     select {name: p.key, value: p.value}
             };
 
         types:DataServiceQueryEntry[] queries = from mi_management:MgmtDataServiceQuery q in overview.queries
-            select {id: q.id, dataSourceId: q.dataSourceId, namespace: q.namespace};
+            select {name: q.id, 'type: q.namespace};
 
         types:DataServiceResourceEntry[] resources = from mi_management:MgmtDataServiceResource r in overview.resources
-            select {resourcePath: r.resourcePath, resourceMethod: r.resourceMethod, resourceQuery: r.resourceQuery};
+            select {name: r.resourcePath, 'type: r.resourceMethod};
 
         types:DataServiceOperationEntry[] operations = from mi_management:MgmtDataServiceOperation op in overview.operations
-            select {operationName: op.operationName, queryName: op.queryName};
+            select {name: op.operationName, 'type: op.queryName};
 
         return {
             serviceName: overview.serviceName,

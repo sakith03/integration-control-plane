@@ -2127,26 +2127,24 @@ public type LocalEntryValue record {|
 |};
 
 public type DataServiceDataSourceEntry record {|
-    string dataSourceId;
-    string dataSourceType?;
+    string name;
+    string 'type?;
     Parameter[] properties = [];
 |};
 
 public type DataServiceQueryEntry record {|
-    string id;
-    string dataSourceId?;
-    string namespace?;
+    string name;
+    string 'type?;
 |};
 
 public type DataServiceResourceEntry record {|
-    string resourcePath;
-    string resourceMethod?;
-    string resourceQuery?;
+    string name;
+    string 'type?;
 |};
 
 public type DataServiceOperationEntry record {|
-    string operationName;
-    string queryName?;
+    string name;
+    string 'type?;
 |};
 
 public type DataServiceOverview record {|
