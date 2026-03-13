@@ -88,9 +88,10 @@ configurable boolean enableMetrics = true;
 // Observability Adapter configuration
 configurable string observabilityBackendURL = "https://localhost:" + defaultOpensearchAdaptorPort.toString();
 configurable string observabilityJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
-configurable string observabilityJwtIssuer = "icp-observability-jwt-issuer";
-configurable string observabilityJwtAudience = "icp-observability-adaptor";
-configurable decimal observabilityJwtExpiryTimeSeconds = 120; // 2 minutes
+configurable string observabilityTruststorePassword = truststorePassword;
+configurable ObservabilityJwtConfig observabilityJwt = {};
+configurable ObservabilitySecureSocketConfig observabilitySecureSocket = {};
+configurable ObservabilityClientConfig observabilityClient = {};
 
 // OpenSearch configuration
 configurable string opensearchUrl = "https://localhost:9200";
@@ -115,6 +116,7 @@ final string resolvedUserServiceJwtHMACSecret = check resolveSecret(userServiceJ
 final string resolvedSsoClientId = check resolveSecret(ssoClientId);
 final string resolvedSsoClientSecret = check resolveSecret(ssoClientSecret);
 final string resolvedObservabilityJwtHMACSecret = check resolveSecret(observabilityJwtHMACSecret);
+final string resolvedObservabilityTruststorePassword = check resolveSecret(observabilityTruststorePassword);
 final string resolvedOpensearchUsername = check resolveSecret(opensearchUsername);
 final string resolvedOpensearchPassword = check resolveSecret(opensearchPassword);
 final string resolvedCredDbUser = check resolveSecret(credentialsDbUser);

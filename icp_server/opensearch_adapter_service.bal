@@ -113,10 +113,10 @@ listener http:Listener openSerachObservabilityListener = new (defaultOpensearchA
     auth: [
         {
             jwtValidatorConfig: {
-                issuer: observabilityJwtIssuer,
-                audience: observabilityJwtAudience,
+                issuer: observabilityJwt.issuer,
+                audience: observabilityJwt.audience,
                 signatureConfig: {
-                    secret: resolvedObservabilityJwtHMACSecret
+                    secret: observabilityJwt.hmacSecret
                 }
             }
         }

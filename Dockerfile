@@ -26,7 +26,7 @@ COPY frontend/ ./
 
 # --no-frozen-lockfile: pnpm-lock.yaml was generated on macOS; allow pnpm to
 # resolve platform-native optional deps (e.g. @rollup/rollup-linux-arm64-musl)
-RUN npm install -g pnpm && \
+RUN npm install -g pnpm@9 && \
     pnpm install --no-frozen-lockfile && \
     pnpm build
 
@@ -35,9 +35,6 @@ FROM ballerina/ballerina:2201.13.1 AS builder
 
 # Install required dependencies (using apk for Alpine-based image)
 USER root
-
-# Required for pnpm to run non-interactively in a Docker build (no TTY)
-ENV CI=true
 
 RUN apk add --no-cache wget unzip zip bash
 
@@ -54,7 +51,6 @@ COPY gradle.properties ./
 
 # Copy source code
 COPY icp_server/ ./icp_server/
-COPY frontend/ ./frontend/
 COPY www/ ./www/
 COPY conf/ ./conf/
 COPY distribution/ ./distribution/
