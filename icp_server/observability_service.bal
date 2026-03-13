@@ -18,14 +18,97 @@ import icp_server.storage as storage;
 import icp_server.types as types;
 
 import ballerina/http;
+import ballerina/jwt;
 import ballerina/log;
 
-// HTTP client for OpenSearch with SSL verification disabled
-final http:Client observabilityClient = check new (observabilityBackendURL,
-    config = {
-        secureSocket: {
-            enable: false
+// Observability JWT configuration record with defaults
+type ObservabilityJwtConfig record {|
+    string hmacSecret = resolvedObservabilityJwtHMACSecret;
+    string issuer = "icp-observability-jwt-issuer";
+    string audience = "icp-observability-adaptor";
+    decimal expiryTimeSeconds = 120; // 2 minutes
+|};
+
+// Observability secure socket configuration
+type ObservabilitySecureSocketConfig record {|
+    boolean allowInsecureTLS = false; // Allow self-signed certs for dev/test; set to false in production
+    boolean useCustomTruststore = true; // Use custom truststore instead of system CA
+    string truststorePath = truststorePath; // Path to truststore defaults to same as server truststore
+    string truststorePassword = resolvedObservabilityTruststorePassword; // Truststore password defaults to observability-specific truststore
+    boolean verifyHostname = true; // Verify server hostname against certificate
+|};
+
+// Observability HTTP client configuration
+type ObservabilityClientConfig record {|
+    decimal timeout = 60; // Request timeout in seconds
+    int retryCount = 3; // Number of retry attempts
+    decimal retryInterval = 2; // Retry interval in seconds
+    decimal retryBackoffFactor = 2.0; // Exponential backoff multiplier
+    int maxPoolSize = 50; // Maximum connection pool size
+|};
+
+// Generate a short-lived JWT token for authenticating with opensearch adapter service
+// Called on each request for simplicity and security
+isolated function generateObservabilityToken() returns string|error {
+    jwt:IssuerConfig issuerConfig = {
+        issuer: observabilityJwt.issuer,
+        audience: observabilityJwt.audience,
+        expTime: observabilityJwt.expiryTimeSeconds,
+        signatureConfig: {
+            algorithm: jwt:HS256,
+            config: observabilityJwt.hmacSecret
         }
+    };
+
+    string|jwt:Error jwtToken = jwt:issue(issuerConfig);
+    if jwtToken is jwt:Error {
+        log:printError("Error generating observability JWT token", jwtToken);
+        return error("Failed to generate observability JWT token", jwtToken);
+    }
+
+    return jwtToken;
+}
+
+// Build secure socket configuration based on settings
+function getObservabilitySecureSocketConfig() returns http:ClientSecureSocket {
+    if observabilitySecureSocket.allowInsecureTLS {
+        return {enable: false};
+    }
+
+    // TLS enabled - choose truststore or system CA
+    if observabilitySecureSocket.useCustomTruststore {
+        // Use custom truststore
+        return {
+            cert: {
+                path: observabilitySecureSocket.truststorePath,
+                password: observabilitySecureSocket.truststorePassword
+            },
+            verifyHostName: observabilitySecureSocket.verifyHostname
+        };
+
+    }
+
+    // Use system CA certificates (default for production)
+    return {
+        verifyHostName: observabilitySecureSocket.verifyHostname
+    };
+}
+
+// HTTP client for OpenSearch adapter with configurable settings
+// Token authentication added per request via Authorization header
+final http:Client observabilityHttpClient = check new (observabilityBackendURL,
+    {
+        timeout: observabilityClient.timeout,
+        retryConfig: {
+            count: observabilityClient.retryCount,
+            interval: observabilityClient.retryInterval,
+            backOffFactor: <float>observabilityClient.retryBackoffFactor,
+            maxWaitInterval: 20
+        },
+        poolConfig: {
+            maxActiveConnections: observabilityClient.maxPoolSize
+        },
+        secureSocket: getObservabilitySecureSocketConfig()
     }
 );
 
@@ -49,7 +132,7 @@ listener http:Listener observabilityListener = new (observabilityServerPort,
                 issuer: frontendJwtIssuer,
                 audience: frontendJwtAudience,
                 signatureConfig: {
-                    secret: resolvedObservabilityJwtHMACSecret
+                    secret: resolvedFrontendJwtHMACSecret
                 }
             }
         }
@@ -109,8 +192,10 @@ service /icp/observability on observabilityListener {
 
         log:printInfo("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs");
 
-        // Invoke observability adapter service
-        return check observabilityClient->post(string `/observability/logs/${componentType.toString()}`, adaptorRequest);
+        // Generate fresh JWT token and invoke observability adapter service
+        string token = check generateObservabilityToken();
+        map<string|string[]> headers = {"Authorization": "Bearer " + token};
+        return check observabilityHttpClient->post(string `/observability/logs/${componentType.toString()}`, adaptorRequest, headers);
     }
 
     resource function post metrics(http:Request request, types:ICPMetricEntryRequest metricRequest) returns types:MetricEntriesResponse|error {
@@ -154,8 +239,10 @@ service /icp/observability on observabilityListener {
 
         log:printInfo("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs for component type: " + componentType.toString());
 
-        // Invoke observability adapter service with component type path param
-        return check observabilityClient->post(string `/observability/metrics/${componentType.toString()}`, adaptorRequest);
+        // Generate fresh JWT token and invoke observability adapter service with component type path param
+        string token = check generateObservabilityToken();
+        map<string|string[]> headers = {"Authorization": "Bearer " + token};
+        return check observabilityHttpClient->post(string `/observability/metrics/${componentType.toString()}`, adaptorRequest, headers);
     }
 }
 
