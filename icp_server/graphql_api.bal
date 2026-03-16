@@ -1477,7 +1477,7 @@ service /graphql on graphqlListener {
             return {
                 status: "FAILED",
                 canDelete: false,
-                message: string `Cannot delete component: ${environmentsWithRuntimes.length()} active runtime(s) found. Please stop all runtimes before deleting.`,
+                message: string `Cannot delete component: ${environmentsWithRuntimes.length()} registered runtime(s) found. Please delete all runtimes before deleting.`,
                 encodedData: ""
             };
         }
@@ -1553,7 +1553,7 @@ service /graphql on graphqlListener {
         if runtimes.length() == 0 {
             log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
-                status: "failed",
+                status: "FAILED",
                 message: "No MI runtimes found for this component",
                 successCount: 0,
                 failedCount: 0,
@@ -1648,7 +1648,7 @@ service /graphql on graphqlListener {
             }
         }
 
-        string overallStatus = successCount > 0 ? "success" : "failed";
+        types:Status overallStatus = successCount > 0 ? "SUCCESS" : "FAILED";
         string message = string `Artifact status change sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
 
         log:printInfo("Artifact status change commands sent",
@@ -1692,7 +1692,7 @@ service /graphql on graphqlListener {
         if runtimes.length() == 0 {
             log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
-                status: "failed",
+                status: "FAILED",
                 message: "No MI runtimes found for this component",
                 successCount: 0,
                 failedCount: 0,
@@ -1787,7 +1787,7 @@ service /graphql on graphqlListener {
             }
         }
 
-        string overallStatus = successCount > 0 ? "success" : "failed";
+        types:Status overallStatus = successCount > 0 ? "SUCCESS" : "FAILED";
         string message = string `Artifact tracing change sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
 
         log:printInfo("Artifact tracing change commands sent",
@@ -1849,7 +1849,7 @@ service /graphql on graphqlListener {
         if runtimes.length() == 0 {
             log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
-                status: "failed",
+                status: "FAILED",
                 message: "No MI runtimes found for this component",
                 successCount: 0,
                 failedCount: 0,
@@ -1944,7 +1944,7 @@ service /graphql on graphqlListener {
             }
         }
 
-        string overallStatus = successCount > 0 ? "success" : "failed";
+        types:Status overallStatus = successCount > 0 ? "SUCCESS" : "FAILED";
         string message = string `Artifact statistics change sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
 
         log:printInfo("Artifact statistics change commands sent",
@@ -2022,7 +2022,7 @@ service /graphql on graphqlListener {
         if runtimes.length() == 0 {
             log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
-                status: "failed",
+                status: "FAILED",
                 message: "No MI runtimes found for this component",
                 successCount: 0,
                 failedCount: 0,
@@ -2091,7 +2091,7 @@ service /graphql on graphqlListener {
             }
         }
 
-        string overallStatus = successCount > 0 ? "success" : "failed";
+        types:Status overallStatus = successCount > 0 ? "SUCCESS" : "FAILED";
         string message = string `Task trigger sent to ${successCount} out of ${runtimes.length()} runtime(s)`;
 
         log:printInfo("Task trigger commands sent",
