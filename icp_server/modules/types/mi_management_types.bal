@@ -216,6 +216,8 @@ public type LogFileInfo record {
 public type MgmtLogFilesResponse record {
     int count;
     LogFileInfo[] list;
+};
+
 // GET /management/logging
 public type MgmtLoggerInfo record {
     string level;

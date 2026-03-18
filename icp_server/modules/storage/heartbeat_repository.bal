@@ -61,7 +61,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat) returns typ
         // Process intended states and retrieve pending control commands based on component type
         if isNewRegistration {
             log:printInfo(string `New runtime registration detected - processing intended states for runtime ${heartbeat.runtime}`);
-            check processIntendedStates(heartbeat.runtime, heartbeat.component, heartbeat.artifacts, componentType);
+            check processIntendedStates(heartbeat.runtime, heartbeat.component, heartbeat.artifacts, heartbeat.logLevels, componentType);
         }
 
         if componentType == types:BI {
@@ -416,13 +416,14 @@ isolated function validateResourcesConsistency(types:Resource[] referenceResourc
 }
 
 // Process intended states and insert control commands to DB
-isolated function processIntendedStates(string runtimeId, string componentId, types:Artifacts artifacts, string? componentType) returns error? {
+isolated function processIntendedStates(string runtimeId, string componentId, types:Artifacts artifacts, map<log:Level>? logLevels, string? componentType) returns error? {
     if componentType == types:BI {
         // Check BI intended states and insert control commands to DB
         int|error commandCount = checkBIIntendedStatesAndInsertCommands(
                 runtimeId,
                 componentId,
-                artifacts
+                artifacts,
+                logLevels
         );
 
         if commandCount is int && commandCount > 0 {
@@ -447,7 +448,7 @@ isolated function processIntendedStates(string runtimeId, string componentId, ty
 }
 
 // Check BI artifact intended states and insert control commands to DB
-isolated function checkBIIntendedStatesAndInsertCommands(string runtimeId, string componentId, types:Artifacts artifacts) returns int|error {
+isolated function checkBIIntendedStatesAndInsertCommands(string runtimeId, string componentId, types:Artifacts artifacts, map<log:Level>? logLevels) returns int|error {
     int commandCount = 0;
 
     // Get intended states for this component
@@ -522,6 +523,54 @@ isolated function checkBIIntendedStatesAndInsertCommands(string runtimeId, strin
                     log:printInfo(string `Inserted BI control command for listener ${artifactName}: ${intendedAction} (current: ${currentState})`);
                 }
             }
+        }
+    }
+
+    // Check log levels against intended states
+    map<string>|error intendedLogLevels = getBILogLevelIntendedStatesForComponent(componentId);
+
+    if intendedLogLevels is map<string> && intendedLogLevels.length() > 0 {
+        if logLevels is map<log:Level> {
+            foreach string componentName in intendedLogLevels.keys() {
+                string intendedLevel = intendedLogLevels.get(componentName);
+
+                if logLevels.hasKey(componentName) {
+                    log:Level currentLevelEnum = logLevels.get(componentName);
+                    string currentLevel = currentLevelEnum.toString();
+
+                    if currentLevel.toUpperAscii() != intendedLevel.toUpperAscii() {
+                        // Insert log level control command
+                        string|error commandId = insertLogLevelControlCommand(
+                                runtimeId,
+                                componentName,
+                                intendedLevel,
+                                () // No user ID for system-initiated sync
+                        );
+
+                        if commandId is string {
+                            commandCount += 1;
+                            log:printInfo(string `Inserted BI log level control command for ${componentName}: ${intendedLevel} (current: ${currentLevel})`);
+                        } else {
+                            log:printWarn(string `Failed to insert BI log level control command for ${componentName}`, commandId);
+                        }
+                    }
+                } else {
+                    // Component not reporting log level, insert command anyway
+                    string|error commandId = insertLogLevelControlCommand(
+                            runtimeId,
+                            componentName,
+                            intendedLevel,
+                            ()
+                    );
+
+                    if commandId is string {
+                        commandCount += 1;
+                        log:printInfo(string `Inserted BI log level control command for ${componentName}: ${intendedLevel} (not currently reported)`);
+                    }
+                }
+            }
+        } else {
+            log:printDebug(string `No log levels reported in heartbeat for runtime ${runtimeId}, skipping log level reconciliation`);
         }
     }
 

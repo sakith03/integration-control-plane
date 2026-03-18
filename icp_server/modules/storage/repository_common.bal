@@ -1070,6 +1070,106 @@ public isolated function upsertMIArtifactIntendedTracing(string componentId, str
     }
 }
 
+// Upsert MI logger intended state for a component
+public isolated function upsertMILoggerIntendedState(
+        string componentId,
+        string loggerName,
+        string logLevel,
+        string? issuedBy = ()
+) returns error? {
+    if dbType == MSSQL {
+        _ = check dbClient->execute(`
+            MERGE INTO mi_logger_intended_state AS target
+            USING (VALUES (${componentId}, ${loggerName}, ${logLevel}, ${issuedBy}))
+                   AS source (component_id, logger_name, log_level, issued_by)
+            ON (target.component_id = source.component_id AND target.logger_name = source.logger_name)
+            WHEN MATCHED THEN
+                UPDATE SET log_level = source.log_level, issued_at = CURRENT_TIMESTAMP,
+                           issued_by = source.issued_by, updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (component_id, logger_name, log_level, issued_by)
+                VALUES (source.component_id, source.logger_name, source.log_level, source.issued_by);
+        `);
+    } else if dbType == POSTGRESQL {
+        _ = check dbClient->execute(`
+            INSERT INTO mi_logger_intended_state (
+                component_id, logger_name, log_level, issued_by
+            ) VALUES (
+                ${componentId}, ${loggerName}, ${logLevel}, ${issuedBy}
+            )
+            ON CONFLICT (component_id, logger_name) DO UPDATE SET
+                log_level = EXCLUDED.log_level,
+                issued_at = CURRENT_TIMESTAMP,
+                issued_by = EXCLUDED.issued_by,
+                updated_at = CURRENT_TIMESTAMP
+        `);
+    } else if dbType == H2 {
+        // H2 uses MERGE syntax similar to MSSQL
+        _ = check dbClient->execute(`
+            MERGE INTO mi_logger_intended_state AS target
+            USING (VALUES (${componentId}, ${loggerName}, ${logLevel}, ${issuedBy}))
+                   AS source (component_id, logger_name, log_level, issued_by)
+            ON (target.component_id = source.component_id AND target.logger_name = source.logger_name)
+            WHEN MATCHED THEN
+                UPDATE SET log_level = source.log_level, issued_at = CURRENT_TIMESTAMP,
+                           issued_by = source.issued_by, updated_at = CURRENT_TIMESTAMP
+            WHEN NOT MATCHED THEN
+                INSERT (component_id, logger_name, log_level, issued_by)
+                VALUES (source.component_id, source.logger_name, source.log_level, source.issued_by)
+        `);
+    } else {
+        // MySQL
+        _ = check dbClient->execute(`
+            INSERT INTO mi_logger_intended_state (
+                component_id, logger_name, log_level, issued_by
+            ) VALUES (
+                ${componentId}, ${loggerName}, ${logLevel}, ${issuedBy}
+            )
+            ON DUPLICATE KEY UPDATE
+                log_level = VALUES(log_level),
+                issued_at = CURRENT_TIMESTAMP,
+                issued_by = VALUES(issued_by),
+                updated_at = CURRENT_TIMESTAMP
+        `);
+    }
+}
+
+// Get BI log level intended states for a component
+public isolated function getBILogLevelIntendedStatesForComponent(string componentId) returns map<string>|error {
+    map<string> intendedLogLevels = {};
+
+    stream<record {|string component_name; string log_level;|}, sql:Error?> stateStream = dbClient->query(`
+        SELECT component_name, log_level
+        FROM bi_log_level_intended_state
+        WHERE component_id = ${componentId}
+    `);
+
+    check from var state in stateStream
+        do {
+            intendedLogLevels[state.component_name] = state.log_level;
+        };
+
+    return intendedLogLevels;
+}
+
+// Get MI logger intended states for a component
+public isolated function getMILoggerIntendedStatesForComponent(string componentId) returns map<string>|error {
+    map<string> intendedLogLevels = {};
+
+    stream<record {|string logger_name; string log_level;|}, sql:Error?> stateStream = dbClient->query(`
+        SELECT logger_name, log_level
+        FROM mi_logger_intended_state
+        WHERE component_id = ${componentId}
+    `);
+
+    check from var state in stateStream
+        do {
+            intendedLogLevels[state.logger_name] = state.log_level;
+        };
+
+    return intendedLogLevels;
+}
+
 // Delete MI artifact intended status
 public isolated function deleteMIArtifactIntendedStatus(
         string componentId,

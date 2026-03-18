@@ -164,7 +164,7 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
           </ListingTable.Head>
           <ListingTable.Body>
             {paginatedLoggers.map((logger) => {
-              const uniqueKey = logger.loggerName || logger.componentName;
+              const uniqueKey = `${logger.loggerName || ''}|${logger.componentName}|${logger.logLevel}|${[...logger.runtimeIds].sort().join(',')}`;
 
               return (
                 <ListingTable.Row key={uniqueKey}>
@@ -260,6 +260,7 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
   const [refreshingEnv, setRefreshingEnv] = useState<string | null>(null);
   const [addLoggerDialog, setAddLoggerDialog] = useState<{ open: boolean; environmentId?: string; runtimeIds?: string[] }>({ open: false });
   const [newLoggerForm, setNewLoggerForm] = useState({ loggerName: '', loggerClass: '', logLevel: 'INFO' as LogLevel });
+  const [addLoggerError, setAddLoggerError] = useState<string | null>(null);
   const updateLogLevel = useUpdateLogLevel();
   const { data: project, isLoading: loadingProject } = useProjectByHandler(scope.project);
   const projectId = project?.id ?? '';
@@ -306,6 +307,9 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
         logLevel: newLoggerForm.logLevel,
       });
 
+      // Clear any previous errors on successful add
+      setAddLoggerError(null);
+
       // Close dialog and reset form
       setAddLoggerDialog({ open: false });
       setNewLoggerForm({ loggerName: '', loggerClass: '', logLevel: 'INFO' });
@@ -316,6 +320,7 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
       }
     } catch (error) {
       console.error('Failed to add logger:', error);
+      setAddLoggerError(error instanceof Error ? error.message : 'Failed to add logger');
     }
   };
 
@@ -397,10 +402,22 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
       </Box>
 
       {/* Add Logger Dialog */}
-      <Dialog open={addLoggerDialog.open} onClose={() => setAddLoggerDialog({ open: false })} maxWidth="sm" fullWidth>
+      <Dialog
+        open={addLoggerDialog.open}
+        onClose={() => {
+          setAddLoggerDialog({ open: false });
+          setAddLoggerError(null);
+        }}
+        maxWidth="sm"
+        fullWidth>
         <DialogTitle>Add New Logger</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {addLoggerError && (
+              <Alert severity="error" onClose={() => setAddLoggerError(null)}>
+                {addLoggerError}
+              </Alert>
+            )}
             <TextField label="Logger Name" value={newLoggerForm.loggerName} onChange={(e) => setNewLoggerForm({ ...newLoggerForm, loggerName: e.target.value })} placeholder="e.g., synapse-api, org-apache-hadoop-hive" fullWidth required />
             <TextField label="Logger Class" value={newLoggerForm.loggerClass} onChange={(e) => setNewLoggerForm({ ...newLoggerForm, loggerClass: e.target.value })} placeholder="e.g., org.apache.synapse.rest.API" fullWidth required />
             <Box>
@@ -421,7 +438,12 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddLoggerDialog({ open: false })} color="inherit">
+          <Button
+            onClick={() => {
+              setAddLoggerDialog({ open: false });
+              setAddLoggerError(null);
+            }}
+            color="inherit">
             Cancel
           </Button>
           <Button onClick={handleAddLogger} variant="contained" disabled={!newLoggerForm.loggerName || !newLoggerForm.loggerClass || updateLogLevel.isPending}>

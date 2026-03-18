@@ -18,6 +18,7 @@ import icp_server.auth;
 import icp_server.mi_management;
 import icp_server.storage;
 import icp_server.types;
+import icp_server.utils;
 
 import ballerina/graphql;
 import ballerina/http;
@@ -45,61 +46,14 @@ listener graphql:Listener graphqlListener = new (graphqlPort,
 );
 
 // Reusable: pick a runtime from a list with optional runtimeId
-isolated function selectRuntime(types:Runtime[] runtimes, string componentId, string? environmentId, string? runtimeId) returns types:Runtime|error {
-    if runtimes.length() == 0 {
-        return error("No runtimes found for this component");
-    }
-    types:Runtime runtime = runtimes[0];
-    if runtimeId is string {
-        foreach types:Runtime r in runtimes {
-            if r.runtimeId == runtimeId {
-                return r;
-            }
-        }
-        return error(string `Runtime ${runtimeId} not found for component ${componentId}${environmentId is string ? string ` in environment ${environmentId}` : ""}`);
-    }
-    return runtime;
-}
 
-// Convert string to LogLevel enum, with case-insensitive matching
-isolated function toLogLevel(string level) returns types:LogLevel|error {
-    string upperLevel = level.toUpperAscii();
-    match upperLevel {
-        "OFF" => {
-            return types:OFF;
-        }
-        "TRACE" => {
-            return types:TRACE;
-        }
-        "DEBUG" => {
-            return types:DEBUG;
-        }
-        "INFO" => {
-            return types:INFO;
-        }
-        "WARN" => {
-            return types:WARN;
-        }
-        "ERROR" => {
-            return types:ERROR;
-        }
-        "FATAL" => {
-            return types:FATAL;
-        }
-        _ => {
-            return error(string `Invalid log level: ${level}`);
-        }
+// Extract user context from GraphQL context
+isolated function extractUserContext(graphql:Context context) returns types:UserContextV2|error {
+    value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
+    if authHeader !is string {
+        return error("Authorization header missing in request");
     }
-}
-
-isolated function contextInit(http:RequestContext reqCtx, http:Request request) returns graphql:Context {
-    string|error authorization = request.getHeader("Authorization");
-    graphql:Context context = new;
-    if authorization is string {
-        context.set("Authorization", authorization);
-    }
-
-    return context;
+    return check auth:extractUserContextV2(authHeader);
 }
 
 // Helper function to fetch MI loggers from management API
@@ -132,10 +86,67 @@ isolated function fetchMILoggersByRuntime(string runtimeId, types:Runtime runtim
             managementUrl = baseUrl,
             loggerCount = loggersResponse.count);
 
+    // Reconcile loggers with intended state before returning
+    map<string>|error intendedLogLevels = storage:getMILoggerIntendedStatesForComponent(runtime.component.id);
+
+    if intendedLogLevels is error {
+        log:printError("Failed to fetch MI logger intended states for reconciliation",
+                componentId = runtime.component.id,
+                runtimeId = runtimeId,
+                'error = intendedLogLevels);
+        return error(string `Failed to fetch intended logger states for component ${runtime.component.id}: ${intendedLogLevels.message()}`);
+    }
+
+    if intendedLogLevels.length() > 0 {
+        // Compare and update any mismatched loggers
+        int updatedCount = 0;
+
+        foreach types:MgmtLoggerInfo loggerInfo in loggersResponse.list {
+            string loggerName = loggerInfo.loggerName;
+
+            if intendedLogLevels.hasKey(loggerName) {
+                string intendedLevel = intendedLogLevels.get(loggerName);
+                string currentLevel = loggerInfo.level.toUpperAscii();
+
+                if currentLevel != intendedLevel.toUpperAscii() {
+                    // Logger level mismatch - update it
+                    types:MgmtUpdateLoggerRequest updateRequest = {
+                        loggerName: loggerName,
+                        loggingLevel: intendedLevel
+                    };
+
+                    types:MgmtUpdateLoggerResponse|error updateResult = mi_management:updateLogger(
+                            mgmtClientResult,
+                            hmacToken,
+                            updateRequest
+                    );
+
+                    if updateResult is error {
+                        log:printError("Failed to reconcile MI logger via management API",
+                                runtimeId = runtimeId,
+                                loggerName = loggerName,
+                                intendedLevel = intendedLevel,
+                                currentLevel = currentLevel,
+                                'error = updateResult);
+                    } else {
+                        updatedCount += 1;
+                        log:printInfo(string `Reconciled MI logger ${loggerName} from ${currentLevel} to ${intendedLevel} on runtime ${runtimeId}`);
+                        // Update the logger info in the response so UI sees the updated value
+                        loggerInfo.level = intendedLevel;
+                    }
+                }
+            }
+        }
+
+        if updatedCount > 0 {
+            log:printInfo(string `MI logger reconciliation completed: updated ${updatedCount} logger(s) on runtime ${runtimeId}`);
+        }
+    }
+
     // Convert management API response to Logger type
     types:Logger[] loggers = [];
     foreach types:MgmtLoggerInfo loggerInfo in loggersResponse.list {
-        types:LogLevel logLevel = check toLogLevel(loggerInfo.level);
+        types:LogLevel logLevel = check utils:toLogLevel(loggerInfo.level);
         loggers.push({
             loggerName: loggerInfo.loggerName,
             componentName: loggerInfo.componentName,
@@ -155,7 +166,7 @@ isolated function fetchBILoggersByRuntime(string runtimeId) returns types:Logger
     types:RuntimeLogLevelRecord[] logLevels = check storage:getLogLevelsForRuntime(runtimeId);
     types:Logger[] loggers = [];
     foreach types:RuntimeLogLevelRecord logLevel in logLevels {
-        types:LogLevel level = check toLogLevel(logLevel.logLevel);
+        types:LogLevel level = check utils:toLogLevel(logLevel.logLevel);
         loggers.push({
             loggerName: (), // BI loggers don't have loggerName
             componentName: logLevel.componentName,
@@ -206,7 +217,16 @@ isolated function fetchMILoggersByEnvironmentAndComponent(string environmentId, 
         }
 
         // Generate HMAC token
-        string hmacToken = check storage:issueRuntimeHmacToken(runtime.runtimeId);
+        string|error hmacTokenResult = storage:issueRuntimeHmacToken(runtime.runtimeId);
+
+        if hmacTokenResult is error {
+            log:printError("Failed to generate HMAC token for runtime",
+                runtimeId = runtime.runtimeId,
+                'error = hmacTokenResult);
+            continue; // Skip this runtime and continue with others
+        }
+
+        string hmacToken = hmacTokenResult;
 
         // Fetch loggers from the runtime
         types:MgmtLoggersResponse|error loggersResponse = mi_management:fetchLoggers(mgmtClientResult, hmacToken);
@@ -218,9 +238,64 @@ isolated function fetchMILoggersByEnvironmentAndComponent(string environmentId, 
             continue; // Skip this runtime and continue with others
         }
 
+        // Reconcile loggers with intended state before processing
+        map<string>|error intendedLogLevels = storage:getMILoggerIntendedStatesForComponent(componentId);
+
+        if intendedLogLevels is error {
+            log:printError("Failed to fetch MI logger intended states for reconciliation in fetchMILoggersByEnvironmentAndComponent",
+                    componentId = componentId,
+                    runtimeId = runtime.runtimeId,
+                    'error = intendedLogLevels);
+            // Continue processing loggers without reconciliation
+        } else if intendedLogLevels.length() > 0 {
+            // Compare and update any mismatched loggers
+            int updatedCount = 0;
+
+            foreach types:MgmtLoggerInfo loggerInfo in loggersResponse.list {
+                string loggerName = loggerInfo.loggerName;
+
+                if intendedLogLevels.hasKey(loggerName) {
+                    string intendedLevel = intendedLogLevels.get(loggerName);
+                    string currentLevel = loggerInfo.level.toUpperAscii();
+
+                    if currentLevel != intendedLevel.toUpperAscii() {
+                        // Logger level mismatch - update it
+                        types:MgmtUpdateLoggerRequest updateRequest = {
+                            loggerName: loggerName,
+                            loggingLevel: intendedLevel
+                        };
+
+                        types:MgmtUpdateLoggerResponse|error updateResult = mi_management:updateLogger(
+                                mgmtClientResult,
+                                hmacToken,
+                                updateRequest
+                        );
+
+                        if updateResult is error {
+                            log:printError("Failed to reconcile MI logger via management API",
+                                    runtimeId = runtime.runtimeId,
+                                    loggerName = loggerName,
+                                    intendedLevel = intendedLevel,
+                                    currentLevel = currentLevel,
+                                    'error = updateResult);
+                        } else {
+                            updatedCount += 1;
+                            log:printInfo(string `Reconciled MI logger ${loggerName} from ${currentLevel} to ${intendedLevel} on runtime ${runtime.runtimeId}`);
+                            // Update the logger info so it's grouped correctly
+                            loggerInfo.level = intendedLevel;
+                        }
+                    }
+                }
+            }
+
+            if updatedCount > 0 {
+                log:printInfo(string `MI logger reconciliation completed: updated ${updatedCount} logger(s) on runtime ${runtime.runtimeId}`);
+            }
+        }
+
         // Process each logger from this runtime
         foreach types:MgmtLoggerInfo loggerInfo in loggersResponse.list {
-            types:LogLevel|error logLevelResult = toLogLevel(loggerInfo.level);
+            types:LogLevel|error logLevelResult = utils:toLogLevel(loggerInfo.level);
             if logLevelResult is error {
                 log:printWarn("Invalid log level, skipping logger",
                     loggerName = loggerInfo.loggerName,
@@ -267,10 +342,10 @@ isolated function updateLogLevelBI(types:UserContextV2 userContext, types:Update
         return error("Component name is required for BI components");
     }
     string componentName = componentNameOpt;
+    string logLevelStr = input.logLevel.toString();
 
-    // Phase 1: Pre-validate all runtimes and permissions (no side-effects)
-    ValidatedRuntime[] validatedRuntimes = [];
-    map<boolean> componentIds = {}; // Track unique component IDs
+    // Phase 1: Validate permissions and collect unique components from input runtimeIds
+    map<types:Component> componentsToUpdate = {}; // Map of componentId -> Component
 
     foreach string runtimeId in input.runtimeIds {
         // Fetch the runtime to get its context
@@ -294,18 +369,15 @@ isolated function updateLogLevelBI(types:UserContextV2 userContext, types:Update
             return error(string `Access denied: insufficient permissions to control log level on runtime ${runtimeId}`);
         }
 
-        // All validations passed - collect this runtime
+        // Collect unique components (will update log level for all runtimes in these components)
         string componentId = runtime.component.id;
-        validatedRuntimes.push({
-            runtimeId: runtimeId,
-            componentId: componentId,
-            runtime: runtime
-        });
-        componentIds[componentId] = true;
+        if !componentsToUpdate.hasKey(componentId) {
+            componentsToUpdate[componentId] = runtime.component;
+        }
     }
 
-    // Check if we have any valid runtimes after validation
-    if validatedRuntimes.length() == 0 {
+    // Check if we have any valid components after validation
+    if componentsToUpdate.length() == 0 {
         return {
             success: false,
             message: "No valid runtimes found to issue log level control commands",
@@ -313,45 +385,92 @@ isolated function updateLogLevelBI(types:UserContextV2 userContext, types:Update
         };
     }
 
-    // Phase 2: All validations passed - now perform all database operations
+    // Phase 2: Update intended state and create commands for ALL runtimes in each component
     string[] commandIds = [];
-    string logLevelStr = input.logLevel.toString();
-    map<boolean> processedComponents = {};
+    int totalRuntimeCount = 0;
+    int successCount = 0;
+    int failedCount = 0;
 
-    // Create commands for all validated runtimes
-    foreach ValidatedRuntime validated in validatedRuntimes {
-        // Insert log level control command
-        string commandId = check storage:insertLogLevelControlCommand(
-                validated.runtimeId,
+    foreach string componentId in componentsToUpdate.keys() {
+        types:Component component = componentsToUpdate.get(componentId);
+
+        // Update intended state for this component first
+        error? stateResult = storage:upsertBILogLevelIntendedState(
+                componentId,
                 componentName,
                 logLevelStr,
                 userContext.userId
         );
 
-        commandIds.push(commandId);
-        log:printInfo(string `Created log level control command ${commandId} for runtime ${validated.runtimeId} to set ${componentName} to ${logLevelStr}`);
+        if stateResult is error {
+            log:printError("Failed to update intended log level for component",
+                    componentId = componentId,
+                    componentName = componentName,
+                    'error = stateResult);
+            return error(string `Failed to persist intended state for component ${componentId}: ${stateResult.message()}`);
+        }
 
-        // Record intended state per component so all runtimes in the component will sync to the same state
-        if !processedComponents.hasKey(validated.componentId) {
-            processedComponents[validated.componentId] = true;
-            error? stateResult = storage:upsertBILogLevelIntendedState(
-                    validated.componentId,
+        log:printInfo(string `Updated intended log level for ${componentName} to ${logLevelStr} in component ${componentId}`);
+
+        // Get ALL runtimes for this component (including offline ones)
+        types:Runtime[] runtimes = check storage:getRuntimes((), (), (), component.projectId, componentId);
+
+        if runtimes.length() == 0 {
+            log:printWarn("No runtimes found for component", componentId = componentId);
+            continue;
+        }
+
+        log:printInfo("Creating log level control commands for all runtimes in component",
+                componentId = componentId,
+                componentName = componentName,
+                logLevel = logLevelStr,
+                runtimeCount = runtimes.length());
+
+        // Create control command for each runtime in the component
+        foreach types:Runtime runtime in runtimes {
+            totalRuntimeCount += 1;
+            boolean isRunning = runtime.status == types:RUNNING;
+
+            string|error cmdResult = storage:insertLogLevelControlCommand(
+                    runtime.runtimeId,
                     componentName,
                     logLevelStr,
                     userContext.userId
             );
 
-            if stateResult is error {
-                log:printWarn(string `Failed to update intended log level for ${componentName} in component ${validated.componentId}`, stateResult);
+            if cmdResult is error {
+                failedCount += 1;
+                log:printError("Failed to insert log level control command for runtime",
+                        runtimeId = runtime.runtimeId,
+                        componentName = componentName,
+                        'error = cmdResult);
             } else {
-                log:printInfo(string `Updated intended log level for ${componentName} to ${logLevelStr} in component ${validated.componentId}`);
+                commandIds.push(cmdResult);
+                if isRunning {
+                    successCount += 1;
+                    log:printDebug("Log level control command created for running runtime",
+                            runtimeId = runtime.runtimeId,
+                            componentName = componentName,
+                            logLevel = logLevelStr,
+                            commandId = cmdResult);
+                } else {
+                    successCount += 1;
+                    log:printDebug("Log level control command queued for offline runtime",
+                            runtimeId = runtime.runtimeId,
+                            componentName = componentName,
+                            logLevel = logLevelStr,
+                            runtimeStatus = runtime.status,
+                            commandId = cmdResult);
+                }
             }
         }
     }
 
+    string message = string `Updated log level for ${componentName} to ${logLevelStr} across ${componentsToUpdate.length()} component(s) and ${totalRuntimeCount} runtime(s). Commands sent: ${successCount}, failed: ${failedCount}`;
+
     return {
-        success: true,
-        message: string `Successfully created ${commandIds.length()} log level control command(s) for ${componentName}`,
+        success: successCount > 0,
+        message: message,
         commandIds: commandIds
     };
 }
@@ -407,11 +526,33 @@ isolated function updateLogLevelMI(types:UserContextV2 userContext, types:Update
         };
     }
 
-    // Phase 2: All validations passed - now call MI management API for each runtime
+    // Phase 2: All validations passed - persist intended state and call MI management API
     int successCount = 0;
     int failureCount = 0;
+    map<boolean> processedComponents = {};
 
     foreach ValidatedRuntime validated in validatedRuntimes {
+        // Persist intended state for this component first (once per component)
+        if !processedComponents.hasKey(validated.componentId) {
+            error? stateResult = storage:upsertMILoggerIntendedState(
+                    validated.componentId,
+                    loggerName,
+                    logLevelStr,
+                    userContext.userId
+            );
+
+            if stateResult is error {
+                log:printError("Failed to update intended logger state for component",
+                        componentId = validated.componentId,
+                        loggerName = loggerName,
+                        'error = stateResult);
+                return error(string `Failed to persist intended state for component ${validated.componentId}: ${stateResult.message()}`);
+            }
+
+            log:printInfo(string `Updated intended logger state for ${loggerName} to ${logLevelStr} in component ${validated.componentId}`);
+            processedComponents[validated.componentId] = true;
+        }
+
         // Build management API base URL
         string baseUrl = check storage:buildManagementBaseUrl(
             validated.runtime.managementHostname,
@@ -432,7 +573,17 @@ isolated function updateLogLevelMI(types:UserContextV2 userContext, types:Update
         }
 
         // Generate HMAC token
-        string hmacToken = check storage:issueRuntimeHmacToken(validated.runtimeId);
+        string|error hmacTokenResult = storage:issueRuntimeHmacToken(validated.runtimeId);
+
+        if hmacTokenResult is error {
+            log:printError("Failed to generate HMAC token for runtime",
+                runtimeId = validated.runtimeId,
+                'error = hmacTokenResult);
+            failureCount += 1;
+            continue;
+        }
+
+        string hmacToken = hmacTokenResult;
 
         // Build request - only include loggerClass if provided (for adding new logger)
         // If loggerClass is not provided, we're updating an existing logger
@@ -496,7 +647,7 @@ isolated function updateLogLevelMI(types:UserContextV2 userContext, types:Update
 
 // GraphQL service for runtime details
 @graphql:ServiceConfig {
-    contextInit,
+    contextInit: utils:initGraphQLContext,
     cors: {
         allowOrigins: ["*"]
     },
@@ -2663,7 +2814,7 @@ service /graphql on graphqlListener {
 
         // Get runtimes and select one using shared helper
         types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, component.projectId, componentId);
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
@@ -2742,7 +2893,7 @@ service /graphql on graphqlListener {
         }
 
         // Select runtime using shared helper
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         // Build management API base URL
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
@@ -2835,7 +2986,7 @@ service /graphql on graphqlListener {
         if runtimes.length() == 0 {
             return error("No runtimes found for this component");
         }
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         // Build management API base URL
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
@@ -2904,7 +3055,7 @@ service /graphql on graphqlListener {
         }
 
         // Select runtime using shared helper
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
         log:printInfo("Fetching artifact parameters via MI management API",
                 runtimeId = runtime.runtimeId,
@@ -3005,7 +3156,7 @@ service /graphql on graphqlListener {
             return error("No runtimes found for this component");
         }
 
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching data source overview via MI management API",
@@ -3083,7 +3234,7 @@ service /graphql on graphqlListener {
             return error("No runtimes found for this component");
         }
 
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching message store overview via MI management API",
@@ -3149,7 +3300,7 @@ service /graphql on graphqlListener {
             return error("No runtimes found for this component");
         }
 
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching message processor overview via MI management API",
@@ -3215,7 +3366,7 @@ service /graphql on graphqlListener {
             return error("No runtimes found for this component");
         }
 
-        types:Runtime runtime = check selectRuntime(runtimes, componentId, environmentId, runtimeId);
+        types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         log:printInfo("Fetching data service overview via MI management API",
@@ -3237,12 +3388,3 @@ service /graphql on graphqlListener {
     }
 }
 
-isolated function extractUserContext(graphql:Context context) returns types:UserContextV2|error {
-    value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-    if authHeader !is string {
-        return error("Authorization header missing in request");
-    }
-
-    // Extract user context V2 for RBAC
-    return check auth:extractUserContextV2(authHeader);
-}

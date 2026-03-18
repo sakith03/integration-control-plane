@@ -14,7 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/graphql;
 import ballerina/http;
+import icp_server.types;
 
 // HTTP error response helpers
 
@@ -41,4 +43,81 @@ public isolated function createInternalServerError(string message) returns http:
         message
     }
 };
+
+// GraphQL utilities
+
+# Initialize GraphQL context with authorization header
+#
+# + reqCtx - HTTP request context
+# + request - HTTP request
+# + return - GraphQL context with authorization header set
+public isolated function initGraphQLContext(http:RequestContext reqCtx, http:Request request) returns graphql:Context {
+    string|error authorization = request.getHeader("Authorization");
+    graphql:Context context = new;
+    if authorization is string {
+        context.set("Authorization", authorization);
+    }
+    return context;
+}
+
+// Runtime utilities
+
+# Select a runtime from a list based on optional runtimeId
+#
+# + runtimes - List of runtimes to select from
+# + componentId - Component ID for error messages
+# + environmentId - Optional environment ID for error messages
+# + runtimeId - Optional runtime ID to select; if not provided, returns first runtime
+# + return - Selected runtime or error if not found
+public isolated function selectRuntime(types:Runtime[] runtimes, string componentId, string? environmentId, string? runtimeId) returns types:Runtime|error {
+    if runtimes.length() == 0 {
+        return error("No runtimes found for this component");
+    }
+    types:Runtime runtime = runtimes[0];
+    if runtimeId is string {
+        foreach types:Runtime r in runtimes {
+            if r.runtimeId == runtimeId {
+                return r;
+            }
+        }
+        return error(string `Runtime ${runtimeId} not found for component ${componentId}${environmentId is string ? string ` in environment ${environmentId}` : ""}`);
+    }
+    return runtime;
+}
+
+// Logger utilities
+
+# Convert string to LogLevel enum with case-insensitive matching
+#
+# + level - Log level as string (e.g., "DEBUG", "info", "Warn")
+# + return - LogLevel enum value or error if invalid
+public isolated function toLogLevel(string level) returns types:LogLevel|error {
+    string upperLevel = level.toUpperAscii();
+    match upperLevel {
+        "OFF" => {
+            return types:OFF;
+        }
+        "TRACE" => {
+            return types:TRACE;
+        }
+        "DEBUG" => {
+            return types:DEBUG;
+        }
+        "INFO" => {
+            return types:INFO;
+        }
+        "WARN" => {
+            return types:WARN;
+        }
+        "ERROR" => {
+            return types:ERROR;
+        }
+        "FATAL" => {
+            return types:FATAL;
+        }
+        _ => {
+            return error(string `Invalid log level: ${level}`);
+        }
+    }
+}
 
