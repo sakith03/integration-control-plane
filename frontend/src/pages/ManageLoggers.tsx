@@ -16,7 +16,32 @@
  * under the License.
  */
 
-import { Alert, Avatar, Box, Button, Card, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Drawer, IconButton, ListingTable, MenuItem, PageContent, Select, Snackbar, Stack, TablePagination, TextField, Typography } from '@wso2/oxygen-ui';
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Drawer,
+  IconButton,
+  ListingTable,
+  MenuItem,
+  PageContent,
+  Select,
+  Snackbar,
+  Stack,
+  TablePagination,
+  TextField,
+  Typography,
+} from '@wso2/oxygen-ui';
 import { Maximize2, RefreshCw, X } from '@wso2/oxygen-ui-icons-react';
 import DataTable from '../components/DataTable';
 import { useState, type JSX } from 'react';
@@ -38,19 +63,19 @@ const headerSx = { px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divi
 const getLogLevelColor = (level: string): 'default' | 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error' => {
   switch (level) {
     case 'OFF':
-      return 'default';      // Gray
+      return 'default'; // Gray
     case 'TRACE':
-      return 'secondary';    // Purple/Pink
+      return 'secondary'; // Purple/Pink
     case 'DEBUG':
-      return 'info';         // Blue
+      return 'info'; // Blue
     case 'INFO':
-      return 'success';      // Green
+      return 'success'; // Green
     case 'WARN':
-      return 'warning';      // Orange
+      return 'warning'; // Orange
     case 'ERROR':
-      return 'error';        // Red
+      return 'error'; // Red
     case 'FATAL':
-      return 'error';        // Red (most critical)
+      return 'error'; // Red (most critical)
     default:
       return 'default';
   }
@@ -156,7 +181,12 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell>
-                    <Select value={logger.logLevel} onChange={(e) => handleLogLevelChange(uniqueKey, logger.loggerName, logger.componentName, logger.runtimeIds, e.target.value as LogLevel)} size="small" disabled={updatingLogger === uniqueKey} sx={{ minWidth: 120 }}>
+                    <Select
+                      value={logger.logLevel}
+                      onChange={(e) => handleLogLevelChange(uniqueKey, logger.loggerName, logger.componentName, logger.runtimeIds, e.target.value as LogLevel)}
+                      size="small"
+                      disabled={updatingLogger === uniqueKey}
+                      sx={{ minWidth: 120 }}>
                       {logLevels.map((level) => (
                         <MenuItem key={level} value={level}>
                           <Chip label={level} size="small" color={getLogLevelColor(level)} sx={{ minWidth: 70 }} />
@@ -371,22 +401,8 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
         <DialogTitle>Add New Logger</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Logger Name"
-              value={newLoggerForm.loggerName}
-              onChange={(e) => setNewLoggerForm({ ...newLoggerForm, loggerName: e.target.value })}
-              placeholder="e.g., synapse-api, org-apache-hadoop-hive"
-              fullWidth
-              required
-            />
-            <TextField
-              label="Logger Class"
-              value={newLoggerForm.loggerClass}
-              onChange={(e) => setNewLoggerForm({ ...newLoggerForm, loggerClass: e.target.value })}
-              placeholder="e.g., org.apache.synapse.rest.API"
-              fullWidth
-              required
-            />
+            <TextField label="Logger Name" value={newLoggerForm.loggerName} onChange={(e) => setNewLoggerForm({ ...newLoggerForm, loggerName: e.target.value })} placeholder="e.g., synapse-api, org-apache-hadoop-hive" fullWidth required />
+            <TextField label="Logger Class" value={newLoggerForm.loggerClass} onChange={(e) => setNewLoggerForm({ ...newLoggerForm, loggerClass: e.target.value })} placeholder="e.g., org.apache.synapse.rest.API" fullWidth required />
             <Box>
               <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
                 Log Level
