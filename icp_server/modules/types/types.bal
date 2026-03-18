@@ -108,10 +108,13 @@ public type Logger record {
     string? loggerName; // Optional: Only present for MI components
     string componentName;
     LogLevel logLevel;
+    string runtimeId;
 };
 
 public type LoggerGroup record {
-    *Logger;
+    string? loggerName;
+    string componentName;
+    LogLevel logLevel;
     string[] runtimeIds;
 };
 
@@ -2258,6 +2261,7 @@ public type ListenerControlResponse record {|
 
 public type UpdateLogLevelInput record {|
     string[] runtimeIds;
+    RuntimeType? componentType?; // Optional: if provided, skips runtime lookup
     // BI fields
     string? componentName?; // Required for BI, optional for MI
     // MI fields

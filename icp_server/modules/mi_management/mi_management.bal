@@ -205,7 +205,7 @@ isolated function fetchCarbonAppArtifact(http:Client mgmtClient, string hmacToke
 // Fetch loggers from the MI Management API
 public isolated function fetchLoggers(http:Client mgmtClient, string hmacToken) returns types:MgmtLoggersResponse|error {
     string path = string `${MGMT_API_PATH}/logging`;
-    log:printDebug("Calling MI management API", path = path);
+    log:printDebug("Fetching loggers from MI management API");
     types:MgmtLoggersResponse respResult = check mgmtClient->get(path, {
         [HEADER_AUTHORIZATION]: string `Bearer ${hmacToken}`,
         [HEADER_ACCEPT]: CONTENT_TYPE_JSON
@@ -218,13 +218,18 @@ public isolated function updateLogger(http:Client mgmtClient, string hmacToken, 
     string path = string `${MGMT_API_PATH}/logging`;
     log:printDebug("Calling MI management API to update logger", path = path, loggerName = request.loggerName, loggingLevel = request.loggingLevel);
 
-    types:MgmtUpdateLoggerResponse respResult = check mgmtClient->patch(path, request, {
-        [HEADER_AUTHORIZATION]: string `Bearer ${hmacToken}`,
-        [HEADER_ACCEPT]: CONTENT_TYPE_JSON
-    });
+    do {
+        types:MgmtUpdateLoggerResponse respResult = check mgmtClient->patch(path, request, {
+            [HEADER_AUTHORIZATION]: string `Bearer ${hmacToken}`,
+            [HEADER_ACCEPT]: CONTENT_TYPE_JSON
+        });
 
-    log:printInfo("Successfully updated logger via MI management API", loggerName = request.loggerName, loggingLevel = request.loggingLevel);
-    return respResult;
+        log:printInfo("Successfully updated logger via MI management API", loggerName = request.loggerName, loggingLevel = request.loggingLevel);
+        return respResult;
+    } on fail error e {
+        log:printError("Failed to update logger via MI management API", loggerName = request.loggerName, errorMessage = e.message());
+        return e;
+    }
 }
 
 // ============================================================

@@ -124,11 +124,12 @@ isolated function fetchMILoggersByRuntime(string runtimeId, types:Runtime runtim
     string hmacToken = check storage:issueRuntimeHmacToken(runtimeId);
 
     // Fetch loggers via MI Management API (/management/logging)
-    log:printDebug("Fetching loggers via MI management API", runtimeId = runtimeId);
+    log:printDebug("Fetching loggers via MI management API", runtimeId = runtimeId, managementUrl = baseUrl);
     types:MgmtLoggersResponse loggersResponse = check mi_management:fetchLoggers(mgmtClientResult, hmacToken);
 
     log:printInfo("Successfully fetched loggers from MI management API",
             runtimeId = runtimeId,
+            managementUrl = baseUrl,
             loggerCount = loggersResponse.count);
 
     // Convert management API response to Logger type
@@ -138,7 +139,8 @@ isolated function fetchMILoggersByRuntime(string runtimeId, types:Runtime runtim
         loggers.push({
             loggerName: loggerInfo.loggerName,
             componentName: loggerInfo.componentName,
-            logLevel: logLevel
+            logLevel: logLevel,
+            "runtimeId": runtimeId
         });
     }
 
@@ -157,7 +159,8 @@ isolated function fetchBILoggersByRuntime(string runtimeId) returns types:Logger
         loggers.push({
             loggerName: (), // BI loggers don't have loggerName
             componentName: logLevel.componentName,
-            logLevel: level
+            logLevel: level,
+            "runtimeId": runtimeId
         });
     }
 
@@ -217,9 +220,6 @@ isolated function fetchMILoggersByEnvironmentAndComponent(string environmentId, 
 
         // Process each logger from this runtime
         foreach types:MgmtLoggerInfo loggerInfo in loggersResponse.list {
-            // Create a unique key for grouping (loggerName + componentName)
-            string groupKey = loggerInfo.loggerName + "|" + loggerInfo.componentName;
-
             types:LogLevel|error logLevelResult = toLogLevel(loggerInfo.level);
             if logLevelResult is error {
                 log:printWarn("Invalid log level, skipping logger",
@@ -228,6 +228,9 @@ isolated function fetchMILoggersByEnvironmentAndComponent(string environmentId, 
                     errorMsg = logLevelResult.message());
                 continue;
             }
+
+            // Create a unique key for grouping (loggerName + componentName + logLevel)
+            string groupKey = loggerInfo.loggerName + "|" + loggerInfo.componentName + "|" + logLevelResult.toString();
 
             if loggerGroupMap.hasKey(groupKey) {
                 // Logger already exists, add this runtime ID to the group
@@ -1447,13 +1450,19 @@ service /graphql on graphqlListener {
             return error("At least one runtime ID must be provided");
         }
 
-        // Determine component type from first runtime to decide BI vs MI flow
-        types:Runtime? firstRuntime = check storage:getRuntimeById(input.runtimeIds[0]);
-        if firstRuntime is () {
-            return error(string `Runtime ${input.runtimeIds[0]} not found`);
+        // Determine component type - use input if provided, otherwise lookup from first runtime
+        types:RuntimeType componentType;
+        types:RuntimeType? inputComponentType = input?.componentType;
+        if inputComponentType is types:RuntimeType {
+            componentType = inputComponentType;
+        } else {
+            types:Runtime? firstRuntime = check storage:getRuntimeById(input.runtimeIds[0]);
+            if firstRuntime is () {
+                return error(string `Runtime ${input.runtimeIds[0]} not found`);
+            }
+            componentType = firstRuntime.component.componentType;
+            log:printDebug(string `Inferred component type ${componentType} from runtime ${input.runtimeIds[0]}`);
         }
-
-        types:RuntimeType componentType = firstRuntime.component.componentType;
 
         // Validate based on component type
         if componentType == types:MI {
@@ -1467,10 +1476,6 @@ service /graphql on graphqlListener {
             string? componentName = input?.componentName;
             if componentName is () || componentName.trim().length() == 0 {
                 return error("Component name is required for BI components");
-            }
-            // Enforces this upper bound to fit the cluster index limit in MSSQL
-            if componentName.length() > 432 {
-                return error("Component name must not exceed 432 characters");
             }
         }
 

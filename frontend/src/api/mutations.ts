@@ -237,6 +237,7 @@ export interface UpdateLogLevelInput {
   loggerName?: string;
   loggerClass?: string;
   logLevel: 'OFF' | 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
+  componentType?: string;
 }
 
 const UPDATE_LOG_LEVEL = `
@@ -256,6 +257,7 @@ export function useUpdateLogLevel() {
           ...(input.componentName && { componentName: input.componentName }),
           ...(input.loggerName && { loggerName: input.loggerName }),
           ...(input.loggerClass && { loggerClass: input.loggerClass }),
+          ...(input.componentType && { componentType: input.componentType }),
           logLevel: input.logLevel,
         },
       }).then((d) => d.updateLogLevel),

@@ -20,8 +20,9 @@ import { Alert, Avatar, Box, Button, Card, CardContent, Chip, CircularProgress, 
 import { Maximize2, RefreshCw, X } from '@wso2/oxygen-ui-icons-react';
 import DataTable from '../components/DataTable';
 import { useState, type JSX } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useProjectByHandler, useComponentByHandler, useEnvironments, useLoggers, useRuntimes } from '../api/queries';
+import { useQueryClient, useQueries } from '@tanstack/react-query';
+import { useProjectByHandler, useComponentByHandler, useEnvironments, useLoggers, RUNTIMES_QUERY, type GqlRuntime } from '../api/queries';
+import { gql } from '../api/graphql';
 import { useUpdateLogLevel } from '../api/mutations';
 import NotFound from '../components/NotFound';
 import { resourceUrl, broaden, type ComponentScope } from '../nav';
@@ -73,6 +74,7 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
       await updateLogLevel.mutateAsync({
         runtimeIds,
         ...(isMI ? { loggerName } : { componentName }),
+        componentType,
         logLevel: newLevel,
       });
       setSnackbarOpen(true);
@@ -234,6 +236,25 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
   const { data: component, isLoading: loadingComponent } = useComponentByHandler(projectId, scope.component);
   const { data: environments = [], isLoading: loadingEnvironments } = useEnvironments(projectId);
 
+  // Batch fetch runtimes for all environments
+  const runtimeQueries = useQueries({
+    queries: environments.map((env) => ({
+      queryKey: ['runtimes', env.id, projectId, component?.id ?? ''],
+      queryFn: () => gql<{ runtimes: GqlRuntime[] }>(RUNTIMES_QUERY, { environmentId: env.id, projectId, componentId: component?.id ?? '' }).then((d) => d.runtimes),
+      enabled: !!component?.id,
+    })),
+  });
+
+  // Create a map of environment ID to runtime IDs
+  const runtimesByEnv = environments.reduce(
+    (acc, env, index) => {
+      const runtimes = runtimeQueries[index]?.data ?? [];
+      acc[env.id] = runtimes.map((r) => r.runtimeId);
+      return acc;
+    },
+    {} as Record<string, string[]>,
+  );
+
   const handleRefresh = async (envId: string, componentId: string) => {
     setRefreshingEnv(envId);
     await queryClient.invalidateQueries({ queryKey: ['loggers', envId, componentId] });
@@ -251,6 +272,7 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
         runtimeIds: addLoggerDialog.runtimeIds,
         loggerName: newLoggerForm.loggerName,
         loggerClass: newLoggerForm.loggerClass,
+        componentType: component?.componentType,
         logLevel: newLoggerForm.logLevel,
       });
 
@@ -314,9 +336,7 @@ export default function ManageLoggers(scope: ComponentScope): JSX.Element {
             </Card>
           ) : (
             environments.map((env) => {
-              // eslint-disable-next-line react-hooks/rules-of-hooks
-              const { data: runtimes = [] } = useRuntimes(env.id, projectId, component.id);
-              const runtimeIds = runtimes.map((r) => r.runtimeId);
+              const runtimeIds = runtimesByEnv[env.id] ?? [];
 
               return (
                 <Card key={env.id} variant="outlined" sx={{ mb: 3 }}>
