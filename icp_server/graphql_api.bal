@@ -833,7 +833,7 @@ service /graphql on graphqlListener {
 
         if runtime is () {
             log:printWarn("Runtime not found for log file content query", userId = userContext.userId, runtimeId = runtimeId);
-            return error("Runtime not found");
+            return error("Unable to retrieve log file content");
         }
 
         // Build scope from runtime's context
@@ -846,7 +846,7 @@ service /graphql on graphqlListener {
         // Verify user has view, edit, or manage permission
         if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             log:printWarn("Attempt to access runtime log file content without permission", userId = userContext.userId, runtimeId = runtimeId, fileName = fileName);
-            return error("Insufficient permissions to access log file content");
+            return error("Unable to retrieve log file content");
         }
 
         // Check if runtime is online

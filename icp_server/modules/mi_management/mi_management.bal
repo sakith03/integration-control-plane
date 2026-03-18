@@ -20,6 +20,7 @@
 
 import ballerina/http;
 import ballerina/log;
+import ballerina/url;
 
 import wso2/icp_server.types;
 
@@ -372,7 +373,8 @@ public isolated function fetchWsdlContent(string wsdlUrl, string trustedHost, bo
 public isolated function fetchLogFiles(http:Client mgmtClient, string hmacToken, string? searchKey = ()) returns types:MgmtLogFilesResponse|error {
     string path = string `${MGMT_API_PATH}/logs`;
     if searchKey is string && searchKey.trim() != "" {
-        path = string `${path}?searchKey=${searchKey}`;
+        string encodedSearchKey = check url:encode(searchKey, "UTF-8");
+        path = string `${path}?searchKey=${encodedSearchKey}`;
     }
     log:printDebug("Calling MI management API", path = path);
     types:MgmtLogFilesResponse respResult = check mgmtClient->get(path, {
@@ -385,7 +387,8 @@ public isolated function fetchLogFiles(http:Client mgmtClient, string hmacToken,
 // Fetch the content of a specific log file from the MI management API
 // GET /management/logs?file={fileName}
 public isolated function fetchLogFileContent(http:Client mgmtClient, string hmacToken, string fileName) returns string|error {
-    string path = string `${MGMT_API_PATH}/logs?file=${fileName}`;
+    string encodedFileName = check url:encode(fileName, "UTF-8");
+    string path = string `${MGMT_API_PATH}/logs?file=${encodedFileName}`;
     log:printDebug("Calling MI management API", path = path);
     string respResult = check mgmtClient->get(path, {
         [HEADER_AUTHORIZATION]: string `Bearer ${hmacToken}`

@@ -113,7 +113,7 @@ function EnvironmentRuntimeCard({ environmentName, runtimes, onDelete, onViewLog
                 ))}
               </ListingTable.Body>
             </ListingTable>
-            {filtered.length > 5 && (
+            {filtered.length > rowsPerPage && (
               <TablePagination
                 sx={{ borderTop: '1px solid', borderColor: 'divider', mt: 1 }}
                 component="div"
@@ -150,6 +150,7 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
     queries: environments.map((env) => ({
       queryKey: componentId ? ['runtimes', env.id, projectId, componentId] : ['runtimes', env.id, projectId],
       queryFn: () => gql<{ runtimes: GqlRuntime[] }>(componentId ? RUNTIMES_QUERY : PROJECT_RUNTIMES_QUERY, componentId ? { environmentId: env.id, projectId, componentId } : { environmentId: env.id, projectId }).then((d) => d.runtimes),
+      enabled: hasComponent(scope) ? componentId !== undefined : true,
     })),
   });
 

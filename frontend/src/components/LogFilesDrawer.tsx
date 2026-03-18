@@ -75,8 +75,12 @@ export function LogFilesDrawer({ runtimeId, onClose }: LogFilesDrawerProps): JSX
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+
+      // Defer cleanup to allow browser to start download
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
     } catch (error) {
       console.error('Error downloading log file:', error);
       // You might want to show a toast notification here
@@ -143,7 +147,7 @@ export function LogFilesDrawer({ runtimeId, onClose }: LogFilesDrawerProps): JSX
                 ))}
               </ListingTable.Body>
             </ListingTable>
-            {files.length > 5 && (
+            {files.length > rowsPerPage && (
               <TablePagination
                 sx={{ borderTop: '1px solid', borderColor: 'divider', mt: 1 }}
                 component="div"
