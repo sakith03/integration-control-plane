@@ -17,8 +17,9 @@
  */
 
 import { Button, Card, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, IconButton, ListingTable, PageContent, PageTitle, Stack, TablePagination, Typography } from '@wso2/oxygen-ui';
-import { Trash2 } from '@wso2/oxygen-ui-icons-react';
+import { FileText, Trash2 } from '@wso2/oxygen-ui-icons-react';
 import SearchField from '../components/SearchField';
+import { LogFilesDrawer } from '../components/LogFilesDrawer';
 import { useState, type JSX } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { gql } from '../api/graphql';
@@ -35,15 +36,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 }
 
-function EnvironmentRuntimeCard({
-  environmentName,
-  runtimes,
-  onDelete,
-}: {
-  environmentName: string;
-  runtimes: GqlRuntime[];
-  onDelete: (runtime: GqlRuntime) => void;
-}) {
+function EnvironmentRuntimeCard({ environmentName, runtimes, onDelete, onViewLogs }: { environmentName: string; runtimes: GqlRuntime[]; onDelete: (runtime: GqlRuntime) => void; onViewLogs: (runtime: GqlRuntime) => void }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -105,9 +98,16 @@ function EnvironmentRuntimeCard({
                     <ListingTable.Cell>{r.registrationTime ? formatDate(r.registrationTime) : '—'}</ListingTable.Cell>
                     <ListingTable.Cell>{r.lastHeartbeat ? formatDate(r.lastHeartbeat) : '—'}</ListingTable.Cell>
                     <ListingTable.Cell>
-                      <IconButton size="small" color="error" aria-label={`Delete runtime ${r.runtimeId}`} disabled={r.status === 'RUNNING'} onClick={() => onDelete(r)}>
-                        <Trash2 size={16} />
-                      </IconButton>
+                      <Stack direction="row" gap={0.5}>
+                        {r.runtimeType === 'MI' && (
+                          <IconButton size="small" color="primary" aria-label={`View logs for ${r.runtimeId}`} disabled={r.status !== 'RUNNING'} onClick={() => onViewLogs(r)} title="View Logs">
+                            <FileText size={16} />
+                          </IconButton>
+                        )}
+                        <IconButton size="small" color="error" aria-label={`Delete runtime ${r.runtimeId}`} disabled={r.status === 'RUNNING'} onClick={() => onDelete(r)}>
+                          <Trash2 size={16} />
+                        </IconButton>
+                      </Stack>
                     </ListingTable.Cell>
                   </ListingTable.Row>
                 ))}
@@ -143,6 +143,7 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
   const { data: environments = [] } = useEnvironments(projectId);
 
   const [deleting, setDeleting] = useState<GqlRuntime | null>(null);
+  const [viewingLogs, setViewingLogs] = useState<GqlRuntime | null>(null);
   const deleteMutation = useDeleteRuntime();
 
   const runtimeQueries = useQueries({
@@ -171,11 +172,13 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
           ) : (
             environments.map((env, index) => {
               const runtimes = runtimeQueries[index]?.data ?? [];
-              return <EnvironmentRuntimeCard key={env.id} environmentName={env.name} runtimes={runtimes} onDelete={setDeleting} />;
+              return <EnvironmentRuntimeCard key={env.id} environmentName={env.name} runtimes={runtimes} onDelete={setDeleting} onViewLogs={setViewingLogs} />;
             })
           )}
         </>
       )}
+
+      {viewingLogs && <LogFilesDrawer runtimeId={viewingLogs.runtimeId} onClose={() => setViewingLogs(null)} />}
 
       {deleting && (
         <Dialog open onClose={() => setDeleting(null)} maxWidth="sm" fullWidth>

@@ -235,7 +235,8 @@ export default function Components(): JSX.Element {
           onView={() => {
             if (orgId && id && menu.handler) navigate(componentUrl(orgId, id, menu.handler));
             setMenu({ el: null, handler: null });
-          }}c
+          }}
+          c
           onEdit={() => {
             if (orgId && id && menu.handler) navigate(editComponentUrl(orgId, id, menu.handler));
             setMenu({ el: null, handler: null });
