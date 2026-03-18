@@ -2093,6 +2093,39 @@ BEGIN
 END;
 GO
 
+CREATE TABLE mi_logger_intended_state (
+    component_id CHAR(36) NOT NULL,
+    logger_name NVARCHAR(432) NOT NULL,
+    log_level NVARCHAR(50) NOT NULL,
+    issued_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    issued_by CHAR(36),
+    created_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    updated_at DATETIME2(6) NOT NULL DEFAULT SYSDATETIME(),
+    PRIMARY KEY (component_id, logger_name),
+    CONSTRAINT fk_mi_logger_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_logger_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    CONSTRAINT chk_mi_logger_log_level CHECK (log_level IN ('OFF', 'TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'))
+);
+GO
+
+CREATE INDEX idx_mi_logger_intended_state_component_id ON mi_logger_intended_state(component_id);
+CREATE INDEX idx_mi_logger_intended_state_logger_name ON mi_logger_intended_state(logger_name);
+CREATE INDEX idx_mi_logger_intended_state_log_level ON mi_logger_intended_state(log_level);
+GO
+
+CREATE TRIGGER trg_mi_logger_intended_state_updated_at
+ON mi_logger_intended_state
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE mi_logger_intended_state
+    SET updated_at = SYSDATETIME()
+    FROM mi_logger_intended_state mls
+    INNER JOIN inserted i ON mls.component_id = i.component_id AND mls.logger_name = i.logger_name;
+END;
+GO
+
 CREATE TRIGGER trg_bi_runtime_control_commands_updated_at
 ON bi_runtime_control_commands
 AFTER UPDATE

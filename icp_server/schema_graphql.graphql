@@ -267,6 +267,7 @@ type Resource {
 # Logger Type - Runtime Logger Configuration
 # ============================================
 type Logger {
+  loggerName: String
   componentName: String!
   logLevel: LogLevel!
   runtimeId: String!
@@ -276,6 +277,7 @@ type Logger {
 # LoggerGroup Type - Grouped Loggers by Component
 # ============================================
 type LoggerGroup {
+  loggerName: String
   componentName: String!
   logLevel: LogLevel!
   runtimeIds: [String!]!
@@ -285,10 +287,21 @@ type LoggerGroup {
 # LogLevel Enum - Log Level Values
 # ============================================
 enum LogLevel {
-  DEBUG
-  INFO
-  WARN
+  OFF
+  FATAL
   ERROR
+  WARN
+  INFO
+  DEBUG
+  TRACE
+}
+
+# ============================================
+# RuntimeType Enum - Component Runtime Types
+# ============================================
+enum RuntimeType {
+  MI
+  BI
 }
 
 # ============================================
@@ -1293,7 +1306,10 @@ type ListenerControlResponse {
 # ============================================
 input UpdateLogLevelInput {
   runtimeIds: [String!]!
-  componentName: String!
+  componentType: RuntimeType
+  componentName: String
+  loggerName: String
+  loggerClass: String
   logLevel: LogLevel!
 }
 

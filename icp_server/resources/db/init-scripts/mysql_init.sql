@@ -1178,6 +1178,22 @@ CREATE TABLE mi_artifact_intended_statistics (
     INDEX idx_mi_artifact_intended_statistics_issued_by (issued_by)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
+CREATE TABLE mi_logger_intended_state (
+    component_id CHAR(36) NOT NULL,
+    logger_name VARCHAR(500) NOT NULL,
+    log_level ENUM('OFF', 'TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL') NOT NULL,
+    issued_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, logger_name),
+    CONSTRAINT fk_mi_logger_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_logger_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    INDEX idx_mi_logger_intended_state_component_id (component_id),
+    INDEX idx_mi_logger_intended_state_logger_name (logger_name),
+    INDEX idx_mi_logger_intended_state_log_level (log_level)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
 -- ============================================================================
 -- AUDIT & EVENTS
 -- ============================================================================

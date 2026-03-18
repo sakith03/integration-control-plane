@@ -1275,6 +1275,27 @@ CREATE INDEX idx_mi_artifact_intended_statistics_issued_by ON mi_artifact_intend
 CREATE TRIGGER update_mi_artifact_intended_statistics_updated_at BEFORE UPDATE ON mi_artifact_intended_statistics
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TABLE mi_logger_intended_state (
+    component_id CHAR(36) NOT NULL,
+    logger_name VARCHAR(500) NOT NULL,
+    log_level VARCHAR(50) NOT NULL,
+    issued_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    issued_by CHAR(36),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, logger_name),
+    CONSTRAINT fk_mi_logger_state_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mi_logger_state_issued_by FOREIGN KEY (issued_by) REFERENCES users (user_id) ON DELETE SET NULL,
+    CONSTRAINT chk_mi_logger_log_level CHECK (log_level IN ('OFF', 'TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'))
+);
+
+CREATE INDEX idx_mi_logger_intended_state_component_id ON mi_logger_intended_state(component_id);
+CREATE INDEX idx_mi_logger_intended_state_logger_name ON mi_logger_intended_state(logger_name);
+CREATE INDEX idx_mi_logger_intended_state_log_level ON mi_logger_intended_state(log_level);
+
+CREATE TRIGGER update_mi_logger_intended_state_updated_at BEFORE UPDATE ON mi_logger_intended_state
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- ============================================================================
 -- AUDIT & EVENTS
 -- ============================================================================
