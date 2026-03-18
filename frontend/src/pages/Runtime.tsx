@@ -16,9 +16,10 @@
  * under the License.
  */
 
-import { Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, ListingTable, PageContent, PageTitle, TablePagination, Typography } from '@wso2/oxygen-ui';
-import { Trash2 } from '@wso2/oxygen-ui-icons-react';
+import { Button, Card, CardContent, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, IconButton, ListingTable, PageContent, PageTitle, Stack, TablePagination, Typography } from '@wso2/oxygen-ui';
+import { FileText, Trash2 } from '@wso2/oxygen-ui-icons-react';
 import SearchField from '../components/SearchField';
+import { LogFilesDrawer } from '../components/LogFilesDrawer';
 import { useState, type JSX } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { gql } from '../api/graphql';
@@ -35,45 +36,33 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 }
 
-export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Element {
-  const { data: project } = useProjectByHandler(scope.project);
-  const projectId = project?.id ?? '';
-  const { data: component } = useComponentByHandler(projectId, hasComponent(scope) ? scope.component : undefined);
-  const componentId = component?.id;
-  const { data: environments = [] } = useEnvironments(projectId);
-
+function EnvironmentRuntimeCard({ environmentName, runtimes, onDelete, onViewLogs }: { environmentName: string; runtimes: GqlRuntime[]; onDelete: (runtime: GqlRuntime) => void; onViewLogs: (runtime: GqlRuntime) => void }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [deleting, setDeleting] = useState<GqlRuntime | null>(null);
-  const deleteMutation = useDeleteRuntime();
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  const runtimeQueries = useQueries({
-    queries: environments.map((env) => ({
-      queryKey: componentId ? ['runtimes', env.id, projectId, componentId] : ['runtimes', env.id, projectId],
-      queryFn: () => gql<{ runtimes: GqlRuntime[] }>(componentId ? RUNTIMES_QUERY : PROJECT_RUNTIMES_QUERY, componentId ? { environmentId: env.id, projectId, componentId } : { environmentId: env.id, projectId }).then((d) => d.runtimes),
-    })),
-  });
-
-  const isLoading = runtimeQueries.some((q) => q.isLoading);
-  const allRuntimes = runtimeQueries.flatMap((q) => q.data ?? []);
-  const filtered = allRuntimes.filter((r) => !query || r.runtimeId.toLowerCase().includes(query.toLowerCase()) || r.runtimeType.toLowerCase().includes(query.toLowerCase()));
+  const filtered = runtimes.filter((r) => !query || r.runtimeId.toLowerCase().includes(query.toLowerCase()) || r.runtimeType.toLowerCase().includes(query.toLowerCase()) || (r.component?.displayName ?? '').toLowerCase().includes(query.toLowerCase()));
   const maxPage = Math.max(0, Math.ceil(filtered.length / rowsPerPage) - 1);
   const safePage = Math.min(page, maxPage);
   const paged = filtered.slice(safePage * rowsPerPage, safePage * rowsPerPage + rowsPerPage);
 
   return (
-    <PageContent>
-      <PageTitle>
-        <PageTitle.Header>Runtime</PageTitle.Header>
-      </PageTitle>
-
-      {isLoading ? (
-        <CircularProgress sx={{ display: 'block', mx: 'auto', py: 8 }} />
-      ) : (
-        <>
-          <ListingTable.Container>
-            <ListingTable.Toolbar searchSlot={<SearchField value={query} onChange={setQuery} placeholder="Search..." />} />
+    <Card variant="outlined" sx={{ mb: 3 }}>
+      <CardContent>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+          <Typography variant="h5" component="h2" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
+            {environmentName}
+          </Typography>
+          <Chip label={`${filtered.length} runtime${filtered.length !== 1 ? 's' : ''}`} size="small" color={filtered.length > 0 ? 'primary' : 'default'} />
+        </Stack>
+        <Divider sx={{ mb: 2 }} />
+        <SearchField value={query} onChange={setQuery} placeholder="Search runtimes..." sx={{ mb: 2, width: '100%', maxWidth: 400 }} />
+        {filtered.length === 0 ? (
+          <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+            {query ? 'No runtimes match your search.' : 'No runtimes registered for this environment.'}
+          </Typography>
+        ) : (
+          <>
             <ListingTable>
               <ListingTable.Head>
                 <ListingTable.Row>
@@ -89,58 +78,108 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
                 </ListingTable.Row>
               </ListingTable.Head>
               <ListingTable.Body>
-                {paged.length === 0 ? (
-                  <ListingTable.Row>
-                    <ListingTable.Cell colSpan={9} align="center">
-                      No records to display
+                {paged.map((r) => (
+                  <ListingTable.Row key={r.runtimeId}>
+                    <ListingTable.Cell>{r.runtimeId}</ListingTable.Cell>
+                    <ListingTable.Cell>{r.runtimeType}</ListingTable.Cell>
+                    <ListingTable.Cell>
+                      <Chip label={r.status} size="small" color={r.status === 'RUNNING' ? 'success' : 'default'} />
                     </ListingTable.Cell>
-                  </ListingTable.Row>
-                ) : (
-                  paged.map((r) => (
-                    <ListingTable.Row key={r.runtimeId}>
-                      <ListingTable.Cell>{r.runtimeId}</ListingTable.Cell>
-                      <ListingTable.Cell>{r.runtimeType}</ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <Chip label={r.status} size="small" color={r.status === 'RUNNING' ? 'success' : 'default'} />
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>{r.version || '—'}</ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <Typography variant="body2">{formatPlatform(r)}</Typography>
-                        {r.platformHome && (
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            {r.platformHome}
-                          </Typography>
+                    <ListingTable.Cell>{r.version || '—'}</ListingTable.Cell>
+                    <ListingTable.Cell>
+                      <Typography variant="body2">{formatPlatform(r)}</Typography>
+                      {r.platformHome && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {r.platformHome}
+                        </Typography>
+                      )}
+                    </ListingTable.Cell>
+                    <ListingTable.Cell>{[r.osName, r.osVersion].filter(Boolean).join(' ')}</ListingTable.Cell>
+                    <ListingTable.Cell>{r.registrationTime ? formatDate(r.registrationTime) : '—'}</ListingTable.Cell>
+                    <ListingTable.Cell>{r.lastHeartbeat ? formatDate(r.lastHeartbeat) : '—'}</ListingTable.Cell>
+                    <ListingTable.Cell>
+                      <Stack direction="row" gap={0.5}>
+                        {r.runtimeType === 'MI' && (
+                          <IconButton size="small" color="primary" aria-label={`View logs for ${r.runtimeId}`} disabled={r.status !== 'RUNNING'} onClick={() => onViewLogs(r)} title="View Logs">
+                            <FileText size={16} />
+                          </IconButton>
                         )}
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>{[r.osName, r.osVersion].filter(Boolean).join(' ')}</ListingTable.Cell>
-                      <ListingTable.Cell>{r.registrationTime ? formatDate(r.registrationTime) : '—'}</ListingTable.Cell>
-                      <ListingTable.Cell>{r.lastHeartbeat ? formatDate(r.lastHeartbeat) : '—'}</ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <IconButton size="small" color="error" aria-label={`Delete runtime ${r.runtimeId}`} disabled={r.status === 'RUNNING'} onClick={() => setDeleting(r)}>
+                        <IconButton size="small" color="error" aria-label={`Delete runtime ${r.runtimeId}`} disabled={r.status === 'RUNNING'} onClick={() => onDelete(r)}>
                           <Trash2 size={16} />
                         </IconButton>
-                      </ListingTable.Cell>
-                    </ListingTable.Row>
-                  ))
-                )}
+                      </Stack>
+                    </ListingTable.Cell>
+                  </ListingTable.Row>
+                ))}
               </ListingTable.Body>
             </ListingTable>
-            <TablePagination
-              sx={{ borderTop: '1px solid', borderColor: 'divider' }}
-              component="div"
-              count={filtered.length}
-              page={safePage}
-              onPageChange={(_, p) => setPage(p)}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(e) => {
-                setRowsPerPage(parseInt(e.target.value, 10));
-                setPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 25, 50]}
-            />
-          </ListingTable.Container>
+            {filtered.length > rowsPerPage && (
+              <TablePagination
+                sx={{ borderTop: '1px solid', borderColor: 'divider', mt: 1 }}
+                component="div"
+                count={filtered.length}
+                page={safePage}
+                onPageChange={(_, p) => setPage(p)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[5, 10, 25]}
+              />
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Element {
+  const { data: project } = useProjectByHandler(scope.project);
+  const projectId = project?.id ?? '';
+  const { data: component } = useComponentByHandler(projectId, hasComponent(scope) ? scope.component : undefined);
+  const componentId = component?.id;
+  const { data: environments = [] } = useEnvironments(projectId);
+
+  const [deleting, setDeleting] = useState<GqlRuntime | null>(null);
+  const [viewingLogs, setViewingLogs] = useState<GqlRuntime | null>(null);
+  const deleteMutation = useDeleteRuntime();
+
+  const runtimeQueries = useQueries({
+    queries: environments.map((env) => ({
+      queryKey: componentId ? ['runtimes', env.id, projectId, componentId] : ['runtimes', env.id, projectId],
+      queryFn: () => gql<{ runtimes: GqlRuntime[] }>(componentId ? RUNTIMES_QUERY : PROJECT_RUNTIMES_QUERY, componentId ? { environmentId: env.id, projectId, componentId } : { environmentId: env.id, projectId }).then((d) => d.runtimes),
+      enabled: hasComponent(scope) ? componentId !== undefined : true,
+    })),
+  });
+
+  const isLoading = runtimeQueries.some((q) => q.isLoading);
+
+  return (
+    <PageContent>
+      <PageTitle>
+        <PageTitle.Header>Runtime</PageTitle.Header>
+      </PageTitle>
+
+      {isLoading ? (
+        <CircularProgress sx={{ display: 'block', mx: 'auto', py: 8 }} />
+      ) : (
+        <>
+          {environments.length === 0 ? (
+            <Typography color="text.secondary" sx={{ py: 8, textAlign: 'center' }}>
+              No environments found. Create an environment to register runtimes.
+            </Typography>
+          ) : (
+            environments.map((env, index) => {
+              const runtimes = runtimeQueries[index]?.data ?? [];
+              return <EnvironmentRuntimeCard key={env.id} environmentName={env.name} runtimes={runtimes} onDelete={setDeleting} onViewLogs={setViewingLogs} />;
+            })
+          )}
         </>
       )}
+
+      {viewingLogs && <LogFilesDrawer runtimeId={viewingLogs.runtimeId} onClose={() => setViewingLogs(null)} />}
 
       {deleting && (
         <Dialog open onClose={() => setDeleting(null)} maxWidth="sm" fullWidth>

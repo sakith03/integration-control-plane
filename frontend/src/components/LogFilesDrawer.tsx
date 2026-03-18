@@ -1,0 +1,170 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { useState, type JSX } from 'react';
+import { Box, Button, CircularProgress, Drawer, IconButton, ListingTable, Stack, TablePagination, Typography } from '@wso2/oxygen-ui';
+import { Download, X } from '@wso2/oxygen-ui-icons-react';
+import SearchField from './SearchField';
+import { useLogFilesByRuntime } from '../api/queries';
+
+const drawerSx = {
+  '& .MuiDrawer-paper': {
+    width: '60%',
+    maxWidth: 800,
+    minWidth: 500,
+    position: 'fixed',
+    top: 64,
+    height: 'calc(100% - 64px)',
+    borderLeft: '1px solid',
+    borderColor: 'divider',
+  },
+};
+
+const headerSx = {
+  px: 2,
+  py: 1.5,
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+};
+
+interface LogFilesDrawerProps {
+  runtimeId: string;
+  onClose: () => void;
+}
+
+export function LogFilesDrawer({ runtimeId, onClose }: LogFilesDrawerProps): JSX.Element {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const { data: logFilesData, isLoading } = useLogFilesByRuntime(runtimeId, searchQuery || undefined);
+
+  const handleDownload = async (fileName: string) => {
+    try {
+      // Import the gql function to make the query
+      const { gql } = await import('../api/graphql');
+
+      const result = await gql<{ logFileContent: string }>(
+        `query LogFileContent($runtimeId: String!, $fileName: String!) {
+          logFileContent(runtimeId: $runtimeId, fileName: $fileName)
+        }`,
+        { runtimeId, fileName },
+      );
+
+      const content = result.logFileContent;
+
+      // Create a blob and download
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+
+      // Defer cleanup to allow browser to start download
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    } catch (error) {
+      console.error('Error downloading log file:', error);
+      // You might want to show a toast notification here
+    }
+  };
+
+  const files = logFilesData?.files ?? [];
+
+  const maxPage = Math.max(0, Math.ceil(files.length / rowsPerPage) - 1);
+  const safePage = Math.min(page, maxPage);
+  const paged = files.slice(safePage * rowsPerPage, safePage * rowsPerPage + rowsPerPage);
+
+  return (
+    <Drawer anchor="right" open onClose={onClose} variant="persistent" sx={drawerSx}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={headerSx}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+          Log Files - {runtimeId}
+        </Typography>
+        <IconButton size="small" aria-label="close" onClick={onClose}>
+          <X size={16} />
+        </IconButton>
+      </Stack>
+
+      <Box sx={{ p: 2 }}>
+        <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search log files..." sx={{ mb: 2, width: '100%' }} />
+
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {files.length} log file{files.length !== 1 ? 's' : ''} found
+        </Typography>
+
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : files.length === 0 ? (
+          <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+            {searchQuery ? 'No log files match your search.' : 'No log files available.'}
+          </Typography>
+        ) : (
+          <>
+            <ListingTable>
+              <ListingTable.Head>
+                <ListingTable.Row>
+                  <ListingTable.Cell>File Name</ListingTable.Cell>
+                  <ListingTable.Cell>Size</ListingTable.Cell>
+                  <ListingTable.Cell>Actions</ListingTable.Cell>
+                </ListingTable.Row>
+              </ListingTable.Head>
+              <ListingTable.Body>
+                {paged.map((file) => (
+                  <ListingTable.Row key={file.fileName}>
+                    <ListingTable.Cell>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                        {file.fileName}
+                      </Typography>
+                    </ListingTable.Cell>
+                    <ListingTable.Cell>{file.size}</ListingTable.Cell>
+                    <ListingTable.Cell>
+                      <Button variant="text" size="small" startIcon={<Download size={16} />} onClick={() => handleDownload(file.fileName)}>
+                        Download
+                      </Button>
+                    </ListingTable.Cell>
+                  </ListingTable.Row>
+                ))}
+              </ListingTable.Body>
+            </ListingTable>
+            {files.length > rowsPerPage && (
+              <TablePagination
+                sx={{ borderTop: '1px solid', borderColor: 'divider', mt: 1 }}
+                component="div"
+                count={files.length}
+                page={safePage}
+                onPageChange={(_, p) => setPage(p)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[5, 10, 25, 50]}
+              />
+            )}
+          </>
+        )}
+      </Box>
+    </Drawer>
+  );
+}

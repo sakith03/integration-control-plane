@@ -589,3 +589,55 @@ export function useRefreshEnvironmentArtifacts() {
     ]);
   };
 }
+
+// ── Log Files ──
+
+export interface GqlLogFile {
+  fileName: string;
+  size: string;
+}
+
+export interface GqlLogFilesByRuntime {
+  count: number;
+  files: GqlLogFile[];
+}
+
+const LOG_FILES_BY_RUNTIME_QUERY = `
+  query LogFilesByRuntime($runtimeId: String!, $searchKey: String) {
+    logFilesByRuntime(runtimeId: $runtimeId, searchKey: $searchKey) {
+      count
+      files {
+        fileName
+        size
+      }
+    }
+  }`;
+
+export function useLogFilesByRuntime(runtimeId: string, searchKey?: string) {
+  return useQuery({
+    queryKey: ['logFiles', runtimeId, searchKey],
+    queryFn: () =>
+      gql<{ logFilesByRuntime: GqlLogFilesByRuntime }>(LOG_FILES_BY_RUNTIME_QUERY, {
+        runtimeId,
+        searchKey: searchKey || null,
+      }).then((d) => d.logFilesByRuntime),
+    enabled: !!runtimeId,
+  });
+}
+
+const LOG_FILE_CONTENT_QUERY = `
+  query LogFileContent($runtimeId: String!, $fileName: String!) {
+    logFileContent(runtimeId: $runtimeId, fileName: $fileName)
+  }`;
+
+export function useLogFileContent(runtimeId: string, fileName: string, enabled = false) {
+  return useQuery({
+    queryKey: ['logFileContent', runtimeId, fileName],
+    queryFn: () =>
+      gql<{ logFileContent: string }>(LOG_FILE_CONTENT_QUERY, {
+        runtimeId,
+        fileName,
+      }).then((d) => d.logFileContent),
+    enabled: enabled && !!runtimeId && !!fileName,
+  });
+}
