@@ -3018,7 +3018,6 @@ service /auth on httpListener {
         log:printInfo("Account unlocked by admin", targetUserId = userId, targetUsername = targetUser.username, adminUserId = userContext.userId);
         return <http:Ok>{body: {message: "Account unlocked"}};
     }
-
 }
 
 isolated function extractUserContextFromRequest(http:Request req) returns types:UserContextV2|error {

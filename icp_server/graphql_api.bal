@@ -3392,7 +3392,7 @@ service /graphql on graphqlListener {
     // MI Runtime User Management
     // ============================================================
 
-    isolated resource function get getMiUsers(graphql:Context context, string componentId, string runtimeId) returns types:MiUsersResponse|error {
+    isolated resource function get getMIUsers(graphql:Context context, string componentId, string runtimeId) returns types:MIUsersResponse|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
@@ -3440,7 +3440,7 @@ service /graphql on graphqlListener {
             userList = listField;
         }
 
-        types:MiUser[] enrichedUsers = [];
+        types:MIUser[] enrichedUsers = [];
         foreach json u in userList {
             json|error userIdJson = u.userId;
             if userIdJson is error {
@@ -3470,7 +3470,7 @@ service /graphql on graphqlListener {
         return {users: enrichedUsers};
     }
 
-    isolated remote function addMiUser(graphql:Context context, string componentId, string runtimeId, string username, string password, boolean isAdmin = false) returns types:MiUserOperationResponse|error {
+    isolated remote function addMIUser(graphql:Context context, string componentId, string runtimeId, string username, string password, boolean isAdmin = false) returns types:MIUserOperationResponse|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
@@ -3535,7 +3535,7 @@ service /graphql on graphqlListener {
         return {username, status: "Added"};
     }
 
-    isolated remote function deleteMiUser(graphql:Context context, string componentId, string runtimeId, string username) returns types:MiUserOperationResponse|error {
+    isolated remote function deleteMIUser(graphql:Context context, string componentId, string runtimeId, string username) returns types:MIUserOperationResponse|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Runtime? runtime = check storage:getRuntimeById(runtimeId);

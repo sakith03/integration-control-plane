@@ -7,22 +7,22 @@ export interface MiUser {
 }
 
 const GET_MI_USERS = `
-  query GetMiUsers($componentId: String!, $runtimeId: String!) {
-    getMiUsers(componentId: $componentId, runtimeId: $runtimeId) {
+  query GetMIUsers($componentId: String!, $runtimeId: String!) {
+    getMIUsers(componentId: $componentId, runtimeId: $runtimeId) {
       users { username, isAdmin }
     }
   }`;
 
 const ADD_MI_USER = `
-  mutation AddMiUser($componentId: String!, $runtimeId: String!, $username: String!, $password: String!, $isAdmin: Boolean) {
-    addMiUser(componentId: $componentId, runtimeId: $runtimeId, username: $username, password: $password, isAdmin: $isAdmin) {
+  mutation AddMIUser($componentId: String!, $runtimeId: String!, $username: String!, $password: String!, $isAdmin: Boolean) {
+    addMIUser(componentId: $componentId, runtimeId: $runtimeId, username: $username, password: $password, isAdmin: $isAdmin) {
       username, status
     }
   }`;
 
 const DELETE_MI_USER = `
-  mutation DeleteMiUser($componentId: String!, $runtimeId: String!, $username: String!) {
-    deleteMiUser(componentId: $componentId, runtimeId: $runtimeId, username: $username) {
+  mutation DeleteMIUser($componentId: String!, $runtimeId: String!, $username: String!) {
+    deleteMIUser(componentId: $componentId, runtimeId: $runtimeId, username: $username) {
       username, status
     }
   }`;
@@ -32,7 +32,7 @@ const miUsersKey = (componentId: string, runtimeId: string) => ['mi-users', comp
 export function useListMiUsers(componentId: string, runtimeId: string, enabled = true) {
   return useQuery({
     queryKey: miUsersKey(componentId, runtimeId),
-    queryFn: () => gql<{ getMiUsers: { users: MiUser[] } }>(GET_MI_USERS, { componentId, runtimeId }).then((d) => d.getMiUsers.users),
+    queryFn: () => gql<{ getMIUsers: { users: MiUser[] } }>(GET_MI_USERS, { componentId, runtimeId }).then((d) => d.getMIUsers.users),
     enabled: enabled && !!componentId && !!runtimeId,
   });
 }
@@ -41,7 +41,7 @@ export function useCreateMiUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ componentId, runtimeId, username, password, isAdmin }: { componentId: string; runtimeId: string; username: string; password: string; isAdmin: boolean }) =>
-      gql<{ addMiUser: { username: string; status: string } }>(ADD_MI_USER, { componentId, runtimeId, username, password, isAdmin }).then((d) => d.addMiUser),
+      gql<{ addMIUser: { username: string; status: string } }>(ADD_MI_USER, { componentId, runtimeId, username, password, isAdmin }).then((d) => d.addMIUser),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: miUsersKey(vars.componentId, vars.runtimeId) }),
   });
 }
@@ -50,7 +50,7 @@ export function useDeleteMiUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ componentId, runtimeId, username }: { componentId: string; runtimeId: string; username: string }) =>
-      gql<{ deleteMiUser: { username: string; status: string } }>(DELETE_MI_USER, { componentId, runtimeId, username }).then((d) => d.deleteMiUser),
+      gql<{ deleteMIUser: { username: string; status: string } }>(DELETE_MI_USER, { componentId, runtimeId, username }).then((d) => d.deleteMIUser),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: miUsersKey(vars.componentId, vars.runtimeId) }),
   });
 }

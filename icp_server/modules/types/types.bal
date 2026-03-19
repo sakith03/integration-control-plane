@@ -2281,16 +2281,16 @@ public type UpdateLogLevelResponse record {|
 // MI Runtime User Management Types
 // ============================================================
 
-public type MiUser record {|
+public type MIUser record {|
     string username;
     boolean isAdmin;
 |};
 
-public type MiUsersResponse record {|
-    MiUser[] users;
+public type MIUsersResponse record {|
+    MIUser[] users;
 |};
 
-public type MiUserOperationResponse record {|
+public type MIUserOperationResponse record {|
     string username;
     string status;
 |};
