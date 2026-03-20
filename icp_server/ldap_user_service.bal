@@ -48,21 +48,22 @@ configurable string ldapConnectionPassword = "";
 // ── User search ───────────────────────────────────────────────────────────────
 
 // Base DN under which users are located.
-// Example: "ou=users,dc=example,dc=com"
-configurable string ldapUserSearchBase = "ou=users,dc=example,dc=com";
+configurable string ldapUserSearchBase = "ou=Users,dc=wso2,dc=org";
 
 // LDAP attribute that holds the login username.
 // Use "uid" for standard LDAP and "sAMAccountName" for Active Directory.
 configurable string ldapUserNameAttribute = "uid";
 
 // Filter used to locate a single user entry. Use '?' as the username placeholder.
-// Example: "(&(objectClass=person)(uid=?))"
 configurable string ldapUserSearchFilter = "(&(objectClass=person)(uid=?))";
 
 // Optional: DN pattern to construct user DNs directly, skipping the search.
 // Use '{0}' as the placeholder for the (escaped) username.
-// Example: "uid={0},ou=users,dc=example,dc=com"
-// When empty, a directory search is performed to resolve the user DN.
+// Example: "uid={0},ou=Users,dc=wso2,dc=org"
+// When empty, a directory search is performed. If the search result does not carry a
+// parseable DN, the adapter falls back to constructing one from ldapUserNameAttribute
+// and ldapUserSearchBase — which covers most flat directory layouts automatically.
+// Only set this explicitly if your users live in nested OUs or require a non-standard DN form.
 configurable string ldapUserDNPattern = "";
 
 // Attribute used as the user's display name (e.g. "cn", "displayName").
@@ -83,15 +84,12 @@ configurable string ldapMemberOfAttribute = "";
 
 // --- Group-search strategy (standard LDAP) ---
 // Base DN under which groups are searched.
-// Example: "ou=groups,dc=example,dc=com"
-configurable string ldapGroupSearchBase = "ou=groups,dc=example,dc=com";
+configurable string ldapGroupSearchBase = "ou=Groups,dc=wso2,dc=org";
 
 // Attribute on group entries that holds the group name used for role mapping.
-// Example: "cn"
 configurable string ldapGroupNameAttribute = "cn";
 
 // LDAP filter for group entries.
-// Example: "(objectClass=groupOfNames)"
 configurable string ldapGroupSearchFilter = "(objectClass=groupOfNames)";
 
 // Attribute on group entries that lists its members.
@@ -157,8 +155,7 @@ service object {
                 ldapServer = ldapHostName + ":" + ldapPort.toString());
     }
 
-    resource function post authenticate(types:Credentials request)
-            returns http:Ok|http:Unauthorized|http:InternalServerError|error {
+    resource function post authenticate(@http:Payload types:Credentials request) returns http:Ok|http:Unauthorized|http:InternalServerError|error {
 
         log:printDebug("LDAP authenticate request", username = request.username);
 
@@ -270,8 +267,8 @@ isolated function resolveUserDN(string username) returns string|error {
 isolated function searchForUserDN(string username) returns string|error {
     ldap:Client adminClient = check new (buildAdminConnectionConfig());
     string filter = re`\?`.replaceAll(ldapUserSearchFilter, escapeForFilter(username));
-    ldap:SearchResult|ldap:Error result = adminClient->search(
-            ldapUserSearchBase, filter, ldap:SUB);
+    log:printDebug("Searching for user", searchBase = ldapUserSearchBase, filter = filter);
+    ldap:SearchResult|ldap:Error result = adminClient->search(ldapUserSearchBase, filter, ldap:SUB);
 
 
     if result is ldap:Error {
@@ -284,13 +281,18 @@ isolated function searchForUserDN(string username) returns string|error {
         return error(string `User '${username}' not found in LDAP directory`);
     }
 
-    // The connector is expected to populate "dn" in the entry map.
+    // Some connectors expose the DN as a regular attribute; try that first.
     ldap:AttributeType? dn = entries[0]["dn"];
     if dn is string && dn.trim() != "" {
         return dn;
     }
-    return error(string `Could not extract DN from search result for user '${username}'. `
-            + "Consider configuring ldapUserDNPattern.");
+
+    // Fall back to constructing the DN from the username attribute and search base.
+    // This works for the common case where all users live directly under ldapUserSearchBase.
+    string constructed = string `${ldapUserNameAttribute}=${escapeForDN(username)},${ldapUserSearchBase}`;
+    log:printDebug("DN not found in search result; using constructed DN",
+            username = username, constructedDN = constructed);
+    return constructed;
 }
 
 // ── Authentication (bind) ─────────────────────────────────────────────────────
@@ -309,6 +311,7 @@ isolated function bindAsUser(string userDN, string password) returns boolean|err
         userConfig.clientSecureSocket = buildSecureSocket();
     }
 
+    log:printDebug("Binding as user", userDN = userDN);
     ldap:Client|ldap:Error userClient = new (userConfig);
     if userClient is ldap:Error {
         // LDAP result code 49 signals INVALID_CREDENTIALS — treat as wrong password.
@@ -336,8 +339,8 @@ isolated function resolveDisplayName(string username, string userDN) returns str
                 adminClient);
         return username;
     }
-    ldap:Entry|ldap:Error entry = adminClient->getEntry(userDN, ldap:Entry);
-
+    log:printDebug("Fetching display name for user", userDN = userDN, attribute = ldapDisplayNameAttribute);
+    ldap:Entry|ldap:Error entry = adminClient->getEntry(userDN);
 
     if entry is ldap:Error {
         log:printWarn("Could not fetch display name attribute; using username", entry,
@@ -371,7 +374,8 @@ isolated function getRolesForUser(string username, string userDN) returns string
 // the group name component (ldapGroupNameAttribute) from each DN.
 isolated function getRolesViaMemberOf(string userDN) returns string[]|error {
     ldap:Client adminClient = check new (buildAdminConnectionConfig());
-    ldap:Entry|ldap:Error entry = adminClient->getEntry(userDN, ldap:Entry);
+    log:printDebug("Fetching memberOf attribute for user", userDN = userDN, attribute = ldapMemberOfAttribute);
+    ldap:Entry|ldap:Error entry = adminClient->getEntry(userDN);
 
 
     if entry is ldap:Error {
@@ -402,6 +406,7 @@ isolated function getRolesViaGroupSearch(string username, string userDN) returns
             + string `(${ldapMembershipAttribute}=${escapeForFilter(memberValue)}))`;
 
     ldap:Client adminClient = check new (buildAdminConnectionConfig());
+    log:printDebug("Searching for user groups", searchBase = ldapGroupSearchBase, filter = groupFilter);
     ldap:SearchResult|ldap:Error result = adminClient->search(
             ldapGroupSearchBase, groupFilter, ldap:SUB);
 
