@@ -37,13 +37,26 @@ service /auth on httpListener {
 
     // Returns the user-management operations supported by the active user store.
     // The frontend uses this to show or hide UI features (e.g. create user, change password).
+    @http:ResourceConfig {
+        auth: [
+            {
+                jwtValidatorConfig: {
+                    issuer: frontendJwtIssuer,
+                    audience: frontendJwtAudience,
+                    signatureConfig: {
+                        secret: resolvedFrontendJwtHMACSecret
+                    }
+                }
+            }
+        ]
+    }
     resource function get capabilities() returns http:Ok {
         string[] caps;
         if ldapUserStoreEnabled {
             caps = ["authenticate"];
         } else {
             caps = ["authenticate", "password_change", "password_reset",
-                    "unlock_account", "create", "delete"];
+                    "unlock_account", "create"];
         }
         return <http:Ok>{body: {capabilities: caps}};
     }
