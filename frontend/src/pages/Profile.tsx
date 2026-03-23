@@ -86,15 +86,14 @@ export default function Profile(): JSX.Element {
         </CardContent>
       </Card>
 
-      {!isOidcUser && (
-        capError ? (
+      {!isOidcUser &&
+        (capError ? (
           <Alert severity="warning" sx={{ mb: 3 }}>
             Couldn't load available account actions. Refresh and try again.
           </Alert>
         ) : capabilities?.includes('password_change') ? (
           <ChangePasswordSection />
-        ) : null
-      )}
+        ) : null)}
     </Box>
   );
 }
