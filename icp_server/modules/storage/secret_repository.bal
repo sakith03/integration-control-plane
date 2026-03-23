@@ -297,19 +297,25 @@ public isolated function resolveOrCreateProject(string handler, string? createdB
 public isolated function resolveOrCreateComponent(string projectId, string name, string runtimeType, string? createdBy) returns string|error {
     log:printDebug(string `resolveOrCreateComponent: projectId=${projectId}, name=${name}, runtimeType=${runtimeType}`);
 
-    stream<record {|string component_id;|}, sql:Error?> s = dbClient->query(`
-        SELECT component_id FROM components WHERE project_id = ${projectId} AND name = ${name}
+    string expectedType = inferComponentType(runtimeType);
+
+    stream<record {|string component_id; string component_type;|}, sql:Error?> s = dbClient->query(`
+        SELECT component_id, component_type FROM components WHERE project_id = ${projectId} AND name = ${name}
     `);
-    record {|string component_id;|}[] rows = check from record {|string component_id;|} r in s select r;
+    record {|string component_id; string component_type;|}[] rows = check from record {|string component_id; string component_type;|} r in s select r;
 
     if rows.length() > 0 {
+        if rows[0].component_type != expectedType {
+            log:printError(string `resolveOrCreateComponent: type mismatch for component=${name}: existing=${rows[0].component_type}, expected=${expectedType}`);
+            return error(string `Component '${name}' exists with type '${rows[0].component_type}', expected '${expectedType}'`);
+        }
         log:printDebug(string `resolveOrCreateComponent: found existing component=${rows[0].component_id}`);
         return rows[0].component_id;
     }
 
     log:printInfo(string `resolveOrCreateComponent: auto-creating component=${name} under project=${projectId}`);
     string componentId = uuid:createType1AsString();
-    string componentType = inferComponentType(runtimeType);
+    string componentType = expectedType;
 
     sql:ExecutionResult|sql:Error result = dbClient->execute(`
         INSERT INTO components (component_id, project_id, name, display_name, component_type, created_by)
@@ -319,11 +325,15 @@ public isolated function resolveOrCreateComponent(string projectId, string name,
     if result is sql:Error {
         log:printError(string `resolveOrCreateComponent: insert failed for name=${name}, project=${projectId}`, 'error = result);
         if classifySqlError(result) == DUPLICATE_KEY {
-            stream<record {|string component_id;|}, sql:Error?> retryStream = dbClient->query(
-                `SELECT component_id FROM components WHERE project_id = ${projectId} AND name = ${name}`
+            stream<record {|string component_id; string component_type;|}, sql:Error?> retryStream = dbClient->query(
+                `SELECT component_id, component_type FROM components WHERE project_id = ${projectId} AND name = ${name}`
             );
-            record {|string component_id;|}[] existing = check from record {|string component_id;|} r in retryStream select r;
+            record {|string component_id; string component_type;|}[] existing = check from record {|string component_id; string component_type;|} r in retryStream select r;
             if existing.length() > 0 {
+                if existing[0].component_type != expectedType {
+                    log:printError(string `resolveOrCreateComponent: type mismatch on retry for component=${name}: existing=${existing[0].component_type}, expected=${expectedType}`);
+                    return error(string `Component '${name}' exists with type '${existing[0].component_type}', expected '${expectedType}'`);
+                }
                 return existing[0].component_id;
             }
         }
