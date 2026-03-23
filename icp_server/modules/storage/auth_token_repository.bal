@@ -54,16 +54,20 @@ public isolated function validateRefreshToken(string tokenHash) returns types:Us
     log:printDebug("Validating refresh token");
 
     // Query for the refresh token with epoch timestamp for expiry
+    // Use dialect-specific function to convert timestamp to epoch seconds
+    sql:ParameterizedQuery selectQuery = sql:queryConcat(
+        `SELECT token_id, user_id, revoked, `,
+        sql:queryConcat(
+            sqlQueryFromString(epochFromTimestamp("expires_at")),
+            ` as expires_at_epoch FROM refresh_tokens WHERE token_hash = ${tokenHash}`
+        )
+    );
     record {|
         string token_id;
         string user_id;
         boolean revoked;
-        int expires_at_epoch;
-    |}|sql:Error refreshToken = dbClient->queryRow(
-        `SELECT token_id, user_id, revoked, UNIX_TIMESTAMP(expires_at) as expires_at_epoch
-         FROM refresh_tokens 
-         WHERE token_hash = ${tokenHash}`
-        );
+        decimal expires_at_epoch;
+    |}|sql:Error refreshToken = dbClient->queryRow(selectQuery);
 
     if refreshToken is sql:Error {
         log:printWarn("Refresh token not found in database");
@@ -79,7 +83,7 @@ public isolated function validateRefreshToken(string tokenHash) returns types:Us
     // Check if token has expired
     time:Utc currentTime = time:utcNow();
     decimal currentEpoch = <decimal>currentTime[0];
-    decimal expiryEpoch = <decimal>refreshToken.expires_at_epoch;
+    decimal expiryEpoch = refreshToken.expires_at_epoch;
 
     if expiryEpoch <= currentEpoch {
         log:printWarn("Refresh token has expired", tokenId = refreshToken.token_id);
