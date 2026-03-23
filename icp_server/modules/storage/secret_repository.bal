@@ -233,8 +233,8 @@ public isolated function updateRuntimeKeyId(string runtimeId, string keyId) retu
     log:printDebug(string `updateRuntimeKeyId: recorded keyId=${keyId} on runtime=${runtimeId}`);
 }
 
-public isolated function resolveOrCreateProject(string handler, string createdBy) returns string|error {
-    log:printDebug(string `resolveOrCreateProject: handler=${handler}, createdBy=${createdBy}`);
+public isolated function resolveOrCreateProject(string handler, string? createdBy) returns string|error {
+    log:printDebug(string `resolveOrCreateProject: handler=${handler}, createdBy=${createdBy ?: "null"}`);
 
     string|error existing = getProjectIdByHandler(handler, DEFAULT_ORG_ID);
     if existing is string {
@@ -273,13 +273,15 @@ public isolated function resolveOrCreateProject(string handler, string createdBy
             fail error("Failed to set up project admin role", roleRes);
         }
 
-        sql:ExecutionResult|sql:Error userRes = dbClient->execute(`
-            INSERT INTO group_user_mapping (group_id, user_uuid)
-            VALUES (${adminGroupId}, ${createdBy})
-        `);
-        if userRes is sql:Error {
-            log:printError(string `resolveOrCreateProject: failed to add creator to admin group for handler=${handler}`, 'error = userRes);
-            fail error("Failed to add user to project admin group", userRes);
+        if createdBy is string {
+            sql:ExecutionResult|sql:Error userRes = dbClient->execute(`
+                INSERT INTO group_user_mapping (group_id, user_uuid)
+                VALUES (${adminGroupId}, ${createdBy})
+            `);
+            if userRes is sql:Error {
+                log:printError(string `resolveOrCreateProject: failed to add creator to admin group for handler=${handler}`, 'error = userRes);
+                fail error("Failed to add user to project admin group", userRes);
+            }
         }
 
         check commit;
@@ -292,7 +294,7 @@ public isolated function resolveOrCreateProject(string handler, string createdBy
     return projectId;
 }
 
-public isolated function resolveOrCreateComponent(string projectId, string name, string runtimeType, string createdBy) returns string|error {
+public isolated function resolveOrCreateComponent(string projectId, string name, string runtimeType, string? createdBy) returns string|error {
     log:printDebug(string `resolveOrCreateComponent: projectId=${projectId}, name=${name}, runtimeType=${runtimeType}`);
 
     stream<record {|string component_id;|}, sql:Error?> s = dbClient->query(`

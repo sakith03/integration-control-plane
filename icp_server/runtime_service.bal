@@ -89,12 +89,10 @@ service /icp on httpListener {
 
             if orgSecret.componentId is () {
                 // Unbound key — resolve/auto-create project and component, then bind
-                string? rawCreatedBy = orgSecret.createdBy;
-                if rawCreatedBy is () || rawCreatedBy.trim().length() == 0 {
-                    log:printWarn(string `Heartbeat rejected — cannot auto-provision for kid=${kid}: orgSecret has no createdBy`);
-                    return <http:BadRequest>{body: string `Key '${kid}' has no creator on record; cannot auto-provision project/component`};
+                string? createdBy = orgSecret.createdBy;
+                if createdBy is () {
+                    log:printWarn(string `kid=${kid}: original creator deleted, auto-provisioning without owner`);
                 }
-                string createdBy = rawCreatedBy;
                 projectId = check storage:resolveOrCreateProject(heartbeat.project, createdBy);
                 componentId = check storage:resolveOrCreateComponent(projectId, heartbeat.component, heartbeat.runtimeType, createdBy);
                 check storage:bindOrgSecret(kid, projectId, componentId, heartbeat.project, heartbeat.component, heartbeat.runtimeType);
