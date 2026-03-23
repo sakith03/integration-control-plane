@@ -81,6 +81,21 @@ public isolated function convertUtcToDbDateTime(time:Utc utcTime) returns string
     }
 }
 
+// Get database-specific expression to convert a timestamp column to Unix epoch seconds
+// MySQL/H2: UNIX_TIMESTAMP(column)
+// MSSQL: DATEDIFF_BIG(SECOND, '1970-01-01 00:00:00', column)
+// PostgreSQL: EXTRACT(EPOCH FROM column)
+public isolated function epochFromTimestamp(string column) returns string {
+    if dbType == MSSQL {
+        return string `DATEDIFF_BIG(SECOND, '1970-01-01 00:00:00', ${column})`;
+    } else if dbType == POSTGRESQL {
+        return string `EXTRACT(EPOCH FROM ${column})`;
+    } else {
+        // MySQL and H2 (in MySQL compatibility mode)
+        return string `UNIX_TIMESTAMP(${column})`;
+    }
+}
+
 // Get database-specific TIMESTAMPDIFF function
 // MySQL: TIMESTAMPDIFF(unit, start, end)
 // MSSQL: DATEDIFF(unit, start, end)
