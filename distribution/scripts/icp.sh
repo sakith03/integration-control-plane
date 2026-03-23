@@ -19,7 +19,7 @@
 # ICP Server Launcher Script
 # Usage: ./icp.sh
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 JAR_FILE="$SCRIPT_DIR/icp-server.jar"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="$PARENT_DIR/conf/deployment.toml"
