@@ -17,9 +17,9 @@
 import icp_server.storage;
 import icp_server.utils;
 
+import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
-import ballerina/http;
 
 function init() returns error? {
     // Initialize HTTP client to authentication backend using resolved TLS and JWT secrets
@@ -52,7 +52,8 @@ function init() returns error? {
     };
 
     // Initialize OpenSearch client using resolved credentials
-    opensearchClient = check new (opensearchUrl,
+    // This client is optional - if initialization fails, OpenSearch functionality will be unavailable
+    http:Client|error opensearchClientResult = new (opensearchUrl,
         config = {
             auth: {
                 username: resolvedOpensearchUsername,
@@ -63,6 +64,14 @@ function init() returns error? {
             }
         }
     );
+
+    if opensearchClientResult is error {
+        log:printWarn(string `Failed to initialize OpenSearch client: ${opensearchClientResult.message()}. OpenSearch functionality will be unavailable.`);
+        opensearchClient = ();
+    } else {
+        opensearchClient = opensearchClientResult;
+        log:printInfo("OpenSearch client initialized successfully");
+    }
 
     // Initialize DB connection manager and DB client with resolved credentials
     credentialsDbManager = check new storage:DatabaseConnectionManager(

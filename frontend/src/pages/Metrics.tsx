@@ -217,6 +217,13 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function isUnavailable(error: unknown): boolean {
+  if (!error) return false;
+  const status = (error as any).status;
+  const message = (error as Error).message ?? '';
+  return status === 503 || message.includes('Observability service is unavailable') || message.includes('OpenSearch service is unavailable');
+}
+
 const COLORS = ['#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'];
 
 function StatCard({ title, value, color }: { title: string; value: string; color?: string }) {
@@ -284,6 +291,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
   const allInboundMetrics = useMemo(() => metricsData?.inboundMetrics ?? [], [metricsData]);
 
   const inboundMetrics = allInboundMetrics;
+  const filtersDisabled = isUnavailable(error);
 
   const { requestsData, latencyData, totalRequests, errorCount, errorPercentage, latestP95 } = useMemo(() => aggregate(inboundMetrics), [inboundMetrics]);
   const apis = useMemo(() => deriveApis(inboundMetrics, runtimeComponentMap), [inboundMetrics, runtimeComponentMap]);
@@ -330,7 +338,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
         <Typography variant="h1">Metrics</Typography>
         <Tooltip title="Refresh">
-          <IconButton size="small" onClick={() => refetch()} disabled={!metricsRequest}>
+          <IconButton size="small" onClick={() => refetch()} disabled={filtersDisabled || !metricsRequest}>
             <RefreshCw size={18} />
           </IconButton>
         </Tooltip>
@@ -338,7 +346,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
 
       <Stack direction="row" gap={2} sx={{ mb: 3 }} flexWrap="wrap" alignItems="center">
         {environments.length > 0 && (
-          <Select value={effectiveEnvId} onChange={(e) => setEnvFilter(e.target.value as string)} size="small" sx={{ minWidth: 140 }} inputProps={{ 'aria-label': 'Environment' }}>
+          <Select value={effectiveEnvId} onChange={(e) => setEnvFilter(e.target.value as string)} size="small" sx={{ minWidth: 140 }} inputProps={{ 'aria-label': 'Environment' }} disabled={filtersDisabled}>
             {environments.map((e) => (
               <MenuItem key={e.id} value={e.id}>
                 {e.name}
@@ -346,14 +354,14 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
             ))}
           </Select>
         )}
-        <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value as string)} size="small" sx={{ minWidth: 160 }} inputProps={{ 'aria-label': 'Time range' }}>
+        <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value as string)} size="small" sx={{ minWidth: 160 }} inputProps={{ 'aria-label': 'Time range' }} disabled={filtersDisabled}>
           {Object.keys(TIME_RANGES).map((k) => (
             <MenuItem key={k} value={k}>
               {k}
             </MenuItem>
           ))}
         </Select>
-        <Select value={resolution} onChange={(e) => setResolution(e.target.value as string)} size="small" sx={{ minWidth: 140 }} inputProps={{ 'aria-label': 'Resolution' }}>
+        <Select value={resolution} onChange={(e) => setResolution(e.target.value as string)} size="small" sx={{ minWidth: 140 }} inputProps={{ 'aria-label': 'Resolution' }} disabled={filtersDisabled}>
           {Object.keys(RESOLUTIONS).map((k) => (
             <MenuItem key={k} value={k}>
               Resolution: {k}
@@ -361,7 +369,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
           ))}
         </Select>
         {!isComponent && components.length > 0 && (
-          <Select value={integrationFilter} onChange={(e) => setIntegrationFilter(e.target.value as string)} size="small" sx={{ minWidth: 160 }} inputProps={{ 'aria-label': 'Integration' }}>
+          <Select value={integrationFilter} onChange={(e) => setIntegrationFilter(e.target.value as string)} size="small" sx={{ minWidth: 160 }} inputProps={{ 'aria-label': 'Integration' }} disabled={filtersDisabled}>
             <MenuItem value="all">All Integrations</MenuItem>
             {components.map((c) => (
               <MenuItem key={c.id} value={c.id}>
@@ -376,12 +384,26 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
         <CircularProgress size={28} sx={{ display: 'block', mx: 'auto', my: 6 }} />
       ) : error ? (
         <Stack alignItems="center" gap={2} sx={{ py: 6 }}>
-          <Typography color="error" textAlign="center">
-            Failed to fetch metrics: {(error as Error).message ?? 'Service unavailable'}
-          </Typography>
-          <Button variant="contained" startIcon={<RefreshCw size={16} />} onClick={() => refetch()}>
-            Retry
-          </Button>
+          {isUnavailable(error) ? (
+            <>
+              <BarChart3 size={48} style={{ color: '#78909c' }} />
+              <Typography variant="h6" textAlign="center">
+                Observability Service Not Configured
+              </Typography>
+              <Typography color="text.secondary" textAlign="center" sx={{ maxWidth: 600 }}>
+                Please ensure the Observability backend is configured and running to view metrics.
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography color="error" textAlign="center">
+                Failed to fetch metrics: {(error as Error).message ?? 'Service unavailable'}
+              </Typography>
+              <Button variant="contained" startIcon={<RefreshCw size={16} />} onClick={() => refetch()}>
+                Retry
+              </Button>
+            </>
+          )}
         </Stack>
       ) : inboundMetrics.length === 0 ? (
         <EmptyListing icon={<BarChart3 size={48} />} title="No metrics data" description="No metrics available for the selected time range." />
