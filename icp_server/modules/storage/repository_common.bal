@@ -1281,14 +1281,16 @@ public isolated function sendArtifactTracingChange(types:Runtime runtime, string
 
 // Issue an HMAC JWT for calling a runtime's management API.
 // Resolves the signing secret via runtimes.key_id → org_secrets.key_material.
+// Includes kid in the JWT header so the runtime can match the key.
 public isolated function issueRuntimeHmacToken(string runtimeId) returns string|error {
-    string hmacSecret = check resolveKeyMaterialByRuntimeId(runtimeId);
+    record {|string keyId; string keyMaterial;|} keyInfo = check resolveKeyIdAndMaterialByRuntimeId(runtimeId);
     jwt:IssuerConfig issConfig = {
         username: "icp-artifact-fetcher",
         issuer: jwtIssuer,
+        keyId: keyInfo.keyId,
         expTime: <decimal>defaultTokenExpiryTime,
         audience: jwtAudience,
-        signatureConfig: {algorithm: jwt:HS256, config: hmacSecret}
+        signatureConfig: {algorithm: jwt:HS256, config: keyInfo.keyMaterial}
     };
     issConfig.customClaims["scope"] = "runtime_agent";
 
