@@ -167,7 +167,7 @@ jobs:
           sudo apt-get install -y trivy
 
       - name: Run Trivy security scan
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: "fs"
           scan-ref: "build/distribution/extracted"
@@ -184,7 +184,7 @@ jobs:
           sarif_file: "trivy-results.sarif"
 
       - name: Trivy security gate (block on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: "fs"
           scan-ref: "build/distribution/extracted"
@@ -194,7 +194,7 @@ jobs:
           skip-setup-trivy: true
 
       - name: Generate Trivy report (table format)
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@0.35.0
         if: always()
         with:
           scan-type: "fs"
