@@ -26,13 +26,6 @@ import ballerina/lang.value;
 import ballerina/log;
 import ballerina/url;
 
-// Helper type for pre-validating runtimes in updateLogLevel
-type ValidatedRuntime record {|
-    string runtimeId;
-    string componentId;
-    types:Runtime runtime;
-|};
-
 // GraphQL listener configuration
 listener graphql:Listener graphqlListener = new (graphqlPort,
     configuration = {
@@ -503,7 +496,7 @@ isolated function updateLogLevelMI(types:UserContextV2 userContext, types:Update
     string logLevelStr = input.logLevel.toString();
 
     // Phase 1: Pre-validate all runtimes and permissions (no side-effects)
-    ValidatedRuntime[] validatedRuntimes = [];
+    types:ValidatedRuntime[] validatedRuntimes = [];
 
     foreach string runtimeId in input.runtimeIds {
         // Fetch the runtime to get its context
@@ -549,7 +542,7 @@ isolated function updateLogLevelMI(types:UserContextV2 userContext, types:Update
     int failureCount = 0;
     map<boolean> processedComponents = {};
 
-    foreach ValidatedRuntime validated in validatedRuntimes {
+    foreach types:ValidatedRuntime validated in validatedRuntimes {
         // Persist intended state for this component first (once per component)
         if !processedComponents.hasKey(validated.componentId) {
             error? stateResult = storage:upsertMILoggerIntendedState(
@@ -663,7 +656,51 @@ isolated function updateLogLevelMI(types:UserContextV2 userContext, types:Update
     };
 }
 
-// GraphQL service for runtime details
+isolated function validateRegistryResourceAccess(
+    types:UserContextV2 userContext,
+    string runtimeId,
+    string path,
+    string operation
+) returns types:ValidatedRegistryAccess|error {
+    log:printDebug(string `Validating registry access for ${operation}`, userId = userContext.userId, runtimeId = runtimeId, path = path);
+
+    string trimmedPath = path.trim();
+    if trimmedPath == "" {
+        log:printWarn(string `Empty path for ${operation}`, userId = userContext.userId, runtimeId = runtimeId);
+        return error("Invalid path");
+    }
+
+    types:Runtime? runtime = check storage:getRuntimeById(runtimeId);
+    if runtime is () {
+        log:printWarn(string `Runtime not found for ${operation}`, userId = userContext.userId, runtimeId = runtimeId);
+        return error(string `Unable to retrieve ${operation}`);
+    }
+
+    log:printDebug(string `Runtime found for ${operation}`,
+        userId = userContext.userId,
+        runtimeId = runtimeId,
+        projectId = runtime.component.projectId,
+        componentId = runtime.component.id,
+        environmentId = runtime.environment.id,
+        status = runtime.status
+    );
+
+    types:AccessScope scope = auth:buildScopeFromContext(runtime.component.projectId, runtime.component.id, runtime.environment.id);
+
+    if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
+        log:printWarn(string `Permission denied for ${operation}`, userId = userContext.userId, runtimeId = runtimeId, path = path);
+        return error(string `Unable to retrieve ${operation}`);
+    }
+
+    if runtime.status != types:RUNNING {
+        log:printWarn(string `Runtime not online for ${operation}`, userId = userContext.userId, runtimeId = runtimeId, status = runtime.status);
+        return error("Runtime is not online");
+    }
+
+    log:printDebug(string `Access validated for ${operation}`, userId = userContext.userId, runtimeId = runtimeId, trimmedPath = trimmedPath);
+    return {runtime, trimmedPath};
+}
+
 @graphql:ServiceConfig {
     contextInit: utils:initGraphQLContext,
     cors: {
@@ -1508,6 +1545,34 @@ service /graphql on graphqlListener {
 
         // Fetch log file content from MI management API
         return check mi_management:fetchLogFileContent(mgmtClient, hmacToken, fileName);
+    }
+
+    isolated resource function get registryDirectory(graphql:Context context, string runtimeId, string path, boolean? expand = ()) returns types:RegistryDirectoryResponse|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+        types:ValidatedRegistryAccess validated = check validateRegistryResourceAccess(userContext, runtimeId, path, "registry directory");
+        types:RegistryApiClient apiClient = check mi_management:createRegistryManagementClient(validated.runtime, runtimeId, artifactsApiAllowInsecureTLS);
+        return check mi_management:fetchRegistryDirectory(apiClient.mgmtClient, apiClient.hmacToken, validated.trimmedPath, expand);
+    }
+
+    isolated resource function get registryFileContent(graphql:Context context, string runtimeId, string path) returns string|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+        types:ValidatedRegistryAccess validated = check validateRegistryResourceAccess(userContext, runtimeId, path, "registry file content");
+        types:RegistryApiClient apiClient = check mi_management:createRegistryManagementClient(validated.runtime, runtimeId, artifactsApiAllowInsecureTLS);
+        return check mi_management:fetchRegistryFileContent(apiClient.mgmtClient, apiClient.hmacToken, validated.trimmedPath);
+    }
+
+    isolated resource function get registryResourceMetadata(graphql:Context context, string runtimeId, string path) returns types:RegistryResourceMetadata|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+        types:ValidatedRegistryAccess validated = check validateRegistryResourceAccess(userContext, runtimeId, path, "registry resource metadata");
+        types:RegistryApiClient apiClient = check mi_management:createRegistryManagementClient(validated.runtime, runtimeId, artifactsApiAllowInsecureTLS);
+        return check mi_management:fetchRegistryResourceMetadata(apiClient.mgmtClient, apiClient.hmacToken, validated.trimmedPath);
+    }
+
+    isolated resource function get registryResourceProperties(graphql:Context context, string runtimeId, string path) returns types:RegistryPropertiesResponse|error {
+        types:UserContextV2 userContext = check extractUserContext(context);
+        types:ValidatedRegistryAccess validated = check validateRegistryResourceAccess(userContext, runtimeId, path, "registry resource properties");
+        types:RegistryApiClient apiClient = check mi_management:createRegistryManagementClient(validated.runtime, runtimeId, artifactsApiAllowInsecureTLS);
+        return check mi_management:fetchRegistryResourceProperties(apiClient.mgmtClient, apiClient.hmacToken, validated.trimmedPath);
     }
 
     // Delete a runtime by ID

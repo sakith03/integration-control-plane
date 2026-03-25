@@ -2348,3 +2348,9 @@ public type MIUserOperationResponse record {|
     string username;
     string status;
 |};
+
+public type ValidatedRuntime record {|
+    string runtimeId;
+    string componentId;
+    Runtime runtime;
+|};
