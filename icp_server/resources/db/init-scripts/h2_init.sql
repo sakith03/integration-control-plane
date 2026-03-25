@@ -152,7 +152,8 @@ CREATE TABLE user_groups (
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_user_groups_org FOREIGN KEY (org_uuid) REFERENCES organizations (org_id) ON DELETE CASCADE
+    CONSTRAINT fk_user_groups_org FOREIGN KEY (org_uuid) REFERENCES organizations (org_id) ON DELETE CASCADE,
+    CONSTRAINT unique_group_name_org UNIQUE (group_name, org_uuid)
 );
 
 CREATE INDEX idx_user_groups_org_uuid ON user_groups (org_uuid);

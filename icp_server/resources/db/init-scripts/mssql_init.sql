@@ -247,6 +247,7 @@ CREATE TABLE user_groups (
     created_at DATETIME2 DEFAULT GETDATE (),
     updated_at DATETIME2 DEFAULT GETDATE (),
     CONSTRAINT fk_user_groups_org FOREIGN KEY (org_uuid) REFERENCES organizations (org_id) ON DELETE CASCADE,
+    CONSTRAINT unique_group_name_org UNIQUE (group_name, org_uuid),
     INDEX idx_org_uuid (org_uuid),
     INDEX idx_group_name (group_name)
 );

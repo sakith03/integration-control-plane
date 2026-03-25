@@ -907,7 +907,7 @@ service /auth on httpListener {
             }
         ]
     }
-    isolated resource function post orgs/[string orgHandle]/groups(@http:Payload types:GroupInput groupInput, http:Request req) returns http:Created|http:BadRequest|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
+    isolated resource function post orgs/[string orgHandle]/groups(@http:Payload types:GroupInput groupInput, http:Request req) returns http:Created|http:BadRequest|http:Conflict|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
         log:printInfo("Creating new group", orgHandle = orgHandle, groupName = groupInput.groupName);
 
         // Permission check: org-level manage groups
@@ -948,6 +948,13 @@ service /auth on httpListener {
         string|error groupId = storage:createGroup(inputWithOrg);
         if groupId is error {
             log:printError("Error creating group", groupId, groupName = groupInput.groupName);
+            if groupId.message().includes("already exists") {
+                return <http:Conflict>{
+                    body: {
+                        message: groupId.message()
+                    }
+                };
+            }
             return utils:createInternalServerError("Failed to create group");
         }
 
@@ -1031,7 +1038,7 @@ service /auth on httpListener {
             }
         ]
     }
-    isolated resource function put orgs/[string orgHandle]/groups/[string groupId](@http:Payload types:GroupInput groupInput, http:Request req) returns http:Ok|http:BadRequest|http:NotFound|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
+    isolated resource function put orgs/[string orgHandle]/groups/[string groupId](@http:Payload types:GroupInput groupInput, http:Request req) returns http:Ok|http:BadRequest|http:Conflict|http:NotFound|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
         log:printInfo("Updating group", orgHandle = orgHandle, groupId = groupId);
 
         // Permission check: org-level manage groups
@@ -1061,6 +1068,13 @@ service /auth on httpListener {
                 return <http:NotFound>{
                     body: {
                         message: "Group not found"
+                    }
+                };
+            }
+            if updateResult.message().includes("already exists") {
+                return <http:Conflict>{
+                    body: {
+                        message: updateResult.message()
                     }
                 };
             }
