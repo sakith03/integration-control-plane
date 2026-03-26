@@ -40,9 +40,9 @@ function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHand
   const save = () => {
     setError(null);
     updateMutation.mutate(
-      { id: project.id, orgId: project.orgId, name, description, version: project.version },
+      { id: project.id, orgId: project.orgId, name: name.trim(), description, version: project.version },
       {
-        onSuccess: () => navigate(backUrl, { state: { updated: true, name } }),
+        onSuccess: () => navigate(backUrl, { state: { updated: true, name: name.trim() } }),
         onError: (err) => setError(err.message ?? 'Failed to update project. Please try again.'),
       },
     );
@@ -54,10 +54,11 @@ function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHand
       { orgId: project.orgId, projectId: project.id },
       {
         onSuccess: (result) => {
-          if (result.status === 'failed') {
-            setDeleteError(result.details ?? 'Failed to delete project. Please try again.');
-          } else {
+          if (result.status === 'success') {
             navigate(backUrl, { state: { deleted: true, name: project.name } });
+          } else {
+            const statusMsg = result.status ? ` (Status: ${result.status})` : '';
+            setDeleteError(result.details ?? `Failed to delete project. Please try again.${statusMsg}`);
           }
         },
         onError: (err) => setDeleteError(err.message ?? 'Failed to delete project. Please try again.'),
@@ -112,7 +113,15 @@ function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHand
           <DialogContentText sx={{ mt: 2, mb: 1 }}>
             Type <strong>{project.name}</strong> to confirm:
           </DialogContentText>
-          <TextField fullWidth value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={project.name} autoFocus />
+          <TextField
+            fullWidth
+            label="Confirm project name"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={project.name}
+            autoFocus
+            helperText={`Type "${project.name}" to enable deletion`}
+          />
           {deleteError && (
             <Alert severity="error" sx={{ mt: 2 }}>
               {deleteError}
