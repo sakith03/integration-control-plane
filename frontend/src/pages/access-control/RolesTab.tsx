@@ -30,7 +30,15 @@ import type { Role } from '../../api/auth';
 import { Loading } from './shared';
 import { useFiltered } from './utils';
 
-function RoleRow({ r, orgHandler, projectId, componentId, effectiveReadOnly, getRoleDetailUrl, onDeleteClick }: {
+function RoleRow({
+  r,
+  orgHandler,
+  projectId,
+  componentId,
+  effectiveReadOnly,
+  getRoleDetailUrl,
+  onDeleteClick,
+}: {
   r: Role;
   orgHandler: string;
   projectId?: string;
@@ -76,7 +84,7 @@ function RoleRow({ r, orgHandler, projectId, componentId, effectiveReadOnly, get
           </IconButton>
         </Tooltip>
         {!effectiveReadOnly && (
-          <Tooltip title={hasGroupMappings ? "Cannot delete roles assigned to groups" : "Delete"}>
+          <Tooltip title={hasGroupMappings ? 'Cannot delete roles assigned to groups' : 'Delete'}>
             <span>
               <IconButton
                 size="small"
@@ -167,18 +175,7 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
                 </ListingTable.Cell>
               </ListingTable.Row>
             ) : (
-              paginated.map((r) => (
-                <RoleRow
-                  key={r.roleId}
-                  r={r}
-                  orgHandler={orgHandler}
-                  projectId={projectId}
-                  componentId={componentId}
-                  effectiveReadOnly={effectiveReadOnly}
-                  getRoleDetailUrl={getRoleDetailUrl}
-                  onDeleteClick={setDeletingRole}
-                />
-              ))
+              paginated.map((r) => <RoleRow key={r.roleId} r={r} orgHandler={orgHandler} projectId={projectId} componentId={componentId} effectiveReadOnly={effectiveReadOnly} getRoleDetailUrl={getRoleDetailUrl} onDeleteClick={setDeletingRole} />)
             )}
           </ListingTable.Body>
         </ListingTable>

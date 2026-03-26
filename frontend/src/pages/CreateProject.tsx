@@ -47,7 +47,9 @@ export default function CreateProject(scope: OrgScope): JSX.Element {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setDebouncedHandler(effectiveHandler), 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [effectiveHandler]);
 
   const availability = useProjectHandlerAvailability(1, debouncedHandler);

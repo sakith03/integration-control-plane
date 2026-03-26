@@ -30,8 +30,15 @@ import { newOrgGroupUrl, editOrgGroupUrl, projectGroupDetailUrl, componentGroupD
 import { Loading } from './shared';
 import { useFiltered } from './utils';
 
-
-function GroupRow({ g, orgHandler, projectId, componentId, effectiveReadOnly, getGroupDetailUrl, onDeleteClick }: {
+function GroupRow({
+  g,
+  orgHandler,
+  projectId,
+  componentId,
+  effectiveReadOnly,
+  getGroupDetailUrl,
+  onDeleteClick,
+}: {
   g: Group;
   orgHandler: string;
   projectId?: string;
@@ -76,10 +83,7 @@ function GroupRow({ g, orgHandler, projectId, componentId, effectiveReadOnly, ge
           </IconButton>
         </Tooltip>
         {!effectiveReadOnly && (
-          <Tooltip title={
-            g.groupName === 'Super Admins' ? "The Super Admins group cannot be deleted" :
-            hasRoleMappings ? "Cannot delete groups with mapped roles" : "Delete"
-          }>
+          <Tooltip title={g.groupName === 'Super Admins' ? 'The Super Admins group cannot be deleted' : hasRoleMappings ? 'Cannot delete groups with mapped roles' : 'Delete'}>
             <span>
               <IconButton
                 size="small"
@@ -171,18 +175,7 @@ export function GroupsTab({ orgHandler, projectId, projectHandler, componentHand
                 </ListingTable.Cell>
               </ListingTable.Row>
             ) : (
-              paginated.map((g) => (
-                <GroupRow
-                  key={g.groupId}
-                  g={g}
-                  orgHandler={orgHandler}
-                  projectId={projectId}
-                  componentId={componentId}
-                  effectiveReadOnly={effectiveReadOnly}
-                  getGroupDetailUrl={getGroupDetailUrl}
-                  onDeleteClick={setDeletingGroup}
-                />
-              ))
+              paginated.map((g) => <GroupRow key={g.groupId} g={g} orgHandler={orgHandler} projectId={projectId} componentId={componentId} effectiveReadOnly={effectiveReadOnly} getGroupDetailUrl={getGroupDetailUrl} onDeleteClick={setDeletingGroup} />)
             )}
           </ListingTable.Body>
         </ListingTable>

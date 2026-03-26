@@ -118,9 +118,7 @@ export function useInfiniteLogs(req: LogsRequest | null, refetchInterval: number
   return useInfiniteQuery({
     queryKey: ['logs', req],
     queryFn: async ({ pageParam }) => {
-      const pageReq = pageParam
-        ? { ...req!, ...(req!.sort === 'desc' ? { endTime: shiftTimestamp(pageParam, 'desc') } : { startTime: shiftTimestamp(pageParam, 'asc') }) }
-        : req!;
+      const pageReq = pageParam ? { ...req!, ...(req!.sort === 'desc' ? { endTime: shiftTimestamp(pageParam, 'desc') } : { startTime: shiftTimestamp(pageParam, 'asc') }) } : req!;
       return fetchLogs(pageReq);
     },
     initialPageParam: undefined as string | undefined,
