@@ -54,6 +54,14 @@ public isolated function createProject(types:ProjectInput project, types:UserCon
         return error("Project handler is required");
     }
 
+    // Check for duplicate handler within the same org
+    sql:ParameterizedQuery handlerCheckQuery = `SELECT COUNT(*) as cnt FROM projects WHERE org_id = ${project.orgId} AND handler = ${handler}`;
+    stream<record {|int cnt;|}, sql:Error?> handlerCheckStream = dbClient->query(handlerCheckQuery);
+    record {|int cnt;|}[] handlerCheckResult = check from record {|int cnt;|} r in handlerCheckStream select r;
+    if handlerCheckResult.length() > 0 && handlerCheckResult[0].cnt > 0 {
+        return error(string `Project handler '${handler}' is already taken in this organization`);
+    }
+
     // Convert deployment pipeline IDs array to JSON string if provided
     string? deploymentPipelineIdsJson = ();
     string[]? pipelineIds = project?.deploymentPipelineIds;
@@ -146,7 +154,7 @@ public isolated function createProject(types:ProjectInput project, types:UserCon
         // RBAC setup errors arrive as plain errors with their own messages via `fail`.
         if e is sql:Error {
             match classifySqlError(e) {
-                DUPLICATE_KEY => { return error("A project with this name already exists in this organization", e); }
+                DUPLICATE_KEY => { return error("A project with this name or handler already exists in this organization", e); }
                 VALUE_TOO_LONG => { return error("The provided value exceeds the maximum allowed length", e); }
                 FOREIGN_KEY_VIOLATION => { return error("Cannot complete the operation due to a dependency constraint", e); }
                 _ => { return error("An unexpected error occurred. Please contact your administrator.", e); }
