@@ -42,10 +42,10 @@ export function useCreateProject() {
 
 export interface UpdateProjectInput {
   id: string;
-  orgId: number;
-  name: string;
-  version: string;
-  description: string;
+  orgId?: number;
+  name?: string;
+  version?: string;
+  description?: string;
 }
 
 const UPDATE_PROJECT = `
@@ -68,8 +68,7 @@ const DELETE_PROJECT = `
 export function useUpdateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: UpdateProjectInput) =>
-      gql<{ updateProject: GqlProject }>(UPDATE_PROJECT, { project: input }).then((d) => d.updateProject),
+    mutationFn: (input: UpdateProjectInput) => gql<{ updateProject: GqlProject }>(UPDATE_PROJECT, { project: input }).then((d) => d.updateProject),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.invalidateQueries({ queryKey: ['project'] });
@@ -80,8 +79,7 @@ export function useUpdateProject() {
 export function useDeleteProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ orgId, projectId }: { orgId: number; projectId: string }) =>
-      gql<{ deleteProject: { status: string; details: string } }>(DELETE_PROJECT, { orgId, projectId }).then((d) => d.deleteProject),
+    mutationFn: ({ orgId, projectId }: { orgId: number; projectId: string }) => gql<{ deleteProject: { status: string; details: string } }>(DELETE_PROJECT, { orgId, projectId }).then((d) => d.deleteProject),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
   });
 }

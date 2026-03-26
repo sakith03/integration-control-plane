@@ -108,19 +108,11 @@ function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHand
       <Dialog open={deleteDialogOpen} onClose={handleCloseDialog}>
         <DialogTitle>Delete Project</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete the project "{project.name}"? This action cannot be undone and will remove all associated data.
-          </DialogContentText>
+          <DialogContentText>Are you sure you want to delete the project "{project.name}"? This action cannot be undone and will remove all associated data.</DialogContentText>
           <DialogContentText sx={{ mt: 2, mb: 1 }}>
             Type <strong>{project.name}</strong> to confirm:
           </DialogContentText>
-          <TextField
-            fullWidth
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            placeholder={project.name}
-            autoFocus
-          />
+          <TextField fullWidth value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={project.name} autoFocus />
           {deleteError && (
             <Alert severity="error" sx={{ mt: 2 }}>
               {deleteError}

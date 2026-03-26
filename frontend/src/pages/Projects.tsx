@@ -125,11 +125,7 @@ export default function Projects(scope: OrgScope): JSX.Element {
           <Grid container spacing={2}>
             {paginated.map((p) => (
               <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                <ProjectCard 
-                  project={p} 
-                  onClick={() => navigate(resourceUrl(narrow(scope, p.handler), 'overview'))} 
-                  onSettings={() => navigate(editProjectUrl(scope.org, p.id))}
-                />
+                <ProjectCard project={p} onClick={() => navigate(resourceUrl(narrow(scope, p.handler), 'overview'))} onSettings={() => navigate(editProjectUrl(scope.org, p.id))} />
               </Grid>
             ))}
           </Grid>
