@@ -171,6 +171,22 @@ public isolated function updateGroup(string groupId, types:GroupInput input) ret
     return ();
 }
 
+// Get the number of groups a role is mapped to
+public isolated function getRoleMappedGroupCount(string roleId) returns int|error {
+    log:printDebug(string `Counting group mappings for role: ${roleId}`);
+
+    int|sql:Error result = dbClient->queryRow(
+        `SELECT COUNT(*) FROM group_role_mapping WHERE role_id = ${roleId}`
+    );
+
+    if result is sql:Error {
+        log:printError(string `Failed to count group mappings for role ${roleId}`, 'error = result);
+        return error("Failed to count group mappings", result);
+    }
+
+    return result;
+}
+
 // Get role mapping count for a group
 public isolated function getGroupRoleMappingCount(string groupId) returns int|error {
     log:printDebug(string `Counting role mappings for group: ${groupId}`);

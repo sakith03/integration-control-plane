@@ -2749,7 +2749,7 @@ service /auth on httpListener {
             }
         ]
     }
-    isolated resource function delete orgs/[string orgHandle]/roles/[string roleId](http:Request req) returns http:Ok|http:NotFound|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
+    isolated resource function delete orgs/[string orgHandle]/roles/[string roleId](http:Request req) returns http:Ok|http:NotFound|http:Unauthorized|http:Forbidden|http:Conflict|http:InternalServerError|error {
         log:printInfo("Deleting role", orgHandle = orgHandle, roleId = roleId);
 
         // Permission check: org-level role management
@@ -2771,8 +2771,20 @@ service /auth on httpListener {
             };
         }
 
-        // TODO: Check if role is assigned to any groups
-        // For now, delete will cascade due to foreign key constraints
+        // Guard: prevent deletion of roles that are still mapped to groups
+        int|error groupMappingCount = storage:getRoleMappedGroupCount(roleId);
+        if groupMappingCount is error {
+            log:printError("Error checking group mappings for role", groupMappingCount, roleId = roleId);
+            return utils:createInternalServerError("Error checking role group assignments");
+        }
+        if groupMappingCount > 0 {
+            log:printWarn("Attempted to delete role with active group mappings", roleId = roleId, groupCount = groupMappingCount);
+            return <http:Conflict>{
+                body: {
+                    message: string `Role is assigned to ${groupMappingCount} group(s) and cannot be deleted. Remove the role from all groups first.`
+                }
+            };
+        }
 
         // Delete the role
         error? deleteResult = storage:deleteRoleV2(roleId);
