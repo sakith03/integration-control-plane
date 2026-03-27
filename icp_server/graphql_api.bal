@@ -3562,7 +3562,15 @@ service /graphql on graphqlListener {
             return error("Failed to fetch users from runtime");
         }
         if listResponse.statusCode != http:STATUS_OK {
-            return error(string `MI management API returned status ${listResponse.statusCode}`);
+            json|error errBody = listResponse.getJsonPayload();
+            string message = string `MI management API returned status ${listResponse.statusCode}`;
+            if errBody is json {
+                json|error errField = errBody.Error;
+                if errField is string {
+                    message = errField;
+                }
+            }
+            return error(message);
         }
 
         json listBody = check listResponse.getJsonPayload();
@@ -3648,19 +3656,21 @@ service /graphql on graphqlListener {
             return error("Failed to create user on runtime");
         }
 
-        if createResponse.statusCode == http:STATUS_BAD_REQUEST {
+        if createResponse.statusCode != http:STATUS_OK {
             json|error errBody = createResponse.getJsonPayload();
-            string message = "Invalid user creation request";
+            string message = string `MI management API returned status ${createResponse.statusCode}`;
             if errBody is json {
-                json|error msgField = errBody.message;
-                if msgField is string {
-                    message = msgField;
+                json|error errField = errBody.Error;
+                if errField is string {
+                    message = errField;
+                } else {
+                    json|error msgField = errBody.message;
+                    if msgField is string {
+                        message = msgField;
+                    }
                 }
             }
             return error(message);
-        }
-        if createResponse.statusCode != http:STATUS_OK {
-            return error(string `MI management API returned status ${createResponse.statusCode}`);
         }
 
         log:printInfo("Successfully created MI user on runtime", username = username, runtimeId = runtimeId);
@@ -3714,7 +3724,15 @@ service /graphql on graphqlListener {
             return error(string `User '${username}' not found on runtime`);
         }
         if deleteResponse.statusCode != http:STATUS_OK {
-            return error(string `MI management API returned status ${deleteResponse.statusCode}`);
+            json|error errBody = deleteResponse.getJsonPayload();
+            string message = string `MI management API returned status ${deleteResponse.statusCode}`;
+            if errBody is json {
+                json|error errField = errBody.Error;
+                if errField is string {
+                    message = errField;
+                }
+            }
+            return error(message);
         }
 
         log:printInfo("Successfully deleted MI user on runtime", username = username, runtimeId = runtimeId);
