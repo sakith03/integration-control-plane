@@ -1265,6 +1265,9 @@ CREATE TABLE reconcile_observed_state (
     PRIMARY KEY (runtime_id, artifact_name, artifact_type, state_key)
 );
 
+CREATE INDEX idx_reconcile_observed_comp_env
+    ON reconcile_observed_state(component_id, env_id);
+
 CREATE TRIGGER update_reconcile_observed_state_updated_at BEFORE UPDATE ON reconcile_observed_state
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

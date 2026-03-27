@@ -30,15 +30,19 @@ public function buildBICollector(types:ControlCommand[] commands) returns types:
     return function(string runtimeId, types:ReconcileArtifactKey artifact,
             types:ReconcileAction[] actions) returns error? {
         time:Utc now = time:utcNow();
-        // Extract the raw artifact name (without package prefix) for control commands
-        string rawName = types:rawArtifactName(artifact.artifactName);
+        // Preserve the package qualifier for disambiguation across packages
+        string qualifiedName = artifact.artifactName;
+        string rawName = types:rawArtifactName(qualifiedName);
+        string pkg = qualifiedName != rawName
+            ? qualifiedName.substring(0, qualifiedName.length() - rawName.length() - 1)
+            : "";
         foreach types:ReconcileAction a in actions {
             if a.key == "status" {
                 types:ControlAction action = a.value == "enabled" ? types:START : types:STOP;
                 commands.push({
                     commandId: uuid:createType1AsString(),
                     runtimeId: runtimeId,
-                    targetArtifact: {name: rawName},
+                    targetArtifact: {name: rawName, "package": pkg},
                     action: action,
                     issuedAt: now,
                     status: types:PENDING
@@ -46,12 +50,13 @@ public function buildBICollector(types:ControlCommand[] commands) returns types:
             } else if a.key == "logLevel" {
                 json payload = {
                     "componentName": rawName,
+                    "componentPackage": pkg,
                     "logLevel": a.value
                 };
                 commands.push({
                     commandId: uuid:createType1AsString(),
                     runtimeId: runtimeId,
-                    targetArtifact: {name: rawName},
+                    targetArtifact: {name: rawName, "package": pkg},
                     action: types:SET_LOGGER_LEVEL,
                     issuedAt: now,
                     status: types:PENDING,
@@ -106,6 +111,7 @@ public function reconcileFromHeartbeat(string runtimeId, string componentId, str
 
 // Reconcile from delta heartbeat (no artifact payload — query desired state keys).
 public function reconcileDelta(string runtimeId) returns types:ControlCommand[] {
+    log:printDebug("reconcileDelta: start", runtimeId = runtimeId);
     do {
         // Look up runtime context
         types:Runtime? runtimeOpt = check storage:getRuntimeById(runtimeId);

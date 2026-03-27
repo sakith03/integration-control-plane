@@ -44,18 +44,14 @@ export default function SyncSwitch({ label, checked, inSync, onChange, onClick, 
 
   return (
     <FormControlLabel
-      control={
-        <Switch
-          name={name}
-          size="small"
-          checked={checked}
-          onChange={onChange ? (e) => onChange(e.target.checked) : undefined}
-          onClick={onClick}
-          disabled={disabled}
-          {...(syncing ? { icon: spinnerThumb, checkedIcon: spinnerThumb } : {})}
-        />
+      disabled={disabled}
+      onClick={onClick}
+      control={<Switch name={name} size="small" checked={checked} onChange={onChange ? (e) => onChange(e.target.checked) : undefined} disabled={disabled} {...(syncing ? { icon: spinnerThumb, checkedIcon: spinnerThumb } : {})} />}
+      label={
+        <Typography variant="caption" color="text.secondary">
+          {label}
+        </Typography>
       }
-      label={<Typography variant="caption" color="text.secondary">{label}</Typography>}
       labelPlacement={labelPlacement}
       sx={{ m: 0, gap: 1, ...sx } as SxProps}
     />

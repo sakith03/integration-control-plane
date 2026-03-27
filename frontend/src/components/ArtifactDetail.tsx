@@ -215,6 +215,7 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
     updateListenerState.mutate({
       runtimeIds,
       listenerName: confirmDialog.artifact.name?.toString() ?? '',
+      listenerPackage: confirmDialog.artifact.package?.toString(),
       action: confirmDialog.action,
     });
 
@@ -262,12 +263,31 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
                   )}
                   {supportsToggle && (
                     <Grid size={{ xs: toggleColumnSize }}>
-                      <SyncSwitch name="status" label="Status" checked={enabled} inSync={a.stateInSync as boolean | null} labelPlacement="top" sx={{ alignItems: 'flex-start' }} onClick={(e) => { e.stopPropagation(); handleToggle(a, enabled); }} />
+                      <SyncSwitch
+                        name="status"
+                        label="Status"
+                        checked={enabled}
+                        inSync={a.stateInSync as boolean | null}
+                        labelPlacement="top"
+                        sx={{ alignItems: 'flex-start' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggle(a, enabled);
+                        }}
+                      />
                     </Grid>
                   )}
                   {showStatistics && (
                     <Grid size={{ xs: toggleColumnSize }}>
-                      <SyncSwitch name="statistics" label="Statistics" checked={statisticsEnabled} inSync={a.statisticsInSync as boolean | null} labelPlacement="top" sx={{ alignItems: 'flex-start' }} onClick={(e) => handleStatisticsToggle(a, statisticsEnabled, e)} />
+                      <SyncSwitch
+                        name="statistics"
+                        label="Statistics"
+                        checked={statisticsEnabled}
+                        inSync={a.statisticsInSync as boolean | null}
+                        labelPlacement="top"
+                        sx={{ alignItems: 'flex-start' }}
+                        onClick={(e) => handleStatisticsToggle(a, statisticsEnabled, e)}
+                      />
                     </Grid>
                   )}
                   {showTracing && (

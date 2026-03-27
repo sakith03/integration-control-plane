@@ -1545,8 +1545,8 @@ service /graphql on graphqlListener {
             }
         }
 
-        check sync:reconcileDeleteRuntime(runtimeId);
         check storage:deleteRuntime(runtimeId);
+        check sync:reconcileDeleteRuntime(runtimeId);
         log:printInfo(string `deleteRuntime: deleted runtimeId=${runtimeId}`, userId = userContext.userId);
 
         boolean secretRevoked = false;
@@ -1569,6 +1569,9 @@ service /graphql on graphqlListener {
         }
         if input.listenerName.trim().length() == 0 {
             return error("Listener name cannot be empty");
+        }
+        if input.action != types:START && input.action != types:STOP {
+            return error(string `Unsupported listener action: ${input.action}`);
         }
 
         // Validate permissions and write desired state per (component, env)
@@ -1767,8 +1770,8 @@ service /graphql on graphqlListener {
             }
         }
 
-        check sync:reconcileDeleteEnvironment(environmentId);
         check storage:deleteEnvironment(environmentId);
+        check sync:reconcileDeleteEnvironment(environmentId);
         return true;
     }
 
@@ -2143,13 +2146,7 @@ service /graphql on graphqlListener {
             };
         }
 
-        // 4. Clean up orphaned reconcile state for all linked environments
-        string[] reconcileEnvIds = check storage:getReconcileEnvIdsForComponent(componentId);
-        foreach string envId in reconcileEnvIds {
-            check sync:reconcileDeleteComponent(componentId, envId);
-        }
-
-        // 5. Perform deletion
+        // 4. Perform deletion
         error? deleteResult = storage:deleteComponent(componentId);
         if deleteResult is error {
             return {
@@ -2158,6 +2155,12 @@ service /graphql on graphqlListener {
                 message: string `Deletion failed: ${deleteResult.message()}`,
                 encodedData: ""
             };
+        }
+
+        // 5. Clean up orphaned reconcile state for all linked environments
+        string[] reconcileEnvIds = check storage:getReconcileEnvIdsForComponent(componentId);
+        foreach string envId in reconcileEnvIds {
+            check sync:reconcileDeleteComponent(componentId, envId);
         }
 
         return {
@@ -2290,10 +2293,10 @@ service /graphql on graphqlListener {
             return error("Insufficient permissions to change artifact statistics");
         }
 
-        string[] supportedTypes = ["proxy-service", "endpoint", "api", "sequence", "inbound-endpoint", "template"];
+        string[] supportedTypes = ["proxy-service", "endpoint", "api", "sequence", "inbound-endpoint"];
         boolean isSupported = supportedTypes.indexOf(input.artifactType) != ();
         if !isSupported {
-            return error(string `Artifact type '${input.artifactType}' does not support statistics. Supported types: ProxyService, Endpoint, RestApi, Sequence, InboundEndpoint, Template`);
+            return error(string `Artifact type '${input.artifactType}' does not support statistics. Supported types: ProxyService, Endpoint, RestApi, Sequence, InboundEndpoint`);
         }
 
         types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);

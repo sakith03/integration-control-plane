@@ -41,6 +41,7 @@ import {
   Alert,
   Stack,
   TextField,
+  Switch,
   Tooltip,
   Typography,
 } from '@wso2/oxygen-ui';
@@ -209,6 +210,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
       {
         runtimeIds,
         listenerName: artifactName,
+        listenerPackage: artifact.package?.toString(),
         action: pendingListenerToggle.checked ? 'START' : 'STOP',
       },
       {
@@ -285,21 +287,13 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
             </Box>
           )}
           {showStatusChip && artifactState && (showStatusToggle || showTracingToggle || showStatisticsToggle || showListenerToggle) && <Divider orientation="vertical" flexItem />}
-          {showStatusToggle && (
-            <SyncSwitch name="status" label="Status" checked={statusEnabled} inSync={artifact.stateInSync as boolean | null} onChange={handleToggleStatus} disabled={updateArtifactStatus.isPending} />
-          )}
+          {showStatusToggle && <SyncSwitch name="status" label="Status" checked={statusEnabled} inSync={artifact.stateInSync as boolean | null} onChange={handleToggleStatus} disabled={updateArtifactStatus.isPending} />}
           {showStatusToggle && showTracingToggle && <Divider orientation="vertical" flexItem />}
-          {showTracingToggle && (
-            <SyncSwitch label="Tracing" checked={tracingEnabled} inSync={artifact.tracingInSync as boolean | null} onChange={handleToggleTracing} disabled={updateTracingStatus.isPending} />
-          )}
+          {showTracingToggle && <SyncSwitch label="Tracing" checked={tracingEnabled} inSync={artifact.tracingInSync as boolean | null} onChange={handleToggleTracing} disabled={updateTracingStatus.isPending} />}
           {showTracingToggle && showStatisticsToggle && <Divider orientation="vertical" flexItem />}
-          {showStatisticsToggle && (
-            <SyncSwitch label="Statistics" checked={statisticsEnabled} inSync={artifact.statisticsInSync as boolean | null} onChange={handleToggleStatistics} disabled={updateStatisticsStatus.isPending} />
-          )}
+          {showStatisticsToggle && <SyncSwitch label="Statistics" checked={statisticsEnabled} inSync={artifact.statisticsInSync as boolean | null} onChange={handleToggleStatistics} disabled={updateStatisticsStatus.isPending} />}
           {(showTracingToggle || showStatisticsToggle) && showListenerToggle && <Divider orientation="vertical" flexItem />}
-          {showListenerToggle && (
-            <SyncSwitch label="State" checked={listenerEnabled} inSync={artifact.stateInSync as boolean | null} onChange={handleToggleListener} disabled={updateListenerState.isPending} />
-          )}
+          {showListenerToggle && <SyncSwitch label="State" checked={listenerEnabled} inSync={artifact.stateInSync as boolean | null} onChange={handleToggleListener} disabled={updateListenerState.isPending} />}
           {showTaskToggle && (
             <>
               {hasPrecedingControls && <Divider orientation="vertical" flexItem />}

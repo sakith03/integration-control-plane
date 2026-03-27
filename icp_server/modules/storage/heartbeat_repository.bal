@@ -82,12 +82,17 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean pre
         return error(string `Failed to process heartbeat for runtime ${heartbeat.runtime}`, e);
     }
 
-    // Write observed state from heartbeat artifacts
-    string? componentType = check getComponentTypeByRuntimeId(heartbeat.runtime);
-    if componentType == types:MI {
-        check writeObservedStateMI(heartbeat.runtime, heartbeat.component, heartbeat.environment, heartbeat.artifacts);
-    } else if componentType == types:BI {
-        check writeObservedStateBI(heartbeat.runtime, heartbeat.component, heartbeat.environment, heartbeat.artifacts, heartbeat.logLevels);
+    // Write observed state from heartbeat artifacts (skip for incomplete heartbeats to avoid pruning valid state)
+    if !fullHeartbeatRequired {
+        string? componentType = check getComponentTypeByRuntimeId(heartbeat.runtime);
+        log:printDebug(string `Resolved component type: ${componentType ?: "unknown"} for runtime ${heartbeat.runtime}`);
+        if componentType == types:MI {
+            check writeObservedStateMI(heartbeat.runtime, heartbeat.component, heartbeat.environment, heartbeat.artifacts);
+        } else if componentType == types:BI {
+            check writeObservedStateBI(heartbeat.runtime, heartbeat.component, heartbeat.environment, heartbeat.artifacts, heartbeat.logLevels);
+        }
+    } else {
+        log:printDebug(string `Skipping observed state write for runtime ${heartbeat.runtime}: heartbeat marked incomplete`);
     }
     types:ControlCommand[] pendingCommands = [];
 

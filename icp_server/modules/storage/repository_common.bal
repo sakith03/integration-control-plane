@@ -328,6 +328,8 @@ public isolated function insertMIControlCommand(
         string status = "pending",
         string? issuedBy = ()
 ) returns error? {
+    log:printDebug("Inserting MI control command", runtimeId = runtimeId, componentId = componentId,
+            artifactName = artifactName, artifactType = artifactType, action = action.toString(), status = status);
     // Convert action enum to string
     string actionStr = action.toString();
 
