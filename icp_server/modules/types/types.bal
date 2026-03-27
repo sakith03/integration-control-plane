@@ -1729,6 +1729,7 @@ public type BoundSecretRuntime record {|
 public type BoundSecretEntry record {|
     string keyId;
     string createdAt;
+    string? createdBy;
     BoundSecretRuntime[] runtimes;
 |};
 

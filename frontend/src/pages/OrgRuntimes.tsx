@@ -41,11 +41,12 @@ import {
   Tabs,
   Typography,
 } from '@wso2/oxygen-ui';
-import { Check, Copy, FileText, Plus, Server, Trash2, X } from '@wso2/oxygen-ui-icons-react';
-import { useState, type JSX } from 'react';
+import { Check, Copy, FileText, Plus, RefreshCw, Server, Trash2, X } from '@wso2/oxygen-ui-icons-react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 import { useQueries } from '@tanstack/react-query';
+import { useLocation, useNavigate } from 'react-router';
 import { gql } from '../api/graphql';
-import { useAllEnvironments, useOrgSecrets, ORG_RUNTIMES_QUERY, type GqlEnvironment, type GqlOrgSecret, type GqlRuntime } from '../api/queries';
+import { useAllEnvironments, useOrgSecrets, ORG_RUNTIMES_QUERY, type GqlEnvironment, type GqlRuntime } from '../api/queries';
 import { useCreateOrgSecret, useDeleteRuntime, useRevokeOrgSecret } from '../api/mutations';
 import { formatDistanceToNow } from '../utils/time';
 import SearchField from '../components/SearchField';
@@ -53,6 +54,7 @@ import { LogFilesDrawer } from '../components/LogFilesDrawer';
 import EmptyListing from '../components/EmptyListing';
 import Authorized from '../components/Authorized';
 import { Permissions } from '../constants/permissions';
+import { useAccessControl } from '../contexts/AccessControlContext';
 import type { OrgScope } from '../nav';
 
 const drawerSx = {
@@ -74,7 +76,9 @@ function SecretDrawer({ env, onClose }: { env: GqlEnvironment; onClose: () => vo
     <Drawer anchor="right" open variant="persistent" sx={drawerSx}>
       <Stack sx={{ p: 3, height: '100%', overflow: 'auto' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-          <Typography variant="h6">Secrets — {env.name}</Typography>
+          <Typography variant="h6">
+            Secrets: <strong>{env.name}</strong> environment
+          </Typography>
           <IconButton size="small" onClick={onClose} aria-label="close">
             <X size={18} />
           </IconButton>
@@ -167,13 +171,16 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
 
   const handleGenerate = () => {
     setError(null);
-    createMutation.mutate(env.id, {
-      onSuccess: (s) => setSecret(s),
-      onError: (e) => setError(e.message),
-    });
+    createMutation.mutate(
+      { environmentId: env.id },
+      {
+        onSuccess: (s) => setSecret(s),
+        onError: (e) => setError(e.message),
+      },
+    );
   };
 
-  const config = secret ? (tab === 0 ? miToml(env.name, secret) : biToml(env.name, secret)) : null;
+  const config = secret ? (tab === 0 ? biToml(env.name, secret) : miToml(env.name, secret)) : null;
 
   const handleCopy = async () => {
     if (!config) return;
@@ -184,7 +191,7 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
 
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Runtime — {env.name}</DialogTitle>
+      <DialogTitle>Add Runtime: {env.name} environment</DialogTitle>
       <DialogContent>
         {!secret ? (
           <>
@@ -193,7 +200,12 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
                 {error}
               </Alert>
             )}
-            <DialogContentText sx={{ mb: 2 }}>Generate a new secret for this environment. The secret will be shown once — copy it before closing.</DialogContentText>
+            <DialogContentText sx={{ mb: 2 }}>
+              Generate a new secret for <strong>{env.name}</strong> environment.
+            </DialogContentText>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <strong>The secret will be shown once — copy it before closing.</strong>
+            </Alert>
             <Button variant="contained" onClick={handleGenerate} disabled={createMutation.isPending}>
               {createMutation.isPending ? 'Generating...' : 'Generate Secret'}
             </Button>
@@ -204,10 +216,12 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
               Copy this secret now. It will not be shown again.
             </Alert>
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-              <Tab label="MI" />
               <Tab label="BI" />
+              <Tab label="MI" />
             </Tabs>
-            <DialogContentText sx={{ mb: 1 }}>Add the following configuration to your runtime's {tab === 0 ? 'deployment.toml' : 'Config.toml'} file:</DialogContentText>
+            <DialogContentText sx={{ mb: 1 }}>
+              Add the following configuration to your runtime's <strong>{tab === 0 ? 'Config.toml' : 'deployment.toml'}</strong> file:
+            </DialogContentText>
             <Box sx={{ position: 'relative' }}>
               <Box
                 component="pre"
@@ -246,12 +260,38 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 }
 
-function EnvironmentRuntimeCard({ env, runtimes, onDelete, onViewLogs }: { env: GqlEnvironment; runtimes: GqlRuntime[]; onDelete: (r: GqlRuntime) => void; onViewLogs: (r: GqlRuntime) => void }) {
+function EnvironmentRuntimeCard({
+  env,
+  runtimes,
+  onDelete,
+  onViewLogs,
+  onRefresh,
+  isRefreshing,
+  autoOpenAddRuntime,
+  onAutoOpenConsumed,
+}: {
+  env: GqlEnvironment;
+  runtimes: GqlRuntime[];
+  onDelete: (r: GqlRuntime) => void;
+  onViewLogs: (r: GqlRuntime) => void;
+  onRefresh: () => void;
+  isRefreshing?: boolean;
+  autoOpenAddRuntime?: boolean;
+  onAutoOpenConsumed?: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const { hasAnyPermission } = useAccessControl();
+
+  useEffect(() => {
+    if (!autoOpenAddRuntime) return;
+    if (!hasAnyPermission([Permissions.ENVIRONMENT_MANAGE, Permissions.ENVIRONMENT_MANAGE_NONPROD])) return;
+    setAddOpen(true);
+    onAutoOpenConsumed?.();
+  }, [autoOpenAddRuntime, hasAnyPermission, onAutoOpenConsumed]);
 
   const filtered = runtimes.filter((r) => !query || r.runtimeId.toLowerCase().includes(query.toLowerCase()) || r.runtimeType.toLowerCase().includes(query.toLowerCase()) || (r.component?.displayName ?? '').toLowerCase().includes(query.toLowerCase()));
   const maxPage = Math.max(0, Math.ceil(filtered.length / rowsPerPage) - 1);
@@ -269,16 +309,21 @@ function EnvironmentRuntimeCard({ env, runtimes, onDelete, onViewLogs }: { env: 
               </Typography>
               <Chip label={`${filtered.length} runtime${filtered.length !== 1 ? 's' : ''}`} size="small" color={filtered.length > 0 ? 'primary' : 'default'} />
             </Stack>
-            <Authorized permissions={[Permissions.ENVIRONMENT_MANAGE, Permissions.ENVIRONMENT_MANAGE_NONPROD]}>
-              <Stack direction="row" gap={1}>
-                <Button variant="outlined" size="small" onClick={() => setDrawerOpen(true)}>
-                  Manage Secrets
-                </Button>
-                <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
-                  Add Runtime
-                </Button>
-              </Stack>
-            </Authorized>
+            <Stack direction="row" gap={1} alignItems="center">
+              <IconButton size="small" aria-label={`Refresh runtimes for ${env.name}`} onClick={onRefresh} disabled={isRefreshing}>
+                <RefreshCw size={16} />
+              </IconButton>
+              <Authorized permissions={[Permissions.ENVIRONMENT_MANAGE, Permissions.ENVIRONMENT_MANAGE_NONPROD]}>
+                <Stack direction="row" gap={1}>
+                  <Button variant="outlined" size="small" onClick={() => setDrawerOpen(true)}>
+                    Manage Secrets
+                  </Button>
+                  <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
+                    Add Runtime
+                  </Button>
+                </Stack>
+              </Authorized>
+            </Stack>
           </Stack>
           <Divider sx={{ mb: 2 }} />
           <SearchField value={query} onChange={setQuery} placeholder="Search runtimes..." sx={{ mb: 2, width: '100%', maxWidth: 400 }} />
@@ -367,10 +412,29 @@ function EnvironmentRuntimeCard({ env, runtimes, onDelete, onViewLogs }: { env: 
 }
 
 export default function OrgRuntimes(_scope: OrgScope): JSX.Element {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { data: environments, isLoading: envsLoading } = useAllEnvironments();
   const [deleting, setDeleting] = useState<GqlRuntime | null>(null);
   const [viewingLogs, setViewingLogs] = useState<GqlRuntime | null>(null);
   const deleteMutation = useDeleteRuntime();
+  const _urlParams = new URLSearchParams(location.search);
+  const shouldAutoOpenAddRuntime = _urlParams.get('action') === 'add-runtime';
+  const autoOpenEnvironmentId = _urlParams.get('environmentId');
+
+  const clearAutoOpenAction = useCallback(() => {
+    if (!shouldAutoOpenAddRuntime) return;
+    const params = new URLSearchParams(location.search);
+    params.delete('action');
+    params.delete('environmentId');
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, navigate, shouldAutoOpenAddRuntime]);
 
   const runtimeQueries = useQueries({
     queries: (environments ?? []).map((env) => ({
@@ -393,8 +457,21 @@ export default function OrgRuntimes(_scope: OrgScope): JSX.Element {
         <EmptyListing icon={<Server size={48} />} title="No environments found" description="Create an environment first to register runtimes." />
       ) : (
         environments.map((env, index) => {
+          const query = runtimeQueries[index];
           const runtimes = runtimeQueries[index]?.data ?? [];
-          return <EnvironmentRuntimeCard key={env.id} env={env} runtimes={runtimes} onDelete={setDeleting} onViewLogs={setViewingLogs} />;
+          return (
+            <EnvironmentRuntimeCard
+              key={env.id}
+              env={env}
+              runtimes={runtimes}
+              onDelete={setDeleting}
+              onViewLogs={setViewingLogs}
+              onRefresh={() => query?.refetch()}
+              isRefreshing={query?.isFetching}
+              autoOpenAddRuntime={shouldAutoOpenAddRuntime && (autoOpenEnvironmentId ? env.id === autoOpenEnvironmentId : index === 0)}
+              onAutoOpenConsumed={clearAutoOpenAction}
+            />
+          );
         })
       )}
 

@@ -326,8 +326,8 @@ export function useUpdateLogLevel() {
 // ── Org-level Secrets ──
 
 const CREATE_ORG_SECRET = `
-  mutation CreateOrgSecret($environmentId: String!) {
-    createOrgSecret(environmentId: $environmentId)
+  mutation CreateOrgSecret($environmentId: String!, $componentId: String) {
+    createOrgSecret(environmentId: $environmentId, componentId: $componentId)
   }`;
 
 const REVOKE_ORG_SECRET = `
@@ -338,7 +338,7 @@ const REVOKE_ORG_SECRET = `
 export function useCreateOrgSecret() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (environmentId: string) => gql<{ createOrgSecret: string }>(CREATE_ORG_SECRET, { environmentId }).then((d) => d.createOrgSecret),
+    mutationFn: ({ environmentId, componentId }: { environmentId: string; componentId?: string }) => gql<{ createOrgSecret: string }>(CREATE_ORG_SECRET, { environmentId, componentId }).then((d) => d.createOrgSecret),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['orgSecrets'] }),
   });
 }
