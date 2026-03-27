@@ -48,6 +48,7 @@ import {
 import { RefreshCw, ListFilter, LayoutGrid, Settings, Play, X, Trash2, UserPlus } from '@wso2/oxygen-ui-icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router';
 import { useArtifacts, useRefreshEnvironmentArtifacts, useComponentRuntimes, type GqlArtifact, type GqlEnvironment } from '../api/queries';
 import { useUpdateArtifactTracingStatus, useUpdateArtifactStatisticsStatus } from '../api/artifactToggleMutations';
 import { useUpdateArtifactStatus, useUpdateListenerState, useTriggerTask } from '../api/mutations';
@@ -56,6 +57,7 @@ import { ArtifactApiDefinition, ServiceResources, AutomationExecutions, ProxyApi
 import { ArtifactTypeSelector } from './ArtifactDetail';
 import Authorized from './Authorized';
 import { Permissions } from '../constants/permissions';
+import { resourceUrl, useScope } from '../nav';
 import { ENTRY_POINT_CONFIG, ENTRY_POINT_DETAIL_TABS, type SelectedArtifact, type TabProps } from './artifact-config';
 
 function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArtifact; onOpenDrawerTab: (tab: string) => void }) {
@@ -405,6 +407,8 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
 
 function EntryPointsList({ envId, componentId, projectId, componentType, onOpenDrawer }: { envId: string; componentId: string; projectId: string; componentType: string; onOpenDrawer: (a: GqlArtifact, type: string, envId: string, tab: string) => void }) {
   const [selectedKey, setSelectedKey] = useState('');
+  const navigate = useNavigate();
+  const scope = useScope();
   const isMI = componentType === 'MI';
 
   const { data: apis = [], isLoading: loadingApis } = useArtifacts('RestApi', envId, componentId, { enabled: isMI });
@@ -445,9 +449,14 @@ function EntryPointsList({ envId, componentId, projectId, componentType, onOpenD
   if (isLoading) return <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', py: 4 }} />;
   if (allEntryPoints.length === 0)
     return (
-      <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-        No entry points found for this component.
-      </Typography>
+      <Stack alignItems="center" sx={{ py: 4 }} gap={2}>
+        <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
+          No entry points found for this integration. Add runtime to get started.
+        </Typography>
+        <Button variant="contained" size="small" onClick={() => navigate(`${resourceUrl(scope, 'runtimes')}?action=add-runtime&environmentId=${encodeURIComponent(envId)}`)}>
+          + Add Runtime
+        </Button>
+      </Stack>
     );
 
   return (

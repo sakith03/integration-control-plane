@@ -44,8 +44,9 @@ import {
 import { Check, Copy, FileText, Plus, Trash2, X } from '@wso2/oxygen-ui-icons-react';
 import SearchField from '../components/SearchField';
 import { LogFilesDrawer } from '../components/LogFilesDrawer';
-import { useState, type JSX } from 'react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 import { useQueries } from '@tanstack/react-query';
+import { useLocation, useNavigate } from 'react-router';
 import { gql } from '../api/graphql';
 import { useProjectByHandler, useEnvironments, useComponentByHandler, useComponentSecrets, RUNTIMES_QUERY, PROJECT_RUNTIMES_QUERY, COMPONENT_SECRETS_QUERY, type GqlRuntime, type GqlBoundSecret } from '../api/queries';
 import { useCreateOrgSecret, useDeleteRuntime, useRevokeOrgSecret } from '../api/mutations';
@@ -67,28 +68,44 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 }
 
-function miToml(envName: string, secret: string): string {
+function miToml(envName: string, secret: string, projectHandle: string, integrationHandle: string): string {
   return `[icp_config]
 enabled = true
 environment = "${envName}"
-project = "<project name>"
-integration = "<integration name>"
+project = "${projectHandle}"
+integration = "${integrationHandle}"
 runtime = "<unique id for the runtime>"
 secret = "${secret}"
 # icp_url = "https://<hostname>:9443"`;
 }
 
-function biToml(envName: string, secret: string): string {
+function biToml(envName: string, secret: string, projectHandle: string, integrationHandle: string): string {
   return `[wso2.icp.runtime.bridge]
 environment = "${envName}"
-project = "<project name>"
-integration = "<integration name>"
+project = "${projectHandle}"
+integration = "${integrationHandle}"
 runtime = "<unique id for the runtime>"
 secret = "${secret}"
 # serverUrl="https://<hostname>:9445"`;
 }
 
-function AddRuntimeModal({ environmentId, environmentName, componentId, componentType, onClose }: { environmentId: string; environmentName: string; componentId: string; componentType?: string; onClose: () => void }) {
+function AddRuntimeModal({
+  environmentId,
+  environmentName,
+  componentId,
+  componentType,
+  projectHandle,
+  integrationHandle,
+  onClose,
+}: {
+  environmentId: string;
+  environmentName: string;
+  componentId: string;
+  componentType?: string;
+  projectHandle: string;
+  integrationHandle: string;
+  onClose: () => void;
+}) {
   const createMutation = useCreateOrgSecret();
   const [secret, setSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -106,7 +123,7 @@ function AddRuntimeModal({ environmentId, environmentName, componentId, componen
     );
   };
 
-  const config = secret ? (isBI ? biToml(environmentName, secret) : miToml(environmentName, secret)) : null;
+  const config = secret ? (isBI ? biToml(environmentName, secret, projectHandle, integrationHandle) : miToml(environmentName, secret, projectHandle, integrationHandle)) : null;
 
   const handleCopy = async () => {
     if (!config) return;
@@ -270,23 +287,37 @@ function EnvironmentRuntimeCard({
   environmentId,
   componentId,
   componentType,
+  projectHandle,
+  integrationHandle,
   runtimes,
   onDelete,
   onViewLogs,
+  autoOpenAddRuntime,
+  onAutoOpenConsumed,
 }: {
   environmentName: string;
   environmentId: string;
   componentId: string | undefined;
   componentType?: string;
+  projectHandle: string;
+  integrationHandle: string;
   runtimes: GqlRuntime[];
   onDelete: (runtime: GqlRuntime) => void;
   onViewLogs: (runtime: GqlRuntime) => void;
+  autoOpenAddRuntime?: boolean;
+  onAutoOpenConsumed?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+
+  useEffect(() => {
+    if (!autoOpenAddRuntime || !componentId) return;
+    setAddOpen(true);
+    onAutoOpenConsumed?.();
+  }, [autoOpenAddRuntime, componentId, onAutoOpenConsumed]);
 
   const filtered = runtimes.filter((r) => !query || r.runtimeId.toLowerCase().includes(query.toLowerCase()) || r.runtimeType.toLowerCase().includes(query.toLowerCase()) || (r.component?.displayName ?? '').toLowerCase().includes(query.toLowerCase()));
   const maxPage = Math.max(0, Math.ceil(filtered.length / rowsPerPage) - 1);
@@ -396,7 +427,7 @@ function EnvironmentRuntimeCard({
       </Card>
 
       {drawerOpen && componentId && <BoundSecretDrawer componentId={componentId} environmentId={environmentId} environmentName={environmentName} onClose={() => setDrawerOpen(false)} />}
-      {addOpen && componentId && <AddRuntimeModal environmentId={environmentId} environmentName={environmentName} componentId={componentId} componentType={componentType} onClose={() => setAddOpen(false)} />}
+      {addOpen && componentId && <AddRuntimeModal environmentId={environmentId} environmentName={environmentName} componentId={componentId} componentType={componentType} projectHandle={projectHandle} integrationHandle={integrationHandle} onClose={() => setAddOpen(false)} />}
     </>
   );
 }
@@ -409,16 +440,37 @@ function isSoleUser(secrets: GqlBoundSecret[], runtimeId: string): string | null
 }
 
 export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Element {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { data: project } = useProjectByHandler(scope.project);
   const projectId = project?.id ?? '';
+  const projectHandle = project?.handler ?? scope.project;
   const { data: component } = useComponentByHandler(projectId, hasComponent(scope) ? scope.component : undefined);
   const componentId = component?.id;
+  const integrationHandle = component?.handler || (hasComponent(scope) ? scope.component : '');
   const { data: environments = [] } = useEnvironments(projectId);
 
   const [deleting, setDeleting] = useState<GqlRuntime | null>(null);
   const [alsoRevoke, setAlsoRevoke] = useState(false);
   const [viewingLogs, setViewingLogs] = useState<GqlRuntime | null>(null);
   const deleteMutation = useDeleteRuntime();
+  const params = new URLSearchParams(location.search);
+  const shouldAutoOpenAddRuntime = params.get('action') === 'add-runtime';
+  const autoOpenEnvironmentId = params.get('environmentId');
+
+  const clearAutoOpenAction = useCallback(() => {
+    if (!shouldAutoOpenAddRuntime) return;
+    const nextParams = new URLSearchParams(location.search);
+    nextParams.delete('action');
+    nextParams.delete('environmentId');
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextParams.toString() ? `?${nextParams.toString()}` : '',
+      },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, navigate, shouldAutoOpenAddRuntime]);
 
   const runtimeQueries = useQueries({
     queries: environments.map((env) => ({
@@ -477,7 +529,22 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
           ) : (
             environments.map((env, index) => {
               const runtimes = runtimeQueries[index]?.data ?? [];
-              return <EnvironmentRuntimeCard key={env.id} environmentName={env.name} environmentId={env.id} componentId={componentId} componentType={component?.componentType} runtimes={runtimes} onDelete={handleStartDelete} onViewLogs={setViewingLogs} />;
+              return (
+                <EnvironmentRuntimeCard
+                  key={env.id}
+                  environmentName={env.name}
+                  environmentId={env.id}
+                  componentId={componentId}
+                  componentType={component?.componentType}
+                  projectHandle={projectHandle}
+                  integrationHandle={integrationHandle}
+                  runtimes={runtimes}
+                  onDelete={handleStartDelete}
+                  onViewLogs={setViewingLogs}
+                  autoOpenAddRuntime={shouldAutoOpenAddRuntime && (autoOpenEnvironmentId ? env.id === autoOpenEnvironmentId : index === 0)}
+                  onAutoOpenConsumed={clearAutoOpenAction}
+                />
+              );
             })
           )}
         </>

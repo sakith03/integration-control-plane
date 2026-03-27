@@ -144,7 +144,7 @@ export default function Projects(scope: OrgScope): JSX.Element {
           title="No projects found"
           description={query ? 'Try adjusting your search' : canCreateProject ? 'Add your runtime to get started.' : 'Ask your administrator for access'}
           showAction={!query && canCreateProject}
-          actionLabel="Register Runtime"
+          actionLabel="Add Runtime"
           onAction={() => navigate(`${resourceUrl(scope, 'runtimes')}?action=add-runtime`)}
         />
       ) : (

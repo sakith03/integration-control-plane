@@ -76,26 +76,26 @@ public isolated function createOrgSecret(string environmentId, string createdBy)
     return keyId + "." + keyMaterial;
 }
 
-public isolated function createBoundOrgSecret(string environmentId, string createdBy, string projectId,
+public isolated function createComponentEnvBoundOrgSecret(string environmentId, string createdBy, string projectId,
         string componentId, string projectHandler, string componentName, string runtimeType) returns string|error {
     string keyId = check generateKeyId();
     string keyMaterial = generateKeyMaterial();
 
-    log:printDebug(string `createBoundOrgSecret: inserting keyId=${keyId} for environment=${environmentId}, componentId=${componentId}, createdBy=${createdBy}`);
+    log:printDebug(string `createComponentEnvBoundOrgSecret: inserting keyId=${keyId} for environment=${environmentId}, componentId=${componentId}, createdBy=${createdBy}`);
 
     sql:ExecutionResult|sql:Error result = dbClient->execute(`
         INSERT INTO org_secrets (
             key_id, environment_id, key_material, project_id, component_id,
-            project_handler, component_name, runtime_type, bound_at, created_by
+            project_handler, component_name, runtime_type, created_by
         )
         VALUES (
             ${keyId}, ${environmentId}, ${keyMaterial}, ${projectId}, ${componentId},
-            ${projectHandler}, ${componentName}, ${runtimeType}, CURRENT_TIMESTAMP, ${createdBy}
+            ${projectHandler}, ${componentName}, ${runtimeType}, ${createdBy}
         )
     `);
 
     if result is sql:Error {
-        log:printError(string `createBoundOrgSecret: insert failed for keyId=${keyId}, environment=${environmentId}, componentId=${componentId}`,
+        log:printError(string `createComponentEnvBoundOrgSecret: insert failed for keyId=${keyId}, environment=${environmentId}, componentId=${componentId}`,
                 'error = result);
         match classifySqlError(result) {
             DUPLICATE_KEY => {
@@ -121,7 +121,7 @@ public isolated function listOrgSecrets(string? environmentId = ()) returns type
 
     sql:ParameterizedQuery query = `
         SELECT os.key_id, os.environment_id, e.name AS environment_name,
-               CASE WHEN os.component_id IS NOT NULL THEN TRUE ELSE FALSE END AS bound,
+               CASE WHEN os.bound_at IS NOT NULL THEN TRUE ELSE FALSE END AS bound,
                os.created_at, os.created_by
         FROM org_secrets os
         JOIN environments e ON os.environment_id = e.environment_id`;

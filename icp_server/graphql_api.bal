@@ -2778,7 +2778,7 @@ service /graphql on graphqlListener {
                 return error("Project not found");
             }
 
-            string secret = check storage:createBoundOrgSecret(environmentId, userContext.userId,
+            string secret = check storage:createComponentEnvBoundOrgSecret(environmentId, userContext.userId,
                     component.projectId, componentId, project.handler, component.name,
                     component.componentType.toString());
             log:printInfo(string `Component-bound org secret created for environment=${environmentId}, componentId=${componentId}`,
