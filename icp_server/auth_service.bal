@@ -887,9 +887,19 @@ service /auth on httpListener {
             return utils:createInternalServerError("Failed to fetch groups");
         }
 
-        log:printInfo(string `Successfully fetched ${groups.length()} groups`, orgHandle = orgHandle);
+        types:GroupResponse[] groupsWithCounts = [];
+        foreach types:Group g in groups {
+            types:GroupResponse|error gwr = storage:getGroupWithCounts(g.cloneReadOnly());
+            if gwr is error {
+                log:printError("Error fetching counts for group", gwr, groupId = g.groupId);
+                return utils:createInternalServerError("Failed to fetch group details");
+            }
+            groupsWithCounts.push(gwr);
+        }
+
+        log:printInfo(string `Successfully fetched ${groupsWithCounts.length()} groups`, orgHandle = orgHandle);
         return <http:Ok>{
-            body: groups
+            body: groupsWithCounts
         };
     }
 
@@ -2456,9 +2466,19 @@ service /auth on httpListener {
             return utils:createInternalServerError("Failed to fetch roles");
         }
 
-        log:printInfo(string `Successfully fetched ${roles.length()} roles`, orgHandle = orgHandle);
+        types:RoleResponse[] rolesWithCounts = [];
+        foreach types:RoleV2 role in roles {
+            types:RoleResponse|error rwr = storage:getRoleWithCounts(role.cloneReadOnly());
+            if rwr is error {
+                log:printError("Error fetching counts for role", rwr, roleId = role.roleId);
+                return utils:createInternalServerError("Failed to fetch role details");
+            }
+            rolesWithCounts.push(rwr);
+        }
+
+        log:printInfo(string `Successfully fetched ${rolesWithCounts.length()} roles`, orgHandle = orgHandle);
         return <http:Ok>{
-            body: roles
+            body: rolesWithCounts
         };
     }
 

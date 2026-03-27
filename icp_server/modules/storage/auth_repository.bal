@@ -187,6 +187,37 @@ public isolated function getRoleMappedGroupCount(string roleId) returns int|erro
     return result;
 }
 
+// Get the number of distinct users assigned to a role (via group memberships)
+public isolated function getRoleUserCount(string roleId) returns int|error {
+    log:printDebug(string `Counting users assigned to role: ${roleId}`);
+
+    int count = check dbClient->queryRow(
+        `SELECT COUNT(DISTINCT user_uuid)
+         FROM group_user_mapping
+         WHERE group_id IN (
+             SELECT group_id FROM group_role_mapping WHERE role_id = ${roleId}
+         )`
+    );
+
+    return count;
+}
+
+// Get a role with its group and user counts fetched concurrently
+public isolated function getRoleWithCounts(types:RoleV2 & readonly role) returns types:RoleResponse|error {
+    worker getGroupCount returns int|error {
+        return getRoleMappedGroupCount(role.roleId);
+    }
+    worker getUserCount returns int|error {
+        return getRoleUserCount(role.roleId);
+    }
+    var counts = wait {groupCount: getGroupCount, userCount: getUserCount};
+    return {
+        ...role,
+        groupCount: check (counts["groupCount"] ?: 0),
+        userCount: check (counts["userCount"] ?: 0)
+    };
+}
+
 // Get role mapping count for a group
 public isolated function getGroupRoleMappingCount(string groupId) returns int|error {
     log:printDebug(string `Counting role mappings for group: ${groupId}`);
@@ -1237,6 +1268,24 @@ public isolated function getGroupUserCount(string groupId) returns int|error {
     );
 
     return count;
+}
+
+// Get a group with its user and role counts fetched concurrently
+public isolated function getGroupWithCounts(types:Group & readonly group) returns types:GroupResponse|error {
+    worker getUserCount returns int|error {
+        return getGroupUserCount(group.groupId);
+    }
+    worker getRoleCount returns int|error {
+        return getGroupRoleMappingCount(group.groupId);
+    }
+    var counts = wait {userCount: getUserCount, roleCount: getRoleCount};
+
+
+    return {
+        ...group,
+        userCount: check (counts["userCount"] ?: 0),
+        roleCount: check (counts["roleCount"] ?: 0)
+    };
 }
 
 // Get role assignment count (how many groups have this role across all scopes)

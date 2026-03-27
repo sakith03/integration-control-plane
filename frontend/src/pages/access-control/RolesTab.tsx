@@ -24,7 +24,7 @@ import SearchField from '../../components/SearchField';
 import { useAccessControl } from '../../contexts/AccessControlContext';
 import { Permissions } from '../../constants/permissions';
 import { orgRoleDetailUrl, projectRoleDetailUrl, componentRoleDetailUrl, newOrgRoleUrl } from '../../paths';
-import { useRoles, useDeleteRole, useRoleGroups, useUsers } from '../../api/authQueries';
+import { useRoles, useDeleteRole } from '../../api/authQueries';
 import { useComponentByHandler } from '../../api/queries';
 import type { Role } from '../../api/auth';
 import { Loading } from './shared';
@@ -32,27 +32,17 @@ import { useFiltered } from './utils';
 
 function RoleRow({
   r,
-  orgHandler,
-  projectId,
-  componentId,
   effectiveReadOnly,
   getRoleDetailUrl,
   onDeleteClick,
 }: {
   r: Role;
-  orgHandler: string;
-  projectId?: string;
-  componentId?: string;
   effectiveReadOnly: boolean;
   getRoleDetailUrl: (roleId: string) => string;
   onDeleteClick: (r: Role) => void;
 }) {
   const navigate = useNavigate();
-  const { data: roleGroups = [], isLoading: loadingGroups } = useRoleGroups(orgHandler, r.roleId, projectId, componentId);
-  const { data: users = [], isLoading: loadingUsers } = useUsers(orgHandler);
-  const hasGroupMappings = roleGroups.length > 0;
-  const roleGroupIds = new Set(roleGroups.map((g) => g.groupId));
-  const assignedUserCount = loadingGroups || loadingUsers ? null : users.filter((u) => u.groups.some((g) => roleGroupIds.has(g.groupId))).length;
+  const hasGroupMappings = (r.groupCount ?? 0) > 0;
 
   return (
     <ListingTable.Row
@@ -70,7 +60,7 @@ function RoleRow({
       }}>
       <ListingTable.Cell>{r.roleName}</ListingTable.Cell>
       <ListingTable.Cell>{r.description}</ListingTable.Cell>
-      <ListingTable.Cell>{assignedUserCount === null ? <>—</> : assignedUserCount}</ListingTable.Cell>
+      <ListingTable.Cell>{r.userCount ?? '—'}</ListingTable.Cell>
       <ListingTable.Cell align="right">
         <Tooltip title="Edit">
           <IconButton
@@ -175,7 +165,7 @@ export function RolesTab({ orgHandler, projectId, projectHandler, componentHandl
                 </ListingTable.Cell>
               </ListingTable.Row>
             ) : (
-              paginated.map((r) => <RoleRow key={r.roleId} r={r} orgHandler={orgHandler} projectId={projectId} componentId={componentId} effectiveReadOnly={effectiveReadOnly} getRoleDetailUrl={getRoleDetailUrl} onDeleteClick={setDeletingRole} />)
+              paginated.map((r) => <RoleRow key={r.roleId} r={r} effectiveReadOnly={effectiveReadOnly} getRoleDetailUrl={getRoleDetailUrl} onDeleteClick={setDeletingRole} />)
             )}
           </ListingTable.Body>
         </ListingTable>
