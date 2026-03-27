@@ -30,19 +30,9 @@ import { newOrgGroupUrl, editOrgGroupUrl, projectGroupDetailUrl, componentGroupD
 import { Loading } from './shared';
 import { useFiltered } from './utils';
 
-function GroupRow({
-  g,
-  effectiveReadOnly,
-  getGroupDetailUrl,
-  onDeleteClick,
-}: {
-  g: Group;
-  effectiveReadOnly: boolean;
-  getGroupDetailUrl: (groupId: string) => string;
-  onDeleteClick: (g: Group) => void;
-}) {
+function GroupRow({ g, effectiveReadOnly, getGroupDetailUrl, onDeleteClick }: { g: Group; effectiveReadOnly: boolean; getGroupDetailUrl: (groupId: string) => string; onDeleteClick: (g: Group) => void }) {
   const navigate = useNavigate();
-  const hasRoleMappings = g.roleCount > 0;
+  const hasRoleMappings = (g.roleCount ?? 0) > 0;
 
   return (
     <ListingTable.Row
@@ -60,8 +50,8 @@ function GroupRow({
       }}>
       <ListingTable.Cell>{g.groupName}</ListingTable.Cell>
       <ListingTable.Cell>{g.description}</ListingTable.Cell>
-      <ListingTable.Cell>{g.userCount}</ListingTable.Cell>
-      <ListingTable.Cell>{g.roleCount}</ListingTable.Cell>
+      <ListingTable.Cell>{g.userCount ?? '—'}</ListingTable.Cell>
+      <ListingTable.Cell>{g.roleCount ?? '—'}</ListingTable.Cell>
       <ListingTable.Cell align="right">
         <Tooltip title="Edit">
           <IconButton

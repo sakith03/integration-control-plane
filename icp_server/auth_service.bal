@@ -879,22 +879,12 @@ service /auth on httpListener {
         //     return utils:createBadRequestError("Invalid or unknown organization");
         // }
 
-        // Fetch all groups for the organization
+        // Fetch all groups with counts for the organization
         // TODO: use orgId when multiple tenants are supported
-        types:Group[]|error groups = storage:getGroupsByOrgId(storage:DEFAULT_ORG_ID);
-        if groups is error {
-            log:printError("Error fetching groups", groups, orgHandle = orgHandle);
+        types:GroupResponse[]|error groupsWithCounts = storage:getGroupsWithCountsByOrgId(storage:DEFAULT_ORG_ID);
+        if groupsWithCounts is error {
+            log:printError("Error fetching groups", groupsWithCounts, orgHandle = orgHandle);
             return utils:createInternalServerError("Failed to fetch groups");
-        }
-
-        types:GroupResponse[] groupsWithCounts = [];
-        foreach types:Group g in groups {
-            types:GroupResponse|error gwr = storage:getGroupWithCounts(g.cloneReadOnly());
-            if gwr is error {
-                log:printError("Error fetching counts for group", gwr, groupId = g.groupId);
-                return utils:createInternalServerError("Failed to fetch group details");
-            }
-            groupsWithCounts.push(gwr);
         }
 
         log:printInfo(string `Successfully fetched ${groupsWithCounts.length()} groups`, orgHandle = orgHandle);
@@ -2458,22 +2448,12 @@ service /auth on httpListener {
         //     return utils:createBadRequestError("Invalid or unknown organization");
         // }
 
-        // Fetch all roles for the organization
+        // Fetch all roles with counts for the organization
         // TODO: use orgId when multiple tenants are supported
-        types:RoleV2[]|error roles = storage:getAllRolesV2(storage:DEFAULT_ORG_ID);
-        if roles is error {
-            log:printError("Error fetching roles", roles, orgHandle = orgHandle);
+        types:RoleResponse[]|error rolesWithCounts = storage:getRolesWithCountsByOrgId(storage:DEFAULT_ORG_ID);
+        if rolesWithCounts is error {
+            log:printError("Error fetching roles", rolesWithCounts, orgHandle = orgHandle);
             return utils:createInternalServerError("Failed to fetch roles");
-        }
-
-        types:RoleResponse[] rolesWithCounts = [];
-        foreach types:RoleV2 role in roles {
-            types:RoleResponse|error rwr = storage:getRoleWithCounts(role.cloneReadOnly());
-            if rwr is error {
-                log:printError("Error fetching counts for role", rwr, roleId = role.roleId);
-                return utils:createInternalServerError("Failed to fetch role details");
-            }
-            rolesWithCounts.push(rwr);
         }
 
         log:printInfo(string `Successfully fetched ${rolesWithCounts.length()} roles`, orgHandle = orgHandle);

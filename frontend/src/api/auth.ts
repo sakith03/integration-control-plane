@@ -107,8 +107,8 @@ export interface Group {
   groupId: string;
   groupName: string;
   description: string;
-  userCount: number;
-  roleCount: number;
+  userCount?: number;
+  roleCount?: number;
 }
 
 export interface GroupRoleMapping {

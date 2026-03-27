@@ -143,6 +143,30 @@ public isolated function getGroupsByOrgId(int orgId) returns types:Group[]|error
     return groups;
 }
 
+// Get all groups for an organization with precomputed user and role counts
+public isolated function getGroupsWithCountsByOrgId(int orgId) returns types:GroupResponse[]|error {
+    log:printDebug(string `Fetching groups with counts for orgId: ${orgId}`);
+
+    types:GroupResponse[] groups = [];
+    stream<types:GroupResponse, sql:Error?> groupStream = dbClient->query(
+        `SELECT ug.group_id, ug.group_name, ug.org_uuid, ug.description, ug.created_at, ug.updated_at,
+                COUNT(DISTINCT gum.user_uuid) AS user_count,
+                COUNT(DISTINCT grm.id) AS role_count
+         FROM user_groups ug
+         LEFT JOIN group_user_mapping gum ON ug.group_id = gum.group_id
+         LEFT JOIN group_role_mapping grm ON ug.group_id = grm.group_id
+         WHERE ug.org_uuid = ${orgId}
+         GROUP BY ug.group_id, ug.group_name, ug.org_uuid, ug.description, ug.created_at, ug.updated_at`
+    );
+
+    check from types:GroupResponse group in groupStream
+        do {
+            groups.push(group);
+        };
+
+    return groups;
+}
+
 // Update group details
 public isolated function updateGroup(string groupId, types:GroupInput input) returns error? {
     log:printDebug(string `Updating group: ${groupId}`);
@@ -185,37 +209,6 @@ public isolated function getRoleMappedGroupCount(string roleId) returns int|erro
     }
 
     return result;
-}
-
-// Get the number of distinct users assigned to a role (via group memberships)
-public isolated function getRoleUserCount(string roleId) returns int|error {
-    log:printDebug(string `Counting users assigned to role: ${roleId}`);
-
-    int count = check dbClient->queryRow(
-        `SELECT COUNT(DISTINCT user_uuid)
-         FROM group_user_mapping
-         WHERE group_id IN (
-             SELECT group_id FROM group_role_mapping WHERE role_id = ${roleId}
-         )`
-    );
-
-    return count;
-}
-
-// Get a role with its group and user counts fetched concurrently
-public isolated function getRoleWithCounts(types:RoleV2 & readonly role) returns types:RoleResponse|error {
-    worker getGroupCount returns int|error {
-        return getRoleMappedGroupCount(role.roleId);
-    }
-    worker getUserCount returns int|error {
-        return getRoleUserCount(role.roleId);
-    }
-    var counts = wait {groupCount: getGroupCount, userCount: getUserCount};
-    return {
-        ...role,
-        groupCount: check (counts["groupCount"] ?: 0),
-        userCount: check (counts["userCount"] ?: 0)
-    };
 }
 
 // Get role mapping count for a group
@@ -317,6 +310,31 @@ public isolated function getAllRolesV2(int orgId) returns types:RoleV2[]|error {
     );
 
     check from types:RoleV2 role in roleStream
+        do {
+            roles.push(role);
+        };
+
+    return roles;
+}
+
+// Get all roles for an organization with precomputed group and user counts
+public isolated function getRolesWithCountsByOrgId(int orgId) returns types:RoleResponse[]|error {
+    log:printDebug(string `Fetching roles with counts for orgId: ${orgId}`);
+
+    types:RoleResponse[] roles = [];
+    stream<types:RoleResponse, sql:Error?> roleStream = dbClient->query(
+        `SELECT r.role_id, r.role_name, r.org_id, r.description, r.created_at, r.updated_at,
+                COUNT(DISTINCT grm.group_id) AS group_count,
+                COUNT(DISTINCT gum.user_uuid) AS user_count
+         FROM roles_v2 r
+         LEFT JOIN group_role_mapping grm ON r.role_id = grm.role_id
+         LEFT JOIN group_user_mapping gum ON grm.group_id = gum.group_id
+         WHERE r.org_id = ${orgId}
+         GROUP BY r.role_id, r.role_name, r.org_id, r.description, r.created_at, r.updated_at
+         ORDER BY r.role_name`
+    );
+
+    check from types:RoleResponse role in roleStream
         do {
             roles.push(role);
         };
@@ -1268,24 +1286,6 @@ public isolated function getGroupUserCount(string groupId) returns int|error {
     );
 
     return count;
-}
-
-// Get a group with its user and role counts fetched concurrently
-public isolated function getGroupWithCounts(types:Group & readonly group) returns types:GroupResponse|error {
-    worker getUserCount returns int|error {
-        return getGroupUserCount(group.groupId);
-    }
-    worker getRoleCount returns int|error {
-        return getGroupRoleMappingCount(group.groupId);
-    }
-    var counts = wait {userCount: getUserCount, roleCount: getRoleCount};
-
-
-    return {
-        ...group,
-        userCount: check (counts["userCount"] ?: 0),
-        roleCount: check (counts["roleCount"] ?: 0)
-    };
 }
 
 // Get role assignment count (how many groups have this role across all scopes)

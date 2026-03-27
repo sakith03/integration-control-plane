@@ -30,17 +30,7 @@ import type { Role } from '../../api/auth';
 import { Loading } from './shared';
 import { useFiltered } from './utils';
 
-function RoleRow({
-  r,
-  effectiveReadOnly,
-  getRoleDetailUrl,
-  onDeleteClick,
-}: {
-  r: Role;
-  effectiveReadOnly: boolean;
-  getRoleDetailUrl: (roleId: string) => string;
-  onDeleteClick: (r: Role) => void;
-}) {
+function RoleRow({ r, effectiveReadOnly, getRoleDetailUrl, onDeleteClick }: { r: Role; effectiveReadOnly: boolean; getRoleDetailUrl: (roleId: string) => string; onDeleteClick: (r: Role) => void }) {
   const navigate = useNavigate();
   const hasGroupMappings = (r.groupCount ?? 0) > 0;
 
