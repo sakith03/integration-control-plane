@@ -418,12 +418,15 @@ export default function OrgRuntimes(_scope: OrgScope): JSX.Element {
   const [deleting, setDeleting] = useState<GqlRuntime | null>(null);
   const [viewingLogs, setViewingLogs] = useState<GqlRuntime | null>(null);
   const deleteMutation = useDeleteRuntime();
-  const shouldAutoOpenAddRuntime = new URLSearchParams(location.search).get('action') === 'add-runtime';
+  const _urlParams = new URLSearchParams(location.search);
+  const shouldAutoOpenAddRuntime = _urlParams.get('action') === 'add-runtime';
+  const autoOpenEnvironmentId = _urlParams.get('environmentId');
 
   const clearAutoOpenAction = useCallback(() => {
     if (!shouldAutoOpenAddRuntime) return;
     const params = new URLSearchParams(location.search);
     params.delete('action');
+    params.delete('environmentId');
     navigate(
       {
         pathname: location.pathname,
@@ -465,7 +468,7 @@ export default function OrgRuntimes(_scope: OrgScope): JSX.Element {
               onViewLogs={setViewingLogs}
               onRefresh={() => query?.refetch()}
               isRefreshing={query?.isFetching}
-              autoOpenAddRuntime={shouldAutoOpenAddRuntime && index === 0}
+              autoOpenAddRuntime={shouldAutoOpenAddRuntime && (autoOpenEnvironmentId ? env.id === autoOpenEnvironmentId : index === 0)}
               onAutoOpenConsumed={clearAutoOpenAction}
             />
           );
