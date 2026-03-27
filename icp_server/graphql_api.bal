@@ -2762,14 +2762,22 @@ service /graphql on graphqlListener {
         check authorizeEnvironmentAccess(userContext.userId, environmentId, "create org secrets");
 
         if componentId is string {
-            types:Component component = check storage:getComponentById(componentId);
+            types:Component? component = check storage:getComponentById(componentId);
+            if component is () {
+                return error("Integration not found");
+            }
+
             types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId,
                     envId = environmentId);
             if !check auth:hasPermission(userContext.userId, auth:PERMISSION_INTEGRATION_MANAGE, scope) {
                 return error("Access denied: insufficient permissions to create component-bound secrets");
             }
 
-            types:Project project = check storage:getProjectById(component.projectId);
+            types:Project? project = check storage:getProjectById(component.projectId);
+            if project is () {
+                return error("Project not found");
+            }
+
             string secret = check storage:createBoundOrgSecret(environmentId, userContext.userId,
                     component.projectId, componentId, project.handler, component.name,
                     component.componentType.toString());
