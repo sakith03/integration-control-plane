@@ -88,19 +88,7 @@ secret = "${secret}"
 # serverUrl="https://<hostname>:9445"`;
 }
 
-function AddRuntimeModal({
-  environmentId,
-  environmentName,
-  componentId,
-  componentType,
-  onClose,
-}: {
-  environmentId: string;
-  environmentName: string;
-  componentId: string;
-  componentType?: string;
-  onClose: () => void;
-}) {
+function AddRuntimeModal({ environmentId, environmentName, componentId, componentType, onClose }: { environmentId: string; environmentName: string; componentId: string; componentType?: string; onClose: () => void }) {
   const createMutation = useCreateOrgSecret();
   const [secret, setSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -153,7 +141,9 @@ function AddRuntimeModal({
             <Alert severity="warning" sx={{ mb: 2 }}>
               Copy this secret now. It will not be shown again.
             </Alert>
-            <DialogContentText sx={{ mb: 1 }}>Add the following configuration to your runtime's {isBI ? 'Config.toml' : 'deployment.toml'} file:</DialogContentText>
+            <DialogContentText sx={{ mb: 1 }}>
+              Add the following configuration to your runtime's <strong>{isBI ? 'Config.toml' : 'deployment.toml'}</strong> file:
+            </DialogContentText>
             <Box sx={{ position: 'relative' }}>
               <Box
                 component="pre"
@@ -196,7 +186,9 @@ function BoundSecretDrawer({ componentId, environmentId, environmentName, onClos
     <Drawer anchor="right" open variant="persistent" sx={drawerSx}>
       <Stack sx={{ p: 3, height: '100%', overflow: 'auto' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-          <Typography variant="h6">Secrets: <strong>{environmentName}</strong> environment</Typography>
+          <Typography variant="h6">
+            Secrets: <strong>{environmentName}</strong> environment
+          </Typography>
           <IconButton size="small" onClick={onClose} aria-label="close">
             <X size={18} />
           </IconButton>

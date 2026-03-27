@@ -75,7 +75,9 @@ function SecretDrawer({ env, onClose }: { env: GqlEnvironment; onClose: () => vo
     <Drawer anchor="right" open variant="persistent" sx={drawerSx}>
       <Stack sx={{ p: 3, height: '100%', overflow: 'auto' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-          <Typography variant="h6">Secrets: <strong>{env.name}</strong> environment</Typography>
+          <Typography variant="h6">
+            Secrets: <strong>{env.name}</strong> environment
+          </Typography>
           <IconButton size="small" onClick={onClose} aria-label="close">
             <X size={18} />
           </IconButton>
@@ -168,10 +170,13 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
 
   const handleGenerate = () => {
     setError(null);
-    createMutation.mutate({ environmentId: env.id }, {
-      onSuccess: (s) => setSecret(s),
-      onError: (e) => setError(e.message),
-    });
+    createMutation.mutate(
+      { environmentId: env.id },
+      {
+        onSuccess: (s) => setSecret(s),
+        onError: (e) => setError(e.message),
+      },
+    );
   };
 
   const config = secret ? (tab === 0 ? biToml(env.name, secret) : miToml(env.name, secret)) : null;
@@ -213,7 +218,9 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
               <Tab label="BI" />
               <Tab label="MI" />
             </Tabs>
-            <DialogContentText sx={{ mb: 1 }}>Add the following configuration to your runtime's {tab === 0 ? 'deployment.toml' : 'Config.toml'} file:</DialogContentText>
+            <DialogContentText sx={{ mb: 1 }}>
+              Add the following configuration to your runtime's <strong>{tab === 0 ? 'Config.toml' : 'deployment.toml'}</strong> file:
+            </DialogContentText>
             <Box sx={{ position: 'relative' }}>
               <Box
                 component="pre"
@@ -305,12 +312,12 @@ function EnvironmentRuntimeCard({
               </IconButton>
               <Authorized permissions={[Permissions.ENVIRONMENT_MANAGE, Permissions.ENVIRONMENT_MANAGE_NONPROD]}>
                 <Stack direction="row" gap={1}>
-                <Button variant="outlined" size="small" onClick={() => setDrawerOpen(true)}>
-                  Manage Secrets
-                </Button>
-                <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
-                  Add Runtime
-                </Button>
+                  <Button variant="outlined" size="small" onClick={() => setDrawerOpen(true)}>
+                    Manage Secrets
+                  </Button>
+                  <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
+                    Add Runtime
+                  </Button>
                 </Stack>
               </Authorized>
             </Stack>
@@ -446,7 +453,19 @@ export default function OrgRuntimes(_scope: OrgScope): JSX.Element {
         environments.map((env, index) => {
           const query = runtimeQueries[index];
           const runtimes = runtimeQueries[index]?.data ?? [];
-          return <EnvironmentRuntimeCard key={env.id} env={env} runtimes={runtimes} onDelete={setDeleting} onViewLogs={setViewingLogs} onRefresh={() => query?.refetch()} isRefreshing={query?.isFetching} autoOpenAddRuntime={shouldAutoOpenAddRuntime && index === 0} onAutoOpenConsumed={clearAutoOpenAction} />;
+          return (
+            <EnvironmentRuntimeCard
+              key={env.id}
+              env={env}
+              runtimes={runtimes}
+              onDelete={setDeleting}
+              onViewLogs={setViewingLogs}
+              onRefresh={() => query?.refetch()}
+              isRefreshing={query?.isFetching}
+              autoOpenAddRuntime={shouldAutoOpenAddRuntime && index === 0}
+              onAutoOpenConsumed={clearAutoOpenAction}
+            />
+          );
         })
       )}
 
