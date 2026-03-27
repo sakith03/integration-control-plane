@@ -45,7 +45,7 @@ import { Check, Copy, FileText, Plus, Trash2, X } from '@wso2/oxygen-ui-icons-re
 import SearchField from '../components/SearchField';
 import { LogFilesDrawer } from '../components/LogFilesDrawer';
 import { useCallback, useEffect, useState, type JSX } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router';
 import { gql } from '../api/graphql';
 import { useProjectByHandler, useEnvironments, useComponentByHandler, useComponentSecrets, RUNTIMES_QUERY, PROJECT_RUNTIMES_QUERY, COMPONENT_SECRETS_QUERY, type GqlRuntime, type GqlBoundSecret } from '../api/queries';
@@ -108,6 +108,7 @@ function AddRuntimeModal({
   onClose: () => void;
 }) {
   const createMutation = useCreateOrgSecret();
+  const queryClient = useQueryClient();
   const [secret, setSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +119,12 @@ function AddRuntimeModal({
     createMutation.mutate(
       { environmentId, componentId },
       {
-        onSuccess: (s) => setSecret(s),
+        onSuccess: (s) => {
+          setSecret(s);
+          if (componentId) {
+            queryClient.invalidateQueries({ queryKey: ['componentSecrets', componentId, environmentId] });
+          }
+        },
         onError: (e) => setError(e.message),
       },
     );
@@ -133,8 +139,13 @@ function AddRuntimeModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDialogClose = (_event: unknown, reason: string) => {
+    if (createMutation.isPending && (reason === 'backdropClick' || reason === 'escapeKeyDown')) return;
+    onClose();
+  };
+
   return (
-    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open onClose={handleDialogClose} maxWidth="sm" fullWidth>
       <DialogTitle>Add Runtime for {environmentName}</DialogTitle>
       <DialogContent>
         {!secret ? (
@@ -185,7 +196,9 @@ function AddRuntimeModal({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose} disabled={createMutation.isPending}>
+          Close
+        </Button>
       </DialogActions>
     </Dialog>
   );
