@@ -173,7 +173,7 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
     });
   };
 
-  const config = secret ? (tab === 0 ? miToml(env.name, secret) : biToml(env.name, secret)) : null;
+  const config = secret ? (tab === 0 ? biToml(env.name, secret) : miToml(env.name, secret)) : null;
 
   const handleCopy = async () => {
     if (!config) return;
@@ -209,8 +209,8 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
               Copy this secret now. It will not be shown again.
             </Alert>
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-              <Tab label="MI" />
               <Tab label="BI" />
+              <Tab label="MI" />
             </Tabs>
             <DialogContentText sx={{ mb: 1 }}>Add the following configuration to your runtime's {tab === 0 ? 'deployment.toml' : 'Config.toml'} file:</DialogContentText>
             <Box sx={{ position: 'relative' }}>
