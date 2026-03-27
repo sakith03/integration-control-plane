@@ -81,6 +81,8 @@ export interface Role {
   roleName: string;
   description: string;
   orgId: number;
+  groupCount?: number;
+  userCount?: number;
 }
 
 export interface Permission {
@@ -105,6 +107,8 @@ export interface Group {
   groupId: string;
   groupName: string;
   description: string;
+  userCount?: number;
+  roleCount?: number;
 }
 
 export interface GroupRoleMapping {

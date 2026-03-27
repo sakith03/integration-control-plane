@@ -23,34 +23,16 @@ import { useNavigate, useLocation } from 'react-router';
 import SearchField from '../../components/SearchField';
 import { useAccessControl } from '../../contexts/AccessControlContext';
 import { Permissions } from '../../constants/permissions';
-import { useGroups, useDeleteGroup, useGroupRoles, useGroupUsers } from '../../api/authQueries';
+import { useGroups, useDeleteGroup } from '../../api/authQueries';
 import { useComponentByHandler } from '../../api/queries';
 import type { Group } from '../../api/auth';
 import { newOrgGroupUrl, editOrgGroupUrl, projectGroupDetailUrl, componentGroupDetailUrl } from '../../paths';
 import { Loading } from './shared';
 import { useFiltered } from './utils';
 
-function GroupRow({
-  g,
-  orgHandler,
-  projectId,
-  componentId,
-  effectiveReadOnly,
-  getGroupDetailUrl,
-  onDeleteClick,
-}: {
-  g: Group;
-  orgHandler: string;
-  projectId?: string;
-  componentId?: string;
-  effectiveReadOnly: boolean;
-  getGroupDetailUrl: (groupId: string) => string;
-  onDeleteClick: (g: Group) => void;
-}) {
+function GroupRow({ g, effectiveReadOnly, getGroupDetailUrl, onDeleteClick }: { g: Group; effectiveReadOnly: boolean; getGroupDetailUrl: (groupId: string) => string; onDeleteClick: (g: Group) => void }) {
   const navigate = useNavigate();
-  const { data: users = [], isLoading: usersLoading } = useGroupUsers(orgHandler, g.groupId);
-  const { data: roles = [], isLoading: rolesLoading } = useGroupRoles(orgHandler, g.groupId, projectId, componentId);
-  const hasRoleMappings = roles.length > 0;
+  const hasRoleMappings = (g.roleCount ?? 0) > 0;
 
   return (
     <ListingTable.Row
@@ -68,8 +50,8 @@ function GroupRow({
       }}>
       <ListingTable.Cell>{g.groupName}</ListingTable.Cell>
       <ListingTable.Cell>{g.description}</ListingTable.Cell>
-      <ListingTable.Cell>{usersLoading ? <>—</> : users.length}</ListingTable.Cell>
-      <ListingTable.Cell>{rolesLoading ? <>—</> : roles.length}</ListingTable.Cell>
+      <ListingTable.Cell>{g.userCount ?? '—'}</ListingTable.Cell>
+      <ListingTable.Cell>{g.roleCount ?? '—'}</ListingTable.Cell>
       <ListingTable.Cell align="right">
         <Tooltip title="Edit">
           <IconButton
@@ -175,7 +157,7 @@ export function GroupsTab({ orgHandler, projectId, projectHandler, componentHand
                 </ListingTable.Cell>
               </ListingTable.Row>
             ) : (
-              paginated.map((g) => <GroupRow key={g.groupId} g={g} orgHandler={orgHandler} projectId={projectId} componentId={componentId} effectiveReadOnly={effectiveReadOnly} getGroupDetailUrl={getGroupDetailUrl} onDeleteClick={setDeletingGroup} />)
+              paginated.map((g) => <GroupRow key={g.groupId} g={g} effectiveReadOnly={effectiveReadOnly} getGroupDetailUrl={getGroupDetailUrl} onDeleteClick={setDeletingGroup} />)
             )}
           </ListingTable.Body>
         </ListingTable>

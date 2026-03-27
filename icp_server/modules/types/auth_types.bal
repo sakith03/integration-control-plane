@@ -70,7 +70,7 @@ public type Permission record {
 
 // Role V2 record - represents a collection of permissions
 // Note: Uses "RoleV2" to avoid conflict with existing Role type (old RBAC)
-public type RoleV2 record {
+public type RoleV2 record {|
     @sql:Column {name: "role_id"}
     string roleId;
     
@@ -87,10 +87,10 @@ public type RoleV2 record {
     
     @sql:Column {name: "updated_at"}
     string updatedAt?;
-};
+|};
 
 // Group record - represents a collection of users
-public type Group record {
+public type Group record {|
     @sql:Column {name: "group_id"}
     string groupId;
     
@@ -107,7 +107,7 @@ public type Group record {
     
     @sql:Column {name: "updated_at"}
     string updatedAt?;
-};
+|};
 
 // Group-User mapping - links users to groups (Many-to-Many)
 public type GroupUserMapping record {
@@ -282,6 +282,20 @@ public type AssignPermissionsToRoleInput record {
 public type GroupWithUsers record {
     *Group;
     string[] userIds; // User IDs in this group
+};
+
+// Group with precomputed user and role counts for list responses
+public type GroupResponse record {
+    *Group;
+    int userCount;
+    int roleCount;
+};
+
+// Role with precomputed group and user counts for list responses
+public type RoleResponse record {
+    *RoleV2;
+    int groupCount;
+    int userCount;
 };
 
 // Role with its permissions

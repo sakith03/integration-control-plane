@@ -143,6 +143,30 @@ public isolated function getGroupsByOrgId(int orgId) returns types:Group[]|error
     return groups;
 }
 
+// Get all groups for an organization with precomputed user and role counts
+public isolated function getGroupsWithCountsByOrgId(int orgId) returns types:GroupResponse[]|error {
+    log:printDebug(string `Fetching groups with counts for orgId: ${orgId}`);
+
+    types:GroupResponse[] groups = [];
+    stream<types:GroupResponse, sql:Error?> groupStream = dbClient->query(
+        `SELECT ug.group_id, ug.group_name, ug.org_uuid, ug.description, ug.created_at, ug.updated_at,
+                COUNT(DISTINCT gum.user_uuid) AS user_count,
+                COUNT(DISTINCT grm.id) AS role_count
+         FROM user_groups ug
+         LEFT JOIN group_user_mapping gum ON ug.group_id = gum.group_id
+         LEFT JOIN group_role_mapping grm ON ug.group_id = grm.group_id
+         WHERE ug.org_uuid = ${orgId}
+         GROUP BY ug.group_id, ug.group_name, ug.org_uuid, ug.description, ug.created_at, ug.updated_at`
+    );
+
+    check from types:GroupResponse group in groupStream
+        do {
+            groups.push(group);
+        };
+
+    return groups;
+}
+
 // Update group details
 public isolated function updateGroup(string groupId, types:GroupInput input) returns error? {
     log:printDebug(string `Updating group: ${groupId}`);
@@ -286,6 +310,31 @@ public isolated function getAllRolesV2(int orgId) returns types:RoleV2[]|error {
     );
 
     check from types:RoleV2 role in roleStream
+        do {
+            roles.push(role);
+        };
+
+    return roles;
+}
+
+// Get all roles for an organization with precomputed group and user counts
+public isolated function getRolesWithCountsByOrgId(int orgId) returns types:RoleResponse[]|error {
+    log:printDebug(string `Fetching roles with counts for orgId: ${orgId}`);
+
+    types:RoleResponse[] roles = [];
+    stream<types:RoleResponse, sql:Error?> roleStream = dbClient->query(
+        `SELECT r.role_id, r.role_name, r.org_id, r.description, r.created_at, r.updated_at,
+                COUNT(DISTINCT grm.group_id) AS group_count,
+                COUNT(DISTINCT gum.user_uuid) AS user_count
+         FROM roles_v2 r
+         LEFT JOIN group_role_mapping grm ON r.role_id = grm.role_id
+         LEFT JOIN group_user_mapping gum ON grm.group_id = gum.group_id
+         WHERE r.org_id = ${orgId}
+         GROUP BY r.role_id, r.role_name, r.org_id, r.description, r.created_at, r.updated_at
+         ORDER BY r.role_name`
+    );
+
+    check from types:RoleResponse role in roleStream
         do {
             roles.push(role);
         };
