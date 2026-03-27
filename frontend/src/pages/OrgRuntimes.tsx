@@ -45,7 +45,7 @@ import { Check, Copy, FileText, Plus, Server, Trash2, X } from '@wso2/oxygen-ui-
 import { useState, type JSX } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { gql } from '../api/graphql';
-import { useAllEnvironments, useOrgSecrets, ORG_RUNTIMES_QUERY, type GqlEnvironment, type GqlOrgSecret, type GqlRuntime } from '../api/queries';
+import { useAllEnvironments, useOrgSecrets, ORG_RUNTIMES_QUERY, type GqlEnvironment, type GqlRuntime } from '../api/queries';
 import { useCreateOrgSecret, useDeleteRuntime, useRevokeOrgSecret } from '../api/mutations';
 import { formatDistanceToNow } from '../utils/time';
 import SearchField from '../components/SearchField';
@@ -74,7 +74,7 @@ function SecretDrawer({ env, onClose }: { env: GqlEnvironment; onClose: () => vo
     <Drawer anchor="right" open variant="persistent" sx={drawerSx}>
       <Stack sx={{ p: 3, height: '100%', overflow: 'auto' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-          <Typography variant="h6">Secrets — {env.name}</Typography>
+          <Typography variant="h6">Secrets: <strong>{env.name}</strong> environment</Typography>
           <IconButton size="small" onClick={onClose} aria-label="close">
             <X size={18} />
           </IconButton>
@@ -167,7 +167,7 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
 
   const handleGenerate = () => {
     setError(null);
-    createMutation.mutate(env.id, {
+    createMutation.mutate({ environmentId: env.id }, {
       onSuccess: (s) => setSecret(s),
       onError: (e) => setError(e.message),
     });
@@ -184,7 +184,7 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
 
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Runtime — {env.name}</DialogTitle>
+      <DialogTitle>Add Runtime: {env.name} environment</DialogTitle>
       <DialogContent>
         {!secret ? (
           <>
@@ -193,7 +193,12 @@ function AddRuntimeModal({ env, onClose }: { env: GqlEnvironment; onClose: () =>
                 {error}
               </Alert>
             )}
-            <DialogContentText sx={{ mb: 2 }}>Generate a new secret for this environment. The secret will be shown once — copy it before closing.</DialogContentText>
+            <DialogContentText sx={{ mb: 2 }}>
+              Generate a new secret for <strong>{env.name}</strong> environment.
+            </DialogContentText>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <strong>The secret will be shown once — copy it before closing.</strong>
+            </Alert>
             <Button variant="contained" onClick={handleGenerate} disabled={createMutation.isPending}>
               {createMutation.isPending ? 'Generating...' : 'Generate Secret'}
             </Button>

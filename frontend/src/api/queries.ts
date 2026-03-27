@@ -259,13 +259,14 @@ export interface GqlBoundSecretRuntime {
 export interface GqlBoundSecret {
   keyId: string;
   createdAt: string;
+  createdBy: string | null;
   runtimes: GqlBoundSecretRuntime[];
 }
 
 export const COMPONENT_SECRETS_QUERY = `
   query GetComponentSecrets($componentId: String!, $environmentId: String!) {
     componentSecrets(componentId: $componentId, environmentId: $environmentId) {
-      keyId, createdAt, runtimes { runtimeId, status }
+      keyId, createdAt, createdBy, runtimes { runtimeId, status }
     }
   }`;
 

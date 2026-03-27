@@ -48,7 +48,7 @@ import {
 import { RefreshCw, ListFilter, LayoutGrid, Settings, Play, X, Trash2, UserPlus } from '@wso2/oxygen-ui-icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useArtifacts, useRefreshEnvironmentArtifacts, useRuntimes, useComponentRuntimes, type GqlArtifact, type GqlEnvironment } from '../api/queries';
+import { useArtifacts, useRefreshEnvironmentArtifacts, useComponentRuntimes, type GqlArtifact, type GqlEnvironment } from '../api/queries';
 import { useUpdateArtifactTracingStatus, useUpdateArtifactStatisticsStatus } from '../api/artifactToggleMutations';
 import { useUpdateArtifactStatus, useUpdateListenerState, useTriggerTask } from '../api/mutations';
 import { useListMiUsers, useCreateMiUser, useDeleteMiUser } from '../api/miUsers';
@@ -77,6 +77,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
   const config = ENTRY_POINT_CONFIG[artifactType];
   const tabProps: TabProps = { artifact, artifactType, envId, componentId, projectId };
   const carbonApp = artifact.carbonApp?.toString();
+  const artifactState = artifact.state?.toString();
   const overviewFields = (config?.overviewFields ?? '').split(', ').filter(Boolean);
   const showTracingToggle = ['RestApi', 'ProxyService', 'InboundEndpoint'].includes(artifactType);
   const showRuntimesButton = true; // Show View Runtimes button for all entry points
@@ -273,15 +274,15 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
         <Stack direction="row" alignItems="center" gap={1.5} sx={{ px: 2, py: 1.5 }}>
           {carbonApp && <Chip label={`C-App: ${carbonApp}`} size="small" variant="outlined" sx={{ bgcolor: '#e8eaf6', color: '#3949ab', fontSize: 11 }} />}
           {carbonApp && <Divider orientation="vertical" flexItem />}
-          {showStatusChip && artifact.state && (
+          {showStatusChip && artifactState && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
                 Status
               </Typography>
-              <Chip label={String(artifact.state).charAt(0).toUpperCase() + String(artifact.state).slice(1).toLowerCase()} size="small" variant="outlined" color={toEnabled(artifact.state) ? 'success' : 'default'} />
+              <Chip label={artifactState.charAt(0).toUpperCase() + artifactState.slice(1).toLowerCase()} size="small" variant="outlined" color={toEnabled(artifact.state) ? 'success' : 'default'} />
             </Box>
           )}
-          {showStatusChip && artifact.state && (showStatusToggle || showTracingToggle || showStatisticsToggle || showListenerToggle) && <Divider orientation="vertical" flexItem />}
+          {showStatusChip && artifactState && (showStatusToggle || showTracingToggle || showStatisticsToggle || showListenerToggle) && <Divider orientation="vertical" flexItem />}
           {showStatusToggle && (
             <FormControlLabel
               control={<Switch name="status" size="small" checked={statusEnabled} onChange={(e) => handleToggleStatus(e.target.checked)} disabled={updateArtifactStatus.isPending} />}

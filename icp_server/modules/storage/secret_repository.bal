@@ -438,15 +438,15 @@ public isolated function resolveKeyIdAndMaterialByRuntimeId(string runtimeId) re
 public isolated function listBoundSecrets(string componentId, string environmentId) returns types:BoundSecretEntry[]|error {
     log:printDebug(string `listBoundSecrets: componentId=${componentId}, environmentId=${environmentId}`);
 
-    stream<record {|string key_id; string created_at; string? runtime_id; string? status;|}, sql:Error?> s =
+    stream<record {|string key_id; string created_at; string? created_by; string? runtime_id; string? status;|}, sql:Error?> s =
         dbClient->query(`
-            SELECT os.key_id, os.created_at, r.runtime_id, r.status
+            SELECT os.key_id, os.created_at, os.created_by, r.runtime_id, r.status
             FROM org_secrets os
             LEFT JOIN runtimes r ON r.key_id = os.key_id
             WHERE os.component_id = ${componentId} AND os.environment_id = ${environmentId}
             ORDER BY os.created_at DESC, r.runtime_id
         `);
-    record {|string key_id; string created_at; string? runtime_id; string? status;|}[] rows =
+    record {|string key_id; string created_at; string? created_by; string? runtime_id; string? status;|}[] rows =
         check from var r in s
         select r;
 
@@ -457,7 +457,12 @@ public isolated function listBoundSecrets(string componentId, string environment
     string[] keyOrder = [];
     foreach var row in rows {
         if !byKey.hasKey(row.key_id) {
-            byKey[row.key_id] = {keyId: row.key_id, createdAt: row.created_at, runtimes: []};
+            byKey[row.key_id] = {
+                keyId: row.key_id,
+                createdAt: row.created_at,
+                createdBy: getDisplayNameById(row.created_by),
+                runtimes: []
+            };
             keyOrder.push(row.key_id);
         }
         if row.runtime_id is string {

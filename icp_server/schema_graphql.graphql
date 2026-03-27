@@ -773,6 +773,7 @@ type BoundSecretRuntime {
 type BoundSecretEntry {
   keyId: String!
   createdAt: String!
+  createdBy: String
   runtimes: [BoundSecretRuntime!]!
 }
 
