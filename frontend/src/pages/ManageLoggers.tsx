@@ -162,7 +162,7 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
           </ListingTable.Head>
           <ListingTable.Body>
             {paginatedLoggers.map((logger) => {
-              const uniqueKey = `${logger.loggerName || ''}|${logger.componentName}|${logger.logLevel}|${[...logger.runtimeIds].sort().join(',')}`;
+              const uniqueKey = `${logger.loggerName || ''}|${logger.componentName}`;
 
               return (
                 <ListingTable.Row key={uniqueKey}>
