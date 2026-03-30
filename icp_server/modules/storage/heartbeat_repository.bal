@@ -231,7 +231,11 @@ isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error
     heartbeat.environment = envId;
 
     // Normalize project name to handler format (lowercase, alphanumeric with hyphens)
-    string projectHandler = toHandler(heartbeat.project);
+    string|error projectHandlerResult = toHandler(heartbeat.project);
+    if projectHandlerResult is error {
+        return error(string `Invalid project name '${heartbeat.project}': ${projectHandlerResult.message()}`);
+    }
+    string projectHandler = projectHandlerResult;
     log:printDebug(string `Normalized project name '${heartbeat.project}' to handler '${projectHandler}'`);
 
     // Resolve or auto-create project with normalized handler
@@ -242,7 +246,11 @@ isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error
     heartbeat.project = projectId;
 
     // Normalize component name to handler format (lowercase, alphanumeric with hyphens)
-    string componentHandler = toHandler(heartbeat.component);
+    string|error componentHandlerResult = toHandler(heartbeat.component);
+    if componentHandlerResult is error {
+        return error(string `Invalid component name '${heartbeat.component}': ${componentHandlerResult.message()}`);
+    }
+    string componentHandler = componentHandlerResult;
     log:printDebug(string `Normalized component name '${heartbeat.component}' to handler '${componentHandler}'`);
 
     // Resolve or auto-create component with normalized handler
