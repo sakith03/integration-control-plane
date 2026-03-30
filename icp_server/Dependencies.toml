@@ -686,6 +686,7 @@ modules = [
 	{org = "wso2", packageName = "icp_server", moduleName = "icp_server.mi_management"},
 	{org = "wso2", packageName = "icp_server", moduleName = "icp_server.observability"},
 	{org = "wso2", packageName = "icp_server", moduleName = "icp_server.storage"},
+	{org = "wso2", packageName = "icp_server", moduleName = "icp_server.sync"},
 	{org = "wso2", packageName = "icp_server", moduleName = "icp_server.types"},
 	{org = "wso2", packageName = "icp_server", moduleName = "icp_server.utils"}
 ]
