@@ -285,18 +285,56 @@ public type GroupWithUsers record {
 };
 
 // Group with precomputed user and role counts for list responses
-public type GroupResponse record {
-    *Group;
+public type GroupResponse record {|
+    @sql:Column {name: "group_id"}
+    string groupId;
+
+    @sql:Column {name: "group_name"}
+    string groupName;
+
+    @sql:Column {name: "org_uuid"}
+    int orgUuid;
+
+    string description?;
+
+    @sql:Column {name: "created_at"}
+    string createdAt?;
+
+    @sql:Column {name: "updated_at"}
+    string updatedAt?;
+
+    @sql:Column {name: "user_count"}
     int userCount;
+
+    @sql:Column {name: "role_count"}
     int roleCount;
-};
+|};
 
 // Role with precomputed group and user counts for list responses
-public type RoleResponse record {
-    *RoleV2;
+public type RoleResponse record {|
+    @sql:Column {name: "role_id"}
+    string roleId;
+
+    @sql:Column {name: "role_name"}
+    string roleName;
+
+    @sql:Column {name: "org_id"}
+    int orgId;
+
+    string description?;
+
+    @sql:Column {name: "created_at"}
+    string createdAt?;
+
+    @sql:Column {name: "updated_at"}
+    string updatedAt?;
+
+    @sql:Column {name: "group_count"}
     int groupCount;
+
+    @sql:Column {name: "user_count"}
     int userCount;
-};
+|};
 
 // Role with its permissions
 public type RoleV2WithPermissions record {
