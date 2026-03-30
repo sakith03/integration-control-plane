@@ -553,19 +553,12 @@ public isolated function issueRuntimeHmacToken(string runtimeId) returns string|
 }
 
 // Converts a name to a handler format (lowercase, alphanumeric with hyphens).
-// Implements the same logic as the frontend toHandler function:
-// - Converts to lowercase
-// - Replaces sequences of non-alphanumeric characters with a single hyphen
-// - Removes leading and trailing hyphens
-// Returns an error if the normalized handler is empty (i.e., input contains only non-alphanumeric characters)
+// Returns an error if the normalized handler is empty.
 public isolated function toHandler(string name) returns string|error {
     string lowercased = name.toLowerAscii();
-    // Replace any sequence of non-alphanumeric characters with a single hyphen
     string withHyphens = re `[^a-z0-9]+`.replaceAll(lowercased, "-");
-    // Remove leading and trailing hyphens
     string trimmed = re `^-|-$`.replaceAll(withHyphens, "");
 
-    // Validate that the normalized handler is not empty
     if trimmed.length() == 0 {
         return error(string `Cannot convert name '${name}' to handler: contains no alphanumeric characters`);
     }

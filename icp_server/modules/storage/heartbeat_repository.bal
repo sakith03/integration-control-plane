@@ -230,40 +230,30 @@ isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error
     }
     heartbeat.environment = envId;
 
-    // Normalize both project and component names BEFORE any resolve-or-create operations
-    // This ensures we don't create orphaned projects if component validation fails
-
-    // Normalize project name to handler format (lowercase, alphanumeric with hyphens)
-    string|error projectHandlerResult = toHandler(heartbeat.project);
-    if projectHandlerResult is error {
-        return error(string `Invalid project name '${heartbeat.project}': ${projectHandlerResult.message()}`);
+    string|error projectHandler = toHandler(heartbeat.project);
+    if projectHandler is error {
+        return error(string `Invalid project name '${heartbeat.project}': ${projectHandler.message()}`);
     }
-    string projectHandler = projectHandlerResult;
     log:printDebug(string `Normalized project name '${heartbeat.project}' to handler '${projectHandler}'`);
 
-    // Normalize component name to handler format (lowercase, alphanumeric with hyphens)
-    string|error componentHandlerResult = toHandler(heartbeat.component);
-    if componentHandlerResult is error {
-        return error(string `Invalid component name '${heartbeat.component}': ${componentHandlerResult.message()}`);
+    string|error componentHandler = toHandler(heartbeat.component);
+    if componentHandler is error {
+        return error(string `Invalid component name '${heartbeat.component}': ${componentHandler.message()}`);
     }
-    string componentHandler = componentHandlerResult;
     log:printDebug(string `Normalized component name '${heartbeat.component}' to handler '${componentHandler}'`);
 
-    // Both names are valid - now resolve or auto-create project with normalized handler
     string|error projectId = resolveOrCreateProject(projectHandler, ());
     if projectId is error {
         return error(string `Failed to resolve or create project: ${heartbeat.project}`, projectId);
     }
     heartbeat.project = projectId;
 
-    // Resolve or auto-create component with normalized handler
     string|error componentId = resolveOrCreateComponent(projectId, componentHandler, heartbeat.runtimeType, ());
     if componentId is error {
         return error(string `Failed to resolve or create component: ${heartbeat.component}`, componentId);
     }
     heartbeat.component = componentId;
 
-    // Verify component type matches runtime type (component type validation is also done in resolveOrCreateComponent)
     types:Component|error componentById = getComponentById(componentId);
     if componentById is error {
         return error(string `Failed to retrieve component details: ${componentId}`, componentById);

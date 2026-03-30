@@ -84,39 +84,32 @@ service /icp on httpListener {
                 return <http:Conflict>{body: string `Environment mismatch: key ID '${kid}' is bound to a different environment`};
             }
 
-            // --- Bind or verify project+component ---
             string projectId;
             string componentId;
 
             if orgSecret.componentId is () {
-                // Unbound key — normalize names, resolve/auto-create project and component, then bind
                 string? createdBy = orgSecret.createdBy;
                 if createdBy is () {
                     log:printWarn(string `kid=${kid}: original creator deleted, auto-provisioning without owner`);
                 }
 
-                // Normalize both project and component names before any resolve-or-create operations
-                string|error projectHandlerResult = storage:toHandler(heartbeat.project);
-                if projectHandlerResult is error {
-                    log:printWarn(string `Heartbeat rejected — invalid project name '${heartbeat.project}': ${projectHandlerResult.message()}`);
-                    return <http:BadRequest>{body: string `Invalid project name '${heartbeat.project}': ${projectHandlerResult.message()}`};
+                string|error projectHandler = storage:toHandler(heartbeat.project);
+                if projectHandler is error {
+                    log:printWarn(string `Heartbeat rejected — invalid project name '${heartbeat.project}': ${projectHandler.message()}`);
+                    return <http:BadRequest>{body: string `Invalid project name '${heartbeat.project}': ${projectHandler.message()}`};
                 }
-                string projectHandler = projectHandlerResult;
 
-                string|error componentHandlerResult = storage:toHandler(heartbeat.component);
-                if componentHandlerResult is error {
-                    log:printWarn(string `Heartbeat rejected — invalid component name '${heartbeat.component}': ${componentHandlerResult.message()}`);
-                    return <http:BadRequest>{body: string `Invalid component name '${heartbeat.component}': ${componentHandlerResult.message()}`};
+                string|error componentHandler = storage:toHandler(heartbeat.component);
+                if componentHandler is error {
+                    log:printWarn(string `Heartbeat rejected — invalid component name '${heartbeat.component}': ${componentHandler.message()}`);
+                    return <http:BadRequest>{body: string `Invalid component name '${heartbeat.component}': ${componentHandler.message()}`};
                 }
-                string componentHandler = componentHandlerResult;
 
-                // Both names are valid - now resolve or auto-create with normalized handlers
                 projectId = check storage:resolveOrCreateProject(projectHandler, createdBy);
                 componentId = check storage:resolveOrCreateComponent(projectId, componentHandler, heartbeat.runtimeType, createdBy);
                 check storage:bindOrgSecret(kid, projectId, componentId, projectHandler, componentHandler, heartbeat.runtimeType);
                 log:printInfo(string `Bound kid=${kid} to project=${projectId} (handler=${projectHandler}), component=${componentId} (handler=${componentHandler}), runtimeType=${heartbeat.runtimeType}`);
             } else {
-                // Bound key — use stored IDs, enforce runtime type, log-only name mismatch
                 if orgSecret.runtimeType is string && orgSecret.runtimeType != heartbeat.runtimeType {
                     log:printWarn(string `Heartbeat rejected — runtime type mismatch for kid=${kid}: bound=${orgSecret.runtimeType ?: "?"}, got=${heartbeat.runtimeType}`);
                     return <http:Conflict>{body: string `Runtime type mismatch: key ID '${kid}' is bound to ${orgSecret.runtimeType ?: "?"}, not ${heartbeat.runtimeType}`};
@@ -125,21 +118,17 @@ service /icp on httpListener {
                 projectId = <string>orgSecret.projectId;
                 componentId = <string>orgSecret.componentId;
 
-                // Normalize heartbeat names for comparison with stored normalized handlers
-                string|error normalizedHeartbeatProject = storage:toHandler(heartbeat.project);
-                string|error normalizedHeartbeatComponent = storage:toHandler(heartbeat.component);
-                
-                // Compare normalized values to detect actual mismatches (not just casing/formatting differences)
-                boolean projectMismatch = normalizedHeartbeatProject is string && 
-                    orgSecret.projectHandler != normalizedHeartbeatProject;
-                boolean componentMismatch = normalizedHeartbeatComponent is string && 
-                    orgSecret.componentName != normalizedHeartbeatComponent;
-                
+                string|error normalizedProject = storage:toHandler(heartbeat.project);
+                string|error normalizedComponent = storage:toHandler(heartbeat.component);
+
+                boolean projectMismatch = normalizedProject is string && orgSecret.projectHandler != normalizedProject;
+                boolean componentMismatch = normalizedComponent is string && orgSecret.componentName != normalizedComponent;
+
                 if projectMismatch || componentMismatch {
                     log:printError(string `Binding name mismatch for kid=${kid}: ` +
                             string `bound project=${orgSecret.projectHandler ?: "?"}/component=${orgSecret.componentName ?: "?"}, ` +
-                            string `got project=${heartbeat.project} (normalized: ${normalizedHeartbeatProject is string ? normalizedHeartbeatProject : "invalid"})/` +
-                            string `component=${heartbeat.component} (normalized: ${normalizedHeartbeatComponent is string ? normalizedHeartbeatComponent : "invalid"}). ` +
+                            string `got project=${heartbeat.project} (normalized: ${normalizedProject is string ? normalizedProject : "invalid"})/` +
+                            string `component=${heartbeat.component} (normalized: ${normalizedComponent is string ? normalizedComponent : "invalid"}). ` +
                             string `Proceeding with bound IDs project=${projectId}, component=${componentId}`);
                 }
             }
