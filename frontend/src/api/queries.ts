@@ -178,13 +178,14 @@ export interface GqlLogger {
   loggerName: string;
   componentName: string;
   logLevel: string;
+  logLevelInSync: boolean | null;
   runtimeIds: string[];
 }
 
 const LOGGERS_BY_ENV_AND_COMPONENT_QUERY = `
   query GetLoggers($environmentId: String!, $componentId: String!) {
     loggersByEnvironmentAndComponent(environmentId: $environmentId, componentId: $componentId) {
-      loggerName, componentName, logLevel, runtimeIds
+      loggerName, componentName, logLevel, logLevelInSync, runtimeIds
     }
   }`;
 
@@ -193,6 +194,11 @@ export function useLoggers(environmentId: string, componentId: string) {
     queryKey: ['loggers', environmentId, componentId],
     queryFn: () => gql<{ loggersByEnvironmentAndComponent: GqlLogger[] }>(LOGGERS_BY_ENV_AND_COMPONENT_QUERY, { environmentId, componentId }).then((d) => d.loggersByEnvironmentAndComponent),
     enabled: !!environmentId && !!componentId,
+    refetchInterval: (query) => {
+      const loggers = query.state.data;
+      if (!loggers) return false;
+      return loggers.some((l) => l.logLevelInSync === false) ? 1000 : false;
+    },
   });
 }
 
