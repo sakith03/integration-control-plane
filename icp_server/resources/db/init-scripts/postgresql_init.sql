@@ -531,7 +531,7 @@ VALUES (
 -- ============================================================================
 
 CREATE TABLE runtimes (
-    runtime_id VARCHAR(100) NOT NULL PRIMARY KEY,
+    runtime_id CHAR(36) NOT NULL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     project_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
@@ -562,7 +562,8 @@ CREATE TABLE runtimes (
     key_id VARCHAR(16) NULL,
     CONSTRAINT fk_runtime_project FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
     CONSTRAINT fk_runtime_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
-    CONSTRAINT fk_runtime_env FOREIGN KEY (environment_id) REFERENCES environments (environment_id) ON DELETE CASCADE
+    CONSTRAINT fk_runtime_env FOREIGN KEY (environment_id) REFERENCES environments (environment_id) ON DELETE CASCADE,
+    CONSTRAINT uq_runtime_identity UNIQUE (component_id, environment_id, name)
 );
 
 CREATE INDEX idx_rt_runtime_type ON runtimes(runtime_type);
@@ -603,7 +604,7 @@ ALTER TABLE runtimes ADD CONSTRAINT fk_runtime_key_id FOREIGN KEY (key_id) REFER
 
 -- Services deployed on a runtime
 CREATE TABLE bi_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(100) NOT NULL,
     service_package VARCHAR(200) NOT NULL,
     base_path VARCHAR(500) NULL,
@@ -624,7 +625,7 @@ CREATE TRIGGER update_bi_service_artifacts_updated_at BEFORE UPDATE ON bi_servic
 
 -- Resources inside a service (HTTP resources etc.)
 CREATE TABLE bi_service_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(100) NOT NULL,
     resource_url VARCHAR(1000) NOT NULL,
     methods JSONB NOT NULL,  -- Array of HTTP methods
@@ -644,7 +645,7 @@ CREATE TRIGGER update_bi_service_resource_artifacts_updated_at BEFORE UPDATE ON 
 
 -- Listeners bound to a runtime (e.g., HTTP/HTTPS)
 CREATE TABLE bi_runtime_listener_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     listener_name VARCHAR(100) NOT NULL,
     listener_package VARCHAR(200) NOT NULL,
     protocol VARCHAR(20) NULL DEFAULT 'HTTP',
@@ -667,7 +668,7 @@ CREATE TRIGGER update_bi_runtime_listener_artifacts_updated_at BEFORE UPDATE ON 
 
 -- Automation artifacts (main function) for BI integrations
 CREATE TABLE bi_automation_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     package_org VARCHAR(200) NOT NULL,
     package_name VARCHAR(200) NOT NULL,
     package_version VARCHAR(50) NOT NULL,
@@ -687,7 +688,7 @@ CREATE TRIGGER update_bi_automation_artifacts_updated_at BEFORE UPDATE ON bi_aut
 
 -- Runtime log levels for BI components
 CREATE TABLE bi_runtime_log_levels (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_name VARCHAR(200) NOT NULL,
     log_level VARCHAR(20) NOT NULL CHECK (log_level IN ('DEBUG', 'ERROR', 'INFO', 'WARN')),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -709,7 +710,7 @@ CREATE TRIGGER update_bi_runtime_log_levels_updated_at BEFORE UPDATE ON bi_runti
 
 -- REST APIs (MI)
 CREATE TABLE mi_api_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
     url VARCHAR(500) NOT NULL,
     urls TEXT NULL, -- JSON array of URLs
@@ -734,7 +735,7 @@ CREATE TRIGGER update_mi_api_artifacts_updated_at BEFORE UPDATE ON mi_api_artifa
 
 -- API Resources (MI) - Resources inside an API
 CREATE TABLE mi_api_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
     resource_path VARCHAR(1000) NOT NULL,
     methods VARCHAR(20) NOT NULL, -- Single HTTP method as string (e.g., "POST", "GET")
@@ -753,7 +754,7 @@ CREATE TRIGGER update_mi_api_resource_artifacts_updated_at BEFORE UPDATE ON mi_a
 
 -- Proxy Services (MI)
 CREATE TABLE mi_proxy_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     state VARCHAR(20) NOT NULL DEFAULT 'enabled' CHECK (state IN ('enabled', 'disabled')),
@@ -776,7 +777,7 @@ CREATE TRIGGER update_mi_proxy_service_artifacts_updated_at BEFORE UPDATE ON mi_
 
 -- Proxy Service Endpoints (MI)
 CREATE TABLE mi_proxy_service_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
     endpoint_url VARCHAR(500) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -793,7 +794,7 @@ CREATE TRIGGER update_mi_proxy_service_endpoint_artifacts_updated_at BEFORE UPDA
 
 -- Endpoints (MI)
 CREATE TABLE mi_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     endpoint_type VARCHAR(100) NOT NULL,
@@ -818,7 +819,7 @@ CREATE TRIGGER update_mi_endpoint_artifacts_updated_at BEFORE UPDATE ON mi_endpo
 
 -- Endpoint Attributes (MI)
 CREATE TABLE mi_endpoint_attribute_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
     attribute_name VARCHAR(200) NOT NULL,
     attribute_value TEXT NULL,
@@ -837,7 +838,7 @@ CREATE TRIGGER update_mi_endpoint_attribute_artifacts_updated_at BEFORE UPDATE O
 
 -- Inbound Endpoints (MI)
 CREATE TABLE mi_inbound_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     inbound_name VARCHAR(200) NOT NULL,
     protocol VARCHAR(50) NOT NULL,
     sequence VARCHAR(200) NULL,
@@ -862,7 +863,7 @@ CREATE TRIGGER update_mi_inbound_endpoint_artifacts_updated_at BEFORE UPDATE ON 
 
 -- Sequences (MI)
 CREATE TABLE mi_sequence_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     sequence_name VARCHAR(200) NOT NULL,
     sequence_type VARCHAR(100) NULL,
     container VARCHAR(200) NULL,
@@ -886,7 +887,7 @@ CREATE TRIGGER update_mi_sequence_artifacts_updated_at BEFORE UPDATE ON mi_seque
 
 -- Tasks (MI)
 CREATE TABLE mi_task_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     task_name VARCHAR(200) NOT NULL,
     task_class VARCHAR(500) NULL,
     task_group VARCHAR(200) NULL,
@@ -907,7 +908,7 @@ CREATE TRIGGER update_mi_task_artifacts_updated_at BEFORE UPDATE ON mi_task_arti
 
 -- Templates (MI)
 CREATE TABLE mi_template_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     template_name VARCHAR(200) NOT NULL,
     template_type VARCHAR(100) NOT NULL,
     tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
@@ -928,7 +929,7 @@ CREATE TRIGGER update_mi_template_artifacts_updated_at BEFORE UPDATE ON mi_templ
 
 -- Message Stores (MI)
 CREATE TABLE mi_message_store_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     store_name VARCHAR(200) NOT NULL,
     store_type VARCHAR(100) NOT NULL,
     size BIGINT NOT NULL DEFAULT 0,
@@ -948,7 +949,7 @@ CREATE TRIGGER update_mi_message_store_artifacts_updated_at BEFORE UPDATE ON mi_
 
 -- Message Processors (MI)
 CREATE TABLE mi_message_processor_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     processor_name VARCHAR(200) NOT NULL,
     processor_type VARCHAR(100) NOT NULL,
     processor_class VARCHAR(500) NULL,
@@ -970,7 +971,7 @@ CREATE TRIGGER update_mi_message_processor_artifacts_updated_at BEFORE UPDATE ON
 
 -- Local Entries (MI)
 CREATE TABLE mi_local_entry_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     entry_name VARCHAR(200) NOT NULL,
     entry_type VARCHAR(100) NOT NULL,
     entry_value TEXT NULL,
@@ -992,7 +993,7 @@ CREATE TRIGGER update_mi_local_entry_artifacts_updated_at BEFORE UPDATE ON mi_lo
 
 -- Data Services (MI)
 CREATE TABLE mi_data_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(200) NOT NULL,
     description TEXT NULL,
     wsdl TEXT NULL,
@@ -1013,7 +1014,7 @@ CREATE TRIGGER update_mi_data_service_artifacts_updated_at BEFORE UPDATE ON mi_d
 
 -- Carbon Apps (MI)
 CREATE TABLE mi_carbon_app_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     app_name VARCHAR(200) NOT NULL,
     version VARCHAR(50) NULL,
     state VARCHAR(20) NOT NULL DEFAULT 'Active' CHECK (state IN ('Active', 'Faulty')),
@@ -1033,7 +1034,7 @@ CREATE TRIGGER update_mi_carbon_app_artifacts_updated_at BEFORE UPDATE ON mi_car
 
 -- Data Sources (MI)
 CREATE TABLE mi_data_source_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     datasource_name VARCHAR(200) NOT NULL,
     datasource_type VARCHAR(100) NULL,
     driver VARCHAR(500) NULL,
@@ -1056,7 +1057,7 @@ CREATE TRIGGER update_mi_data_source_artifacts_updated_at BEFORE UPDATE ON mi_da
 
 -- Connectors (MI)
 CREATE TABLE mi_connector_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     connector_name VARCHAR(200) NOT NULL,
     package VARCHAR(200) NOT NULL,
     version VARCHAR(50) NULL,
@@ -1077,7 +1078,7 @@ CREATE TRIGGER update_mi_connector_artifacts_updated_at BEFORE UPDATE ON mi_conn
 
 -- Registry Resources (MI)
 CREATE TABLE mi_registry_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     resource_name VARCHAR(200) NOT NULL,
     resource_type VARCHAR(100) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1097,7 +1098,7 @@ CREATE TRIGGER update_mi_registry_resource_artifacts_updated_at BEFORE UPDATE ON
 -- ============================================================================
 
 CREATE TABLE mi_runtime_control_commands (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
     artifact_type VARCHAR(100) NOT NULL,
@@ -1135,7 +1136,7 @@ CREATE TRIGGER update_mi_runtime_control_commands_updated_at BEFORE UPDATE ON mi
 
 CREATE TABLE audit_logs (
     id BIGSERIAL PRIMARY KEY,
-    runtime_id VARCHAR(100) NULL,
+    runtime_id CHAR(36) NULL,
     user_id CHAR(36) NULL,
     action VARCHAR(100) NOT NULL,
     resource_type VARCHAR(50) NULL, -- runtime, service, listener, command
@@ -1182,7 +1183,7 @@ CREATE INDEX idx_se_created_at ON system_events(created_at);
 
 CREATE TABLE runtime_metrics (
     id BIGSERIAL PRIMARY KEY,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     metric_name VARCHAR(100) NOT NULL,
     metric_value DECIMAL(15, 4) NOT NULL,
     metric_unit VARCHAR(20) NULL,
@@ -1197,7 +1198,7 @@ CREATE INDEX idx_rm_metric_name ON runtime_metrics(metric_name);
 
 CREATE TABLE health_checks (
     id BIGSERIAL PRIMARY KEY,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     check_type VARCHAR(50) NOT NULL, -- heartbeat, connectivity, resource
     status VARCHAR(20) NOT NULL CHECK (status IN ('HEALTHY', 'DEGRADED', 'UNHEALTHY')),
     response_time_ms INT NULL,
@@ -1252,7 +1253,7 @@ CREATE TRIGGER update_reconcile_desired_state_updated_at BEFORE UPDATE ON reconc
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TABLE reconcile_observed_state (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     env_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
@@ -1272,7 +1273,7 @@ CREATE TRIGGER update_reconcile_observed_state_updated_at BEFORE UPDATE ON recon
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TABLE reconcile_backoff (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
     artifact_type VARCHAR(100) NOT NULL,
     state_key VARCHAR(255) NOT NULL,

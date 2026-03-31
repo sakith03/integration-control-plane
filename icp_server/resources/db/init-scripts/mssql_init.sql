@@ -874,7 +874,7 @@ GO
 -- ============================================================================
 
 CREATE TABLE runtimes (
-    runtime_id VARCHAR(100) NOT NULL PRIMARY KEY,
+    runtime_id CHAR(36) NOT NULL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     project_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
@@ -912,6 +912,7 @@ CREATE TABLE runtimes (
     CONSTRAINT fk_runtime_project FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
     CONSTRAINT fk_runtime_component FOREIGN KEY (component_id) REFERENCES components (component_id),
     CONSTRAINT fk_runtime_env FOREIGN KEY (environment_id) REFERENCES environments (environment_id),
+    CONSTRAINT uq_runtime_identity UNIQUE (component_id, environment_id, name),
     INDEX idx_runtime_type (runtime_type),
     INDEX idx_status (status),
     INDEX idx_env (environment_id),
@@ -986,7 +987,7 @@ GO
 
 -- Services deployed on a runtime
 CREATE TABLE bi_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name NVARCHAR (100) NOT NULL,
     service_package NVARCHAR (200) NOT NULL,
     base_path NVARCHAR (500) NULL,
@@ -1028,7 +1029,7 @@ GO
 
 -- Resources inside a service (HTTP resources etc.)
 CREATE TABLE bi_service_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name NVARCHAR (100) NOT NULL,
     resource_url NVARCHAR (300) NOT NULL,
     methods NVARCHAR (MAX) NOT NULL, -- JSON array stored as NVARCHAR
@@ -1062,7 +1063,7 @@ GO
 
 -- Listeners bound to a runtime (e.g., HTTP/HTTPS)
 CREATE TABLE bi_runtime_listener_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     listener_name NVARCHAR (100) NOT NULL,
     listener_package NVARCHAR (200) NOT NULL,
     protocol NVARCHAR (20) NULL DEFAULT 'HTTP',
@@ -1101,7 +1102,7 @@ GO
 
 -- Automation artifacts (main function) for BI integrations
 CREATE TABLE bi_automation_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     package_org NVARCHAR (200) NOT NULL,
     package_name NVARCHAR (200) NOT NULL,
     package_version NVARCHAR (50) NOT NULL,
@@ -1132,7 +1133,7 @@ GO
 
 -- Runtime log levels for BI components
 CREATE TABLE bi_runtime_log_levels (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_name NVARCHAR(200) NOT NULL,
     log_level NVARCHAR(20) NOT NULL CHECK (log_level IN ('DEBUG', 'ERROR', 'INFO', 'WARN')),
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
@@ -1165,7 +1166,7 @@ GO
 
 -- REST APIs (MI)
 CREATE TABLE mi_api_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name NVARCHAR (150) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     url NVARCHAR (500) NOT NULL,
@@ -1208,7 +1209,7 @@ GO
 
 -- API Resources (MI) - Resources inside an API
 CREATE TABLE mi_api_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name NVARCHAR (150) NOT NULL,
     resource_path NVARCHAR (250) NOT NULL,
     methods NVARCHAR (20) NOT NULL, -- Single HTTP method as string (e.g., "POST", "GET")
@@ -1242,7 +1243,7 @@ GO
 
 -- Proxy Services (MI)
 CREATE TABLE mi_proxy_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name NVARCHAR (150) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     state NVARCHAR (20) NOT NULL DEFAULT 'enabled' CHECK (
@@ -1281,7 +1282,7 @@ GO
 
 -- Proxy Service Endpoints (MI)
 CREATE TABLE mi_proxy_service_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name NVARCHAR (150) NOT NULL,
     endpoint_url NVARCHAR (250) NOT NULL,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE (),
@@ -1314,7 +1315,7 @@ GO
 
 -- Endpoints (MI)
 CREATE TABLE mi_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     endpoint_type NVARCHAR (100) NOT NULL,
@@ -1355,7 +1356,7 @@ GO
 
 -- Endpoint Attributes (MI)
 CREATE TABLE mi_endpoint_attribute_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name NVARCHAR (200) NOT NULL,
     attribute_name NVARCHAR (200) NOT NULL,
     attribute_value NVARCHAR (MAX) NULL,
@@ -1390,7 +1391,7 @@ GO
 
 -- Inbound Endpoints (MI)
 CREATE TABLE mi_inbound_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     inbound_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     protocol NVARCHAR (50) NOT NULL,
@@ -1433,7 +1434,7 @@ GO
 
 -- Sequences (MI)
 CREATE TABLE mi_sequence_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     sequence_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     sequence_type NVARCHAR (100) NULL,
@@ -1475,7 +1476,7 @@ GO
 
 -- Tasks (MI)
 CREATE TABLE mi_task_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     task_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     task_class NVARCHAR (500) NULL,
@@ -1514,7 +1515,7 @@ GO
 
 -- Templates (MI)
 CREATE TABLE mi_template_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     template_name NVARCHAR (200) NOT NULL,
     template_type NVARCHAR (100) NOT NULL,
     tracing NVARCHAR (20) NOT NULL DEFAULT 'disabled',
@@ -1546,7 +1547,7 @@ GO
 
 -- Message Stores (MI)
 CREATE TABLE mi_message_store_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     store_name NVARCHAR (200) NOT NULL,
     store_type NVARCHAR (100) NOT NULL,
     size BIGINT NOT NULL DEFAULT 0,
@@ -1577,7 +1578,7 @@ GO
 
 -- Message Processors (MI)
 CREATE TABLE mi_message_processor_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     processor_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     processor_type NVARCHAR (100) NOT NULL,
@@ -1617,7 +1618,7 @@ GO
 
 -- Local Entries (MI)
 CREATE TABLE mi_local_entry_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     entry_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     entry_type NVARCHAR (100) NOT NULL,
@@ -1657,7 +1658,7 @@ GO
 
 -- Data Services (MI)
 CREATE TABLE mi_data_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     description NVARCHAR (MAX) NULL,
@@ -1696,7 +1697,7 @@ GO
 
 -- Carbon Apps (MI)
 CREATE TABLE mi_carbon_app_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     app_name NVARCHAR (200) NOT NULL,
     version NVARCHAR (50) NULL,
     state NVARCHAR (20) NOT NULL DEFAULT 'Active' CHECK (state IN ('Active', 'Faulty')),
@@ -1727,7 +1728,7 @@ GO
 
 -- Data Sources (MI)
 CREATE TABLE mi_data_source_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     datasource_name NVARCHAR (200) NOT NULL,
     datasource_type NVARCHAR (100) NULL,
     driver NVARCHAR (500) NULL,
@@ -1766,7 +1767,7 @@ GO
 
 -- Connectors (MI)
 CREATE TABLE mi_connector_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     connector_name NVARCHAR (200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     package NVARCHAR (200) NOT NULL,
@@ -1810,7 +1811,7 @@ GO
 
 -- Registry Resources (MI)
 CREATE TABLE mi_registry_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     resource_name NVARCHAR (200) NOT NULL,
     resource_type NVARCHAR (100) NULL,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE (),
@@ -1841,7 +1842,7 @@ GO
 -- ============================================================================
 
 CREATE TABLE mi_runtime_control_commands (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     artifact_name NVARCHAR(200) NOT NULL,
     artifact_type NVARCHAR(100) NOT NULL,
@@ -1885,7 +1886,7 @@ GO
 
 CREATE TABLE audit_logs (
     id BIGINT IDENTITY (1, 1) PRIMARY KEY,
-    runtime_id VARCHAR(100) NULL,
+    runtime_id CHAR(36) NULL,
     user_id CHAR(36) NULL,
     action NVARCHAR (100) NOT NULL,
     resource_type NVARCHAR (50) NULL, -- runtime, service, listener, command
@@ -1939,7 +1940,7 @@ GO
 
 CREATE TABLE runtime_metrics (
     id BIGINT IDENTITY (1, 1) PRIMARY KEY,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     metric_name NVARCHAR (100) NOT NULL,
     metric_value DECIMAL(15, 4) NOT NULL,
     metric_unit NVARCHAR (20) NULL,
@@ -1954,7 +1955,7 @@ GO
 
 CREATE TABLE health_checks (
     id BIGINT IDENTITY (1, 1) PRIMARY KEY,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     check_type NVARCHAR (50) NOT NULL, -- heartbeat, connectivity, resource
     status NVARCHAR (20) NOT NULL CHECK (
         status IN (
@@ -2048,7 +2049,7 @@ GO
 
 CREATE TABLE reconcile_observed_state (
     id BIGINT IDENTITY(1,1) NOT NULL,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     env_id CHAR(36) NOT NULL,
     artifact_name NVARCHAR(200) NOT NULL,
@@ -2079,7 +2080,7 @@ GO
 
 CREATE TABLE reconcile_backoff (
     id BIGINT IDENTITY(1,1) NOT NULL,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     artifact_name NVARCHAR(200) NOT NULL,
     artifact_type NVARCHAR(100) NOT NULL,
     state_key NVARCHAR(255) NOT NULL,

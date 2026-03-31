@@ -37,11 +37,10 @@ isolated function getRuntimeIdsByEnvironmentAndComponent(string environmentId, s
     return runtimeIds;
 }
 
-// Helper to fetch status for a given set of runtime IDs in one query
-isolated function getRuntimeStatusMap(string[] runtimeIds) returns map<string>|error {
-    map<string> statusMap = {};
+isolated function getRuntimeStatusMap(string[] runtimeIds) returns map<types:RuntimeInfo>|error {
+    map<types:RuntimeInfo> runtimeMap = {};
     if runtimeIds.length() == 0 {
-        return statusMap;
+        return runtimeMap;
     }
 
     // Build IN clause for runtime IDs
@@ -54,23 +53,22 @@ isolated function getRuntimeStatusMap(string[] runtimeIds) returns map<string>|e
     }
     inClause = sql:queryConcat(inClause, `)`);
 
-    sql:ParameterizedQuery query = sql:queryConcat(`SELECT runtime_id, status FROM runtimes WHERE runtime_id IN `, inClause);
-    stream<record {|string runtime_id; string status;|}, sql:Error?> rs = dbClient->query(query);
-    check from record {|string runtime_id; string status;|} row in rs
+    sql:ParameterizedQuery query = sql:queryConcat(`SELECT runtime_id, status, name FROM runtimes WHERE runtime_id IN `, inClause);
+    stream<record {|string runtime_id; string status; string name;|}, sql:Error?> rs = dbClient->query(query);
+    check from record {|string runtime_id; string status; string name;|} row in rs
         do {
-            statusMap[row.runtime_id] = row.status;
+            runtimeMap[row.runtime_id] = {status: row.status, name: row.name};
         };
 
-    return statusMap;
+    return runtimeMap;
 }
 
-// Helper function to determine if an artifact from a new runtime should replace the existing one
-// Prioritizes RUNNING runtimes over non-RUNNING runtimes
-isolated function shouldReplaceArtifact(string newRuntimeId, string existingRuntimeId, map<string> statusMap) returns boolean {
-    string newStatus = statusMap[newRuntimeId] ?: "UNKNOWN";
-    string existingStatus = statusMap[existingRuntimeId] ?: "UNKNOWN";
+isolated function shouldReplaceArtifact(string newRuntimeId, string existingRuntimeId, map<types:RuntimeInfo> runtimeMap) returns boolean {
+    types:RuntimeInfo? newInfo = runtimeMap[newRuntimeId];
+    types:RuntimeInfo? existingInfo = runtimeMap[existingRuntimeId];
+    string newStatus = newInfo is types:RuntimeInfo ? newInfo.status : "UNKNOWN";
+    string existingStatus = existingInfo is types:RuntimeInfo ? existingInfo.status : "UNKNOWN";
     log:printDebug("Evaluating artifact replacement - New runtime: " + newRuntimeId + " (" + newStatus + "), Existing runtime: " + existingRuntimeId + " (" + existingStatus + ")");
-    // Replace if new runtime is RUNNING and existing is not
     return newStatus == "RUNNING" && existingStatus != "RUNNING";
 }
 
@@ -143,8 +141,7 @@ public isolated function getServicesByEnvironmentAndComponent(string environment
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all services for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -180,8 +177,10 @@ public isolated function getServicesByEnvironmentAndComponent(string environment
         s.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         s.runtimes = infos;
         serviceList.push(s);
@@ -204,8 +203,7 @@ public isolated function getListenersByEnvironmentAndComponent(string environmen
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all listeners for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -241,8 +239,10 @@ public isolated function getListenersByEnvironmentAndComponent(string environmen
         l.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         l.runtimes = infos;
         listenerList.push(l);
@@ -263,8 +263,7 @@ public isolated function getAutomationsByEnvironmentAndComponent(string environm
         return [];
     }
 
-    // Build status map for runtime info
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Build IN clause for runtime IDs
     sql:ParameterizedQuery inClause = `(`;
@@ -328,10 +327,11 @@ public isolated function getAutomationsByEnvironmentAndComponent(string environm
         automation.runtimeIds = rids;
         types:AutomationRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
             string[] execTimestamps = runtimeExecs[rid] ?: [];
-            types:AutomationRuntimeInfo info = {runtimeId: rid, status: st, executionTimestamps: execTimestamps};
-            infos.push(info);
+            infos.push({runtimeId: rid, runtimeName: name, status, executionTimestamps: execTimestamps});
         }
         automation.runtimes = infos;
         automationList.push(automation);
@@ -355,8 +355,7 @@ public isolated function getRestApisByEnvironmentAndComponent(string environment
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all REST APIs for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -392,8 +391,10 @@ public isolated function getRestApisByEnvironmentAndComponent(string environment
         api.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         api.runtimes = infos;
         apiList.push(api);
@@ -416,8 +417,7 @@ public isolated function getCarbonAppsByEnvironmentAndComponent(string environme
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Carbon Apps for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -453,8 +453,10 @@ public isolated function getCarbonAppsByEnvironmentAndComponent(string environme
         app.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         app.runtimes = infos;
         appList.push(app);
@@ -477,8 +479,7 @@ public isolated function getInboundEndpointsByEnvironmentAndComponent(string env
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Inbound Endpoints for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -514,8 +515,10 @@ public isolated function getInboundEndpointsByEnvironmentAndComponent(string env
         inbound.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         inbound.runtimes = infos;
         inboundList.push(inbound);
@@ -538,8 +541,7 @@ public isolated function getEndpointsByEnvironmentAndComponent(string environmen
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Endpoints for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -575,8 +577,10 @@ public isolated function getEndpointsByEnvironmentAndComponent(string environmen
         endpoint.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         endpoint.runtimes = infos;
         endpointList.push(endpoint);
@@ -599,8 +603,7 @@ public isolated function getSequencesByEnvironmentAndComponent(string environmen
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Sequences for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -636,8 +639,10 @@ public isolated function getSequencesByEnvironmentAndComponent(string environmen
         sequence.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         sequence.runtimes = infos;
         sequenceList.push(sequence);
@@ -660,8 +665,7 @@ public isolated function getProxyServicesByEnvironmentAndComponent(string enviro
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Proxy Services for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -721,8 +725,10 @@ public isolated function getProxyServicesByEnvironmentAndComponent(string enviro
         proxy.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         proxy.runtimes = infos;
         proxyList.push(proxy);
@@ -745,8 +751,7 @@ public isolated function getTasksByEnvironmentAndComponent(string environmentId,
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Tasks for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -782,8 +787,10 @@ public isolated function getTasksByEnvironmentAndComponent(string environmentId,
         task.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         task.runtimes = infos;
         taskList.push(task);
@@ -806,8 +813,7 @@ public isolated function getTemplatesByEnvironmentAndComponent(string environmen
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Templates for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -843,8 +849,10 @@ public isolated function getTemplatesByEnvironmentAndComponent(string environmen
         template.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         template.runtimes = infos;
         templateList.push(template);
@@ -867,8 +875,7 @@ public isolated function getMessageStoresByEnvironmentAndComponent(string enviro
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Message Stores for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -904,8 +911,10 @@ public isolated function getMessageStoresByEnvironmentAndComponent(string enviro
         store.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         store.runtimes = infos;
         storeList.push(store);
@@ -928,8 +937,7 @@ public isolated function getMessageProcessorsByEnvironmentAndComponent(string en
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Message Processors for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -965,8 +973,10 @@ public isolated function getMessageProcessorsByEnvironmentAndComponent(string en
         proc.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         proc.runtimes = infos;
         processorList.push(proc);
@@ -989,8 +999,7 @@ public isolated function getLocalEntriesByEnvironmentAndComponent(string environ
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Local Entries for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -1026,8 +1035,10 @@ public isolated function getLocalEntriesByEnvironmentAndComponent(string environ
         entry.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         entry.runtimes = infos;
         entryList.push(entry);
@@ -1050,8 +1061,7 @@ public isolated function getDataServicesByEnvironmentAndComponent(string environ
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Data Services for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -1087,8 +1097,10 @@ public isolated function getDataServicesByEnvironmentAndComponent(string environ
         ds.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         ds.runtimes = infos;
         dataServiceList.push(ds);
@@ -1111,8 +1123,7 @@ public isolated function getDataSourcesByEnvironmentAndComponent(string environm
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Data Sources for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -1148,8 +1159,10 @@ public isolated function getDataSourcesByEnvironmentAndComponent(string environm
         ds.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         ds.runtimes = infos;
         sourceList.push(ds);
@@ -1172,8 +1185,7 @@ public isolated function getRegistryResourcesByEnvironmentAndComponent(string en
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Registry Resources for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -1208,8 +1220,10 @@ public isolated function getRegistryResourcesByEnvironmentAndComponent(string en
         res.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         res.runtimes = infos;
         resourceList.push(res);
@@ -1232,8 +1246,7 @@ public isolated function getConnectorsByEnvironmentAndComponent(string environme
         return [];
     }
 
-    // Build status map first for prioritization during deduplication
-    map<string> statusMap = check getRuntimeStatusMap(runtimeIds);
+    map<types:RuntimeInfo> statusMap = check getRuntimeStatusMap(runtimeIds);
 
     // Get all Connectors for these runtimes, ensuring uniqueness and prioritizing RUNNING runtimes
     foreach string runtimeId in runtimeIds {
@@ -1270,8 +1283,10 @@ public isolated function getConnectorsByEnvironmentAndComponent(string environme
         conn.runtimeIds = rids;
         types:ArtifactRuntimeInfo[] infos = [];
         foreach string rid in rids {
-            string st = statusMap[rid] ?: "UNKNOWN";
-            infos.push({runtimeId: rid, status: st});
+            types:RuntimeInfo? info = statusMap[rid];
+            string status = info is types:RuntimeInfo ? info.status : "UNKNOWN";
+            string name = info is types:RuntimeInfo ? info.name : rid;
+            infos.push({runtimeId: rid, runtimeName: name, status});
         }
         conn.runtimes = infos;
         connectorList.push(conn);

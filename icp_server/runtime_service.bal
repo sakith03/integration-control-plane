@@ -50,30 +50,32 @@ service /icp on httpListener {
         do {
             types:Heartbeat heartbeat = check heartbeatJson.cloneWithType(types:Heartbeat);
 
+            string runtimeId = heartbeat.runtimeId;
+
             // --- Extract kid and validate JWT ---
             string|error jwtToken = extractBearerToken(request);
             if jwtToken is error {
-                log:printWarn(string `Heartbeat rejected — missing bearer token for runtime: ${heartbeat.runtime}`);
+                log:printWarn(string `Heartbeat rejected — missing bearer token for runtime: ${runtimeId}`);
                 return <http:Unauthorized>{body: "Missing or malformed Authorization header"};
             }
 
             string|error kidResult = extractKidFromJwt(jwtToken);
             if kidResult is error {
-                log:printWarn(string `Heartbeat rejected — bad JWT kid for runtime: ${heartbeat.runtime}: ${kidResult.message()}`);
+                log:printWarn(string `Heartbeat rejected — bad JWT kid for runtime: ${runtimeId}: ${kidResult.message()}`);
                 return <http:Unauthorized>{body: string `Invalid JWT: ${kidResult.message()}`};
             }
             string kid = kidResult;
-            log:printDebug(string `Heartbeat from runtime=${heartbeat.runtime}, kid=${kid}`);
+            log:printDebug(string `Heartbeat from runtime=${runtimeId}, kid=${kid}`);
 
             types:OrgSecret|error orgSecretResult = storage:lookupOrgSecretByKeyId(kid);
             if orgSecretResult is error {
-                log:printWarn(string `Heartbeat rejected — unknown kid=${kid} for runtime: ${heartbeat.runtime}`);
+                log:printWarn(string `Heartbeat rejected — unknown kid=${kid} for runtime: ${runtimeId}`);
                 return <http:BadRequest>{body: string `Unknown key ID '${kid}'`};
             }
             types:OrgSecret orgSecret = orgSecretResult;
             http:Unauthorized? authResult = validateRuntimeJwtWithSecret(jwtToken, orgSecret.keyMaterial);
             if authResult is http:Unauthorized {
-                log:printWarn(string `Heartbeat rejected — invalid JWT for runtime: ${heartbeat.runtime}, kid=${kid}`);
+                log:printWarn(string `Heartbeat rejected — invalid JWT for runtime: ${runtimeId}, kid=${kid}`);
                 return authResult;
             }
 
@@ -142,16 +144,16 @@ service /icp on httpListener {
 
             // Record this key ID on the runtime row (after upsert ensures the row exists).
             // Failure here is non-fatal — the heartbeat was already processed successfully.
-            error? keyIdErr = storage:updateRuntimeKeyId(heartbeat.runtime, kid);
+            error? keyIdErr = storage:updateRuntimeKeyId(runtimeId, kid);
             if keyIdErr is error {
-                log:printError(string `Failed to record keyId=${kid} on runtime=${heartbeat.runtime}`, 'error = keyIdErr);
+                log:printError(string `Failed to record keyId=${kid} on runtime=${runtimeId}`, 'error = keyIdErr);
             }
 
             // Reconcile desired state against observed state written during heartbeat processing
             types:ControlCommand[] reconcileCommands = sync:reconcileFromHeartbeat(
-                    heartbeat.runtime, heartbeat.component, heartbeat.environment, heartbeat.runtimeType
+                runtimeId, heartbeat.component, heartbeat.environment, heartbeat.runtimeType
             );
-            log:printDebug(string `Reconciled ${reconcileCommands.length()} commands for runtime ${heartbeat.runtime}`);
+            log:printDebug(string `Reconciled ${reconcileCommands.length()} commands for runtime ${runtimeId}`);
             // Merge reconcile commands into the response
             types:ControlCommand[]? existing = heartbeatResponse.commands;
             if existing is types:ControlCommand[] {
@@ -162,7 +164,7 @@ service /icp on httpListener {
                 heartbeatResponse.commands = reconcileCommands;
             }
 
-            log:printInfo(string `Heartbeat processed for runtime=${heartbeat.runtime}, kid=${kid}`);
+            log:printInfo(string `Heartbeat processed for runtime=${runtimeId}, kid=${kid}`);
             return heartbeatResponse;
 
         } on fail error e {
@@ -179,42 +181,44 @@ service /icp on httpListener {
     resource function post deltaHeartbeat(http:Request request, @http:Payload types:DeltaHeartbeat deltaHeartbeat)
             returns types:HeartbeatResponse|http:Unauthorized|http:BadRequest|http:Conflict|error? {
         do {
+            string runtimeId = deltaHeartbeat.runtimeId;
+
             string|error jwtToken = extractBearerToken(request);
             if jwtToken is error {
-                log:printWarn(string `Delta heartbeat rejected — missing bearer token for runtime: ${deltaHeartbeat.runtime}`);
+                log:printWarn(string `Delta heartbeat rejected — missing bearer token for runtime: ${runtimeId}`);
                 return <http:Unauthorized>{body: "Missing or malformed Authorization header"};
             }
 
             string|error kidResult = extractKidFromJwt(jwtToken);
             if kidResult is error {
-                log:printWarn(string `Delta heartbeat rejected — bad JWT kid for runtime: ${deltaHeartbeat.runtime}: ${kidResult.message()}`);
+                log:printWarn(string `Delta heartbeat rejected — bad JWT kid for runtime: ${runtimeId}: ${kidResult.message()}`);
                 return <http:Unauthorized>{body: string `Invalid JWT: ${kidResult.message()}`};
             }
             string kid = kidResult;
-            log:printDebug(string `Delta heartbeat from runtime=${deltaHeartbeat.runtime}, kid=${kid}`);
+            log:printDebug(string `Delta heartbeat from runtime=${runtimeId}, kid=${kid}`);
 
             types:OrgSecret|error orgSecretResult = storage:lookupOrgSecretByKeyId(kid);
             if orgSecretResult is error {
-                log:printWarn(string `Delta heartbeat rejected — unknown kid=${kid} for runtime: ${deltaHeartbeat.runtime}`);
+                log:printWarn(string `Delta heartbeat rejected — unknown kid=${kid} for runtime: ${runtimeId}`);
                 return <http:BadRequest>{body: string `Unknown key ID '${kid}'`};
             }
             types:OrgSecret orgSecret = orgSecretResult;
             http:Unauthorized? authResult = validateRuntimeJwtWithSecret(jwtToken, orgSecret.keyMaterial);
             if authResult is http:Unauthorized {
-                log:printWarn(string `Delta heartbeat rejected — invalid JWT for runtime: ${deltaHeartbeat.runtime}, kid=${kid}`);
+                log:printWarn(string `Delta heartbeat rejected — invalid JWT for runtime: ${runtimeId}, kid=${kid}`);
                 return authResult;
             }
 
             // Unbound key — delta has no component/environment info to bind with
             if orgSecret.componentId is () {
-                log:printInfo(string `Delta heartbeat: kid=${kid} is unbound, requesting full heartbeat from runtime=${deltaHeartbeat.runtime}`);
+                log:printInfo(string `Delta heartbeat: kid=${kid} is unbound, requesting full heartbeat from runtime=${runtimeId}`);
                 return <types:HeartbeatResponse>{acknowledged: false, fullHeartbeatRequired: true, commands: []};
             }
 
             // Bound key — verify runtime's component+environment matches the key's binding
-            types:RuntimeTypeRecord? runtimeInfo = check storage:getRuntimeTypeById(deltaHeartbeat.runtime);
+            types:RuntimeTypeRecord? runtimeInfo = check storage:getRuntimeTypeById(runtimeId);
             if runtimeInfo is () {
-                log:printWarn(string `Delta heartbeat rejected — runtime=${deltaHeartbeat.runtime} not found`);
+                log:printWarn(string `Delta heartbeat rejected — runtime=${runtimeId} not found`);
                 return <types:HeartbeatResponse>{acknowledged: false, fullHeartbeatRequired: true, commands: []};
             }
             if runtimeInfo.componentId != orgSecret.componentId || runtimeInfo.environmentId != orgSecret.environmentId {
@@ -228,8 +232,8 @@ service /icp on httpListener {
 
             // If not requesting full heartbeat, reconcile from desired state
             if !(heartbeatResponse.fullHeartbeatRequired ?: false) {
-                types:ControlCommand[] reconcileCommands = sync:reconcileDelta(deltaHeartbeat.runtime);
-                log:printDebug(string `Delta reconciliation generated ${reconcileCommands.length()} commands for runtime ${deltaHeartbeat.runtime}`);
+                types:ControlCommand[] reconcileCommands = sync:reconcileDelta(runtimeId);
+                log:printDebug(string `Delta reconciliation generated ${reconcileCommands.length()} commands for runtime ${runtimeId}`);
                 types:ControlCommand[]? existing = heartbeatResponse.commands;
                 if existing is types:ControlCommand[] {
                     foreach types:ControlCommand cmd in reconcileCommands {
@@ -240,7 +244,7 @@ service /icp on httpListener {
                 }
             }
 
-            log:printInfo(string `Delta heartbeat processed for runtime=${deltaHeartbeat.runtime}, kid=${kid}`);
+            log:printInfo(string `Delta heartbeat processed for runtime=${runtimeId}, kid=${kid}`);
             return heartbeatResponse;
 
         } on fail error e {

@@ -36,9 +36,9 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean pre
     boolean isNewRegistration = false;
     boolean fullHeartbeatRequired = false;
 
-    // Upsert runtime record
     isNewRegistration = check upsertRuntime(heartbeat);
 
+    // After upsertRuntime, heartbeat.runtime contains the runtimeId (UUID)
     if isNewRegistration {
         log:printInfo(string `Registered new runtime via heartbeat: ${heartbeat.runtime}`);
     } else {
@@ -113,34 +113,38 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean pre
 
 // Process delta heartbeat with hash validation
 public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbeat) returns types:HeartbeatResponse|error {
-    // Validate delta heartbeat data
-    if deltaHeartbeat.runtime.trim().length() == 0 {
+    if deltaHeartbeat.heartbeatVersion != "v1.0" {
+        return error(string `Unsupported delta heartbeat version: ${deltaHeartbeat.heartbeatVersion}. Only version v1.0 is supported.`);
+    }
+    string runtimeId = deltaHeartbeat.runtimeId;
+    if runtimeId.trim().length() == 0 {
         return error("Runtime ID cannot be empty");
     }
+    log:printDebug(string `Processing delta heartbeat v${deltaHeartbeat.heartbeatVersion} for runtime: ${runtimeId}`);
 
     time:Utc currentTime = time:utcNow();
     string currentTimeStr = check convertUtcToDbDateTime(currentTime);
     boolean hashMatches = false;
 
-    if hashCache.hasKey(deltaHeartbeat.runtime) {
-        any|error cachedHash = hashCache.get(deltaHeartbeat.runtime);
+    if hashCache.hasKey(runtimeId) {
+        any|error cachedHash = hashCache.get(runtimeId);
         hashMatches = cachedHash is string && cachedHash == deltaHeartbeat.runtimeHash;
-        log:printInfo(string `Hash for runtime ${deltaHeartbeat.runtime} matches: ${hashMatches}`);
+        log:printInfo(string `Hash for runtime ${runtimeId} matches: ${hashMatches}`);
     }
 
     if !hashMatches {
         // Hash doesn't match or runtime not in cache, request full heartbeat
-        log:printInfo(string `Hash mismatch for runtime ${deltaHeartbeat.runtime}, requesting full heartbeat`);
+        log:printInfo(string `Hash mismatch for runtime ${runtimeId}, requesting full heartbeat`);
 
         // Still update the timestamp to show runtime is alive
         sql:ExecutionResult|error result = dbClient->execute(`
             UPDATE runtimes
             SET last_heartbeat = CURRENT_TIMESTAMP, status = 'RUNNING'
-            WHERE runtime_id = ${deltaHeartbeat.runtime}
+            WHERE runtime_id = ${runtimeId}
         `);
 
         if result is error {
-            log:printError(string `Failed to update timestamp for runtime ${deltaHeartbeat.runtime}`, result);
+            log:printError(string `Failed to update timestamp for runtime ${runtimeId}`, result);
         }
 
         return {
@@ -156,12 +160,12 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
     sql:ExecutionResult|error timestampResult = dbClient->execute(`
         UPDATE runtimes
         SET last_heartbeat = CURRENT_TIMESTAMP, status = 'RUNNING'
-        WHERE runtime_id = ${deltaHeartbeat.runtime}
+        WHERE runtime_id = ${runtimeId}
     `);
 
     boolean runtimeExists = true;
     if timestampResult is error {
-        log:printError(string `Failed to update timestamp for runtime ${deltaHeartbeat.runtime}`, timestampResult);
+        log:printError(string `Failed to update timestamp for runtime ${runtimeId}`, timestampResult);
         runtimeExists = false;
     } else {
         runtimeExists = (timestampResult.affectedRowCount ?: 0) > 0;
@@ -174,7 +178,7 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
                     `INSERT INTO audit_logs (
                     runtime_id, action, details, timestamp
                 ) VALUES (
-                    ${deltaHeartbeat.runtime}, 'DELTA_HEARTBEAT',
+                    ${runtimeId}, 'DELTA_HEARTBEAT',
                     ${string `Delta heartbeat processed with hash ${deltaHeartbeat.runtimeHash}`},
                     `, sql:queryConcat(sqlQueryFromString(timestampCast(currentTimeStr)), `)`)
             );
@@ -185,18 +189,18 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
                     action, details, timestamp
                 ) VALUES (
                     'DELTA_HEARTBEAT',
-                    ${string `Delta heartbeat received for missing runtime ${deltaHeartbeat.runtime} with hash ${deltaHeartbeat.runtimeHash}`},
+                    ${string `Delta heartbeat received for missing runtime ${runtimeId} with hash ${deltaHeartbeat.runtimeHash}`},
                     `, sql:queryConcat(sqlQueryFromString(timestampCast(currentTimeStr)), `)`)
             );
             _ = check dbClient->execute(auditQuery);
         }
 
         check commit;
-        log:printInfo(string `Successfully processed delta heartbeat for runtime ${deltaHeartbeat.runtime}`);
+        log:printInfo(string `Successfully processed delta heartbeat for runtime ${runtimeId}`);
 
     } on fail error e {
-        log:printError(string `Failed to process delta heartbeat for runtime ${deltaHeartbeat.runtime}`, e);
-        return error(string `Failed to process delta heartbeat for runtime ${deltaHeartbeat.runtime}`, e);
+        log:printError(string `Failed to process delta heartbeat for runtime ${runtimeId}`, e);
+        return error(string `Failed to process delta heartbeat for runtime ${runtimeId}`, e);
     }
 
     return {
@@ -208,13 +212,24 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
 
 // Validate heartbeat data
 isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error? {
-    if heartbeat.runtime.trim().length() == 0 {
-        return error("Runtime ID cannot be empty");
+    if heartbeat.heartbeatVersion != "v1.0" {
+        return error(string `Unsupported heartbeat version: ${heartbeat.heartbeatVersion}. Only version v1.0 is supported.`);
     }
 
-    if heartbeat.runtime.length() > 100 {
-        return error("Runtime ID cannot exceed 100 characters");
+    if heartbeat.runtime.trim().length() == 0 {
+        return error("Runtime name cannot be empty");
     }
+    if heartbeat.runtime.length() > 100 {
+        return error("Runtime name cannot exceed 100 characters");
+    }
+
+    if heartbeat.runtimeId.trim().length() == 0 {
+        return error("Runtime ID cannot be empty");
+    }
+    if heartbeat.runtimeId.length() != 36 {
+        return error("Runtime ID must be a valid UUID (36 characters)");
+    }
+    log:printDebug(string `Processing heartbeat v${heartbeat.heartbeatVersion}: id=${heartbeat.runtimeId}, name=${heartbeat.runtime}`);
 
     if heartbeat.component.trim().length() == 0 {
         return error("Component name cannot be empty");
@@ -487,10 +502,15 @@ isolated function writeObservedStateBI(string runtimeId, string componentId, str
 
 // Upsert runtime record
 isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error {
+    string runtimeName = heartbeat.runtime;
+    string runtimeId = heartbeat.runtimeId;
+    log:printDebug(string `Upserting runtime: id=${runtimeId}, name=${runtimeName}`);
+
     // Use default values if management hostname and port are not provided
     string runtimeHostname = heartbeat.runtimeHostname ?: "";
     string runtimePort = heartbeat.runtimePort ?: "";
 
+    // Try INSERT first
     sql:ExecutionResult|error insertRes = dbClient->execute(`
         INSERT INTO runtimes (
             runtime_id, name, runtime_type, status, version,
@@ -498,20 +518,23 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             environment_id, project_id, component_id,
             platform_name, platform_version, platform_home,
             os_name, os_version,
-            carbon_home, java_vendor, java_version, 
+            carbon_home, java_vendor, java_version,
             total_memory, free_memory, max_memory, used_memory,
             os_arch, server_name, last_heartbeat
         ) VALUES (
-            ${heartbeat.runtime}, ${heartbeat.runtime}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
+            ${runtimeId}, ${runtimeName}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
             ${runtimeHostname}, ${runtimePort},
             ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
             ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.platformHome},
             ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion},
-            ${heartbeat.nodeInfo.carbonHome}, ${heartbeat.nodeInfo.javaVendor}, ${heartbeat.nodeInfo.javaVersion}, 
+            ${heartbeat.nodeInfo.carbonHome}, ${heartbeat.nodeInfo.javaVendor}, ${heartbeat.nodeInfo.javaVersion},
             ${heartbeat.nodeInfo.totalMemory}, ${heartbeat.nodeInfo.freeMemory}, ${heartbeat.nodeInfo.maxMemory}, ${heartbeat.nodeInfo.usedMemory},
             ${heartbeat.nodeInfo.osArch}, ${heartbeat.nodeInfo.platformName}, CURRENT_TIMESTAMP
         )
     `);
+
+    // Replace runtime name with UUID for all downstream processing
+    heartbeat.runtime = runtimeId;
 
     if insertRes is sql:ExecutionResult {
         int? rows = insertRes.affectedRowCount;
@@ -520,7 +543,7 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
 
     _ = check dbClient->execute(`
         UPDATE runtimes SET
-            name = ${heartbeat.runtime},
+            name = ${runtimeName},
             runtime_type = ${heartbeat.runtimeType},
             status = ${heartbeat.status},
             version = ${heartbeat.version},
@@ -544,7 +567,7 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             os_arch = ${heartbeat.nodeInfo.osArch},
             server_name = ${heartbeat.nodeInfo.platformName},
             last_heartbeat = CURRENT_TIMESTAMP
-        WHERE runtime_id = ${heartbeat.runtime}
+        WHERE runtime_id = ${runtimeId}
     `);
 
     return false;
