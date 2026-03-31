@@ -276,6 +276,10 @@ public type ReconcileArtifactKey record {|
 # Returns a qualified artifact name in the format `package:name` when the
 # package is non-empty, or just `name` otherwise.  Used to build unique
 # reconcile keys for BI artifacts that may share a name across packages.
+#
+# + name - The artifact name
+# + package - The package name (optional)
+# + return - The qualified artifact name
 public isolated function qualifiedArtifactName(string name, string? package) returns string {
     if package is string && package.length() > 0 {
         return package + ":" + name;
@@ -285,6 +289,9 @@ public isolated function qualifiedArtifactName(string name, string? package) ret
 
 # Extracts the raw artifact name from a potentially qualified name.
 # If the name contains a `:`, everything after the last `:` is the raw name.
+#
+# + qualifiedName - The qualified artifact name
+# + return - The raw artifact name
 public isolated function rawArtifactName(string qualifiedName) returns string {
     int? idx = qualifiedName.lastIndexOf(":");
     if idx is int {

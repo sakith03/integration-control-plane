@@ -27,26 +27,26 @@ final cache:Cache hashCache = new (capacity = 1000, evictionFactor = 0.2);
 
 // Process full heartbeat.
 // When preResolved=true, heartbeat.environment/.project/.component are already UUIDs
-// (set by the kid-based heartbeat endpoint) — skip name-to-ID validation.
+// (set by the kid-based heartbeat endpoint) — skip name-to-ID resolution.
 public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean preResolved = false) returns types:HeartbeatResponse|error {
+    check validateHeartbeatProtocolAndRuntime(heartbeat);
     if !preResolved {
-        check validateHeartbeatData(heartbeat);
+        check validateHeartbeatResolution(heartbeat);
     }
 
     boolean isNewRegistration = false;
     boolean fullHeartbeatRequired = false;
 
-    isNewRegistration = check upsertRuntime(heartbeat);
-
-    // After upsertRuntime, heartbeat.runtime contains the runtimeId (UUID)
-    if isNewRegistration {
-        log:printInfo(string `Registered new runtime via heartbeat: ${heartbeat.runtime}`);
-    } else {
-        log:printInfo(string `Updated runtime via heartbeat: ${heartbeat.runtime}`);
-    }
-
-    // Start transaction for artifact updates
     transaction {
+        isNewRegistration = check upsertRuntime(heartbeat);
+
+        // After upsertRuntime, heartbeat.runtime contains the runtimeId (UUID)
+        if isNewRegistration {
+            log:printInfo(string `Registered new runtime via heartbeat: ${heartbeat.runtime}`);
+        } else {
+            log:printInfo(string `Updated runtime via heartbeat: ${heartbeat.runtime}`);
+        }
+
         // Insert all runtime artifacts
         check insertRuntimeArtifacts(heartbeat);
 
@@ -167,8 +167,10 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
     if timestampResult is error {
         log:printError(string `Failed to update timestamp for runtime ${runtimeId}`, timestampResult);
         runtimeExists = false;
+        log:printDebug(string `Runtime ${runtimeId} marked as non-existent due to UPDATE error`);
     } else {
         runtimeExists = (timestampResult.affectedRowCount ?: 0) > 0;
+        log:printDebug(string `Runtime ${runtimeId} existence check: ${runtimeExists} (affected rows: ${timestampResult.affectedRowCount ?: 0})`);
     }
 
     // Audit logging
@@ -203,15 +205,19 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
         return error(string `Failed to process delta heartbeat for runtime ${runtimeId}`, e);
     }
 
+    if !runtimeExists {
+        log:printInfo(string `Runtime ${runtimeId} does not exist, requesting full heartbeat`);
+    }
+
     return {
         acknowledged: true,
-        fullHeartbeatRequired: false,
+        fullHeartbeatRequired: !runtimeExists,
         commands: []
     };
 }
 
-// Validate heartbeat data
-isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error? {
+// Validate heartbeat version, runtime name, and runtimeId. Always called regardless of preResolved.
+isolated function validateHeartbeatProtocolAndRuntime(types:Heartbeat heartbeat) returns error? {
     if heartbeat.heartbeatVersion != "v1.0" {
         return error(string `Unsupported heartbeat version: ${heartbeat.heartbeatVersion}. Only version v1.0 is supported.`);
     }
@@ -230,7 +236,10 @@ isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error
         return error("Runtime ID must be a valid UUID (36 characters)");
     }
     log:printDebug(string `Processing heartbeat v${heartbeat.heartbeatVersion}: id=${heartbeat.runtimeId}, name=${heartbeat.runtime}`);
+}
 
+// Resolve heartbeat name fields to IDs and validate component consistency. Only called when preResolved=false.
+isolated function validateHeartbeatResolution(types:Heartbeat heartbeat) returns error? {
     if heartbeat.component.trim().length() == 0 {
         return error("Component name cannot be empty");
     }
@@ -541,6 +550,55 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
         return rows == 1;
     }
 
+    if insertRes is sql:Error && classifySqlError(insertRes) != DUPLICATE_KEY {
+        return insertRes;
+    }
+
+    log:printDebug(string `Runtime already exists for component ${heartbeat.component}, env ${heartbeat.environment}, name ${runtimeName}`);
+
+    stream<record {|string runtime_id;|}, sql:Error?> existing = dbClient->query(`
+        SELECT runtime_id FROM runtimes
+        WHERE component_id = ${heartbeat.component} AND environment_id = ${heartbeat.environment} AND name = ${runtimeName}
+    `);
+    record {|string runtime_id;|}[] rows = check from record {|string runtime_id;|} r in existing select r;
+
+    if rows.length() > 0 && rows[0].runtime_id != runtimeId {
+        string oldId = rows[0].runtime_id;
+        log:printInfo(string `Runtime ID changed from ${oldId} to ${runtimeId} for ${runtimeName}`);
+        log:printDebug(string `Deleting old runtime ${oldId} and all artifacts (cascade delete)`);
+
+        _ = check dbClient->execute(`
+            DELETE FROM runtimes
+            WHERE component_id = ${heartbeat.component} AND environment_id = ${heartbeat.environment} AND name = ${runtimeName}
+        `);
+
+        log:printDebug(string `Inserting new runtime ${runtimeId} after ID change`);
+        sql:ExecutionResult res = check dbClient->execute(`
+            INSERT INTO runtimes (
+                runtime_id, name, runtime_type, status, version,
+                runtime_hostname, runtime_port,
+                environment_id, project_id, component_id,
+                platform_name, platform_version, platform_home,
+                os_name, os_version,
+                carbon_home, java_vendor, java_version,
+                total_memory, free_memory, max_memory, used_memory,
+                os_arch, server_name, last_heartbeat
+            ) VALUES (
+                ${runtimeId}, ${runtimeName}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
+                ${runtimeHostname}, ${runtimePort},
+                ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
+                ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.platformHome},
+                ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion},
+                ${heartbeat.nodeInfo.carbonHome}, ${heartbeat.nodeInfo.javaVendor}, ${heartbeat.nodeInfo.javaVersion},
+                ${heartbeat.nodeInfo.totalMemory}, ${heartbeat.nodeInfo.freeMemory}, ${heartbeat.nodeInfo.maxMemory}, ${heartbeat.nodeInfo.usedMemory},
+                ${heartbeat.nodeInfo.osArch}, ${heartbeat.nodeInfo.platformName}, CURRENT_TIMESTAMP
+            )
+        `);
+        log:printDebug(string `Successfully inserted runtime ${runtimeId} after ID change`);
+        return (res.affectedRowCount ?: 0) == 1;
+    }
+
+    log:printDebug(string `Updating existing runtime ${runtimeId} with latest heartbeat data`);
     _ = check dbClient->execute(`
         UPDATE runtimes SET
             name = ${runtimeName},

@@ -215,19 +215,6 @@ service /icp on httpListener {
                 return <types:HeartbeatResponse>{acknowledged: false, fullHeartbeatRequired: true, commands: []};
             }
 
-            // Bound key — verify runtime's component+environment matches the key's binding
-            types:RuntimeTypeRecord? runtimeInfo = check storage:getRuntimeTypeById(runtimeId);
-            if runtimeInfo is () {
-                log:printWarn(string `Delta heartbeat rejected — runtime=${runtimeId} not found`);
-                return <types:HeartbeatResponse>{acknowledged: false, fullHeartbeatRequired: true, commands: []};
-            }
-            if runtimeInfo.componentId != orgSecret.componentId || runtimeInfo.environmentId != orgSecret.environmentId {
-                log:printWarn(string `Delta heartbeat rejected — binding mismatch for kid=${kid}: ` +
-                        string `runtime component=${runtimeInfo.componentId}/env=${runtimeInfo.environmentId}, ` +
-                        string `key component=${orgSecret.componentId ?: "?"}/env=${orgSecret.environmentId}`);
-                return <http:Conflict>{body: string `Binding mismatch: key ID '${kid}' does not match this runtime's component/environment`};
-            }
-
             types:HeartbeatResponse heartbeatResponse = check storage:processDeltaHeartbeat(deltaHeartbeat);
 
             // If not requesting full heartbeat, reconcile from desired state
