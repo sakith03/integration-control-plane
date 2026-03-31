@@ -108,7 +108,6 @@ public type Logger record {
     string? loggerName; // Optional: Only present for MI components
     string componentName;
     LogLevel logLevel;
-    boolean? logLevelInSync = ();
     string runtimeId;
 };
 
@@ -116,7 +115,6 @@ public type LoggerGroup record {
     string? loggerName;
     string componentName;
     LogLevel logLevel;
-    boolean? logLevelInSync = ();
     string[] runtimeIds;
 };
 
@@ -177,9 +175,7 @@ public type Node record {
 
 // Heartbeat that includes all runtime information for registration/updates
 public type Heartbeat record {|
-    string heartbeatVersion = "v1.0"; // Heartbeat version (must be v1.0)
-    string? runtime = (); // Runtime name (human-readable, optional)
-    string runtimeId; // UUID for runtime (required)
+    string runtime;
     string runtimeType; // "wso2-mi" from payloads
     string status; // "RUNNING", "STOPPED", etc.
     string environment;
@@ -195,15 +191,9 @@ public type Heartbeat record {|
     map<log:Level> logLevels?; // BI log levels from heartbeat payload
 |};
 
-public type RuntimeInfo record {|
-    string status;
-    string? name;
-|};
-
 // Delta heartbeat with hash value
 public type DeltaHeartbeat record {|
-    string heartbeatVersion = "v1.0"; // Heartbeat version (must be v1.0)
-    string runtimeId; // UUID for runtime (required)
+    string runtime;
     string runtimeHash;
     time:Utc timestamp;
 |};
@@ -264,7 +254,6 @@ public enum ComponentType {
     MI
 };
 
-
 public type ReconcileAction record {|
     string key;
     string value;
@@ -278,10 +267,9 @@ public type ReconcileArtifactKey record {|
 # Returns a qualified artifact name in the format `package:name` when the
 # package is non-empty, or just `name` otherwise.  Used to build unique
 # reconcile keys for BI artifacts that may share a name across packages.
-#
-# + name - The artifact name
-# + package - The package name (optional)
-# + return - The qualified artifact name
+# + name - Raw artifact name.
+# + package - Optional package qualifier.
+# + return - Qualified artifact name.
 public isolated function qualifiedArtifactName(string name, string? package) returns string {
     if package is string && package.length() > 0 {
         return package + ":" + name;
@@ -291,9 +279,8 @@ public isolated function qualifiedArtifactName(string name, string? package) ret
 
 # Extracts the raw artifact name from a potentially qualified name.
 # If the name contains a `:`, everything after the last `:` is the raw name.
-#
-# + qualifiedName - The qualified artifact name
-# + return - The raw artifact name
+# + qualifiedName - Artifact name with or without a package qualifier.
+# + return - Raw artifact name without the package qualifier.
 public isolated function rawArtifactName(string qualifiedName) returns string {
     int? idx = qualifiedName.lastIndexOf(":");
     if idx is int {
@@ -302,7 +289,7 @@ public isolated function rawArtifactName(string qualifiedName) returns string {
     return qualifiedName;
 }
 
-public type DispatchFn function (string runtimeId, ReconcileArtifactKey artifact, ReconcileAction[] actions) returns error?;
+public type DispatchFn isolated function (string runtimeId, ReconcileArtifactKey artifact, ReconcileAction[] actions) returns ControlCommand[]|error?;
 
 public type PartialDispatchDetail record {|
     ReconcileAction[] applied;
@@ -322,6 +309,7 @@ public type ArtifactStateField record {|
     string value;
     boolean inSync;
 |};
+
 // === Configuration ===
 
 public type IcpServer record {|
@@ -424,7 +412,6 @@ public type BIArtifactIntendedStateDBRecord record {
 
 public type RuntimeDBRecord record {
     string runtime_id;
-    string name?;
     string runtime_type;
     string status;
     string environment_id;
@@ -486,8 +473,6 @@ public type Runtime record {
         name: "runtime_id"
     }
     string runtimeId;
-
-    string runtimeName?;
 
     @sql:Column {
         name: "runtime_type"
@@ -1806,14 +1791,12 @@ public type ComponentInDB record {
 // Lightweight runtime reference for artifact availability
 public type ArtifactRuntimeInfo record {
     string runtimeId;
-    string runtimeName;
     string status;
 };
 
 // Runtime info for automation artifacts with execution timestamps
 public type AutomationRuntimeInfo record {
     string runtimeId;
-    string runtimeName;
     string status;
     string[] executionTimestamps;
 };
@@ -1966,7 +1949,6 @@ public type SSOConfig record {|
     string redirectUri;
     string usernameClaim; // "email" or "preferred_username"
     string[] scopes;
-    boolean allowInsecureTLS; // Set true for local/self-signed certs; false in production
 |};
 
 // OIDC Authorization URL response

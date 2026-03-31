@@ -122,7 +122,7 @@ isolated function stateOf(map<map<types:ArtifactStateField>> sm, string name, st
 
 // Group runtimes by environment, upsert desired state per env, and reconcile.
 // Returns [successCount, failedCount] across all envs.
-function reconcilePerEnv(types:Runtime[] runtimes, string componentId,
+isolated function reconcilePerEnv(types:Runtime[] runtimes, string componentId,
         types:ReconcileArtifactKey artifact, map<string> desiredProps,
         types:DispatchFn dispatchFn) returns [int, int]|error {
     map<string[]> envRuntimes = {};
@@ -139,7 +139,7 @@ function reconcilePerEnv(types:Runtime[] runtimes, string componentId,
     int failedCount = 0;
     foreach [string, string[]] [envId, runtimeIds] in envRuntimes.entries() {
         log:printDebug("reconcilePerEnv upsert", componentId = componentId, envId = envId,
-            runtimeCount = runtimeIds.length());
+                runtimeCount = runtimeIds.length());
         check storage:upsertReconcileDesiredState(componentId, envId, artifact, desiredProps);
         error? e = sync:reconcileArtifactAllRuntimes(runtimeIds, componentId, envId, artifact, dispatchFn);
         if e is error {
@@ -313,7 +313,7 @@ isolated function updateLogLevelBI(types:UserContextV2 userContext, types:Update
             types:ReconcileArtifactKey artifact = {artifactName: qualName, artifactType: "log-level"};
             log:printDebug("upsertReconcileDesiredState for log-level", componentId = componentId, envId = envId);
             check storage:upsertReconcileDesiredState(componentId, envId, artifact,
-                {"logLevel": logLevelStr});
+                    {"logLevel": logLevelStr});
         }
     }
 
@@ -387,7 +387,7 @@ isolated function updateLogLevelMI(types:UserContextV2 userContext, types:Update
         if !processedComponents.hasKey(key) {
             types:ReconcileArtifactKey artifact = {artifactName: loggerName, artifactType: "mi-logger"};
             check storage:upsertReconcileDesiredState(validated.componentId, envId, artifact,
-                {"logLevel": logLevelStr});
+                    {"logLevel": logLevelStr});
             log:printInfo(string `Updated reconcile desired state for MI logger ${loggerName} to ${logLevelStr} in component ${validated.componentId}`);
             processedComponents[key] = true;
         }
@@ -742,12 +742,17 @@ service /graphql on graphqlListener {
         }
 
         types:Service[] result = check storage:getServicesByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:Service a in result {
             string qualName = types:qualifiedArtifactName(a.name, a.package);
             types:ArtifactStateField? s = stateOf(sm, qualName, "service", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -802,12 +807,17 @@ service /graphql on graphqlListener {
         }
 
         types:Listener[] result = check storage:getListenersByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:Listener a in result {
             string qualName = types:qualifiedArtifactName(a.name, a.package);
             types:ArtifactStateField? s = stateOf(sm, qualName, "listener", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -858,15 +868,26 @@ service /graphql on graphqlListener {
         }
 
         types:RestApi[] result = check storage:getRestApisByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:RestApi a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "api", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
             types:ArtifactStateField? t = stateOf(sm, a.name, "api", "tracing");
-            if t is types:ArtifactStateField { a.tracing = t.value; a.tracingInSync = t.inSync; }
+            if t is types:ArtifactStateField {
+                a.tracing = t.value;
+                a.tracingInSync = t.inSync;
+            }
             types:ArtifactStateField? st = stateOf(sm, a.name, "api", "statistics");
-            if st is types:ArtifactStateField { a.statistics = st.value; a.statisticsInSync = st.inSync; }
+            if st is types:ArtifactStateField {
+                a.statistics = st.value;
+                a.statisticsInSync = st.inSync;
+            }
         }
         return result;
     }
@@ -917,15 +938,26 @@ service /graphql on graphqlListener {
         }
 
         types:InboundEndpoint[] result = check storage:getInboundEndpointsByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:InboundEndpoint a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "inbound-endpoint", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
             types:ArtifactStateField? t = stateOf(sm, a.name, "inbound-endpoint", "tracing");
-            if t is types:ArtifactStateField { a.tracing = t.value; a.tracingInSync = t.inSync; }
+            if t is types:ArtifactStateField {
+                a.tracing = t.value;
+                a.tracingInSync = t.inSync;
+            }
             types:ArtifactStateField? st = stateOf(sm, a.name, "inbound-endpoint", "statistics");
-            if st is types:ArtifactStateField { a.statistics = st.value; a.statisticsInSync = st.inSync; }
+            if st is types:ArtifactStateField {
+                a.statistics = st.value;
+                a.statisticsInSync = st.inSync;
+            }
         }
         return result;
     }
@@ -952,15 +984,26 @@ service /graphql on graphqlListener {
         }
 
         types:Endpoint[] result = check storage:getEndpointsByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:Endpoint a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "endpoint", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
             types:ArtifactStateField? t = stateOf(sm, a.name, "endpoint", "tracing");
-            if t is types:ArtifactStateField { a.tracing = t.value; a.tracingInSync = t.inSync; }
+            if t is types:ArtifactStateField {
+                a.tracing = t.value;
+                a.tracingInSync = t.inSync;
+            }
             types:ArtifactStateField? st = stateOf(sm, a.name, "endpoint", "statistics");
-            if st is types:ArtifactStateField { a.statistics = st.value; a.statisticsInSync = st.inSync; }
+            if st is types:ArtifactStateField {
+                a.statistics = st.value;
+                a.statisticsInSync = st.inSync;
+            }
         }
         return result;
     }
@@ -987,15 +1030,26 @@ service /graphql on graphqlListener {
         }
 
         types:Sequence[] result = check storage:getSequencesByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:Sequence a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "sequence", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
             types:ArtifactStateField? t = stateOf(sm, a.name, "sequence", "tracing");
-            if t is types:ArtifactStateField { a.tracing = t.value; a.tracingInSync = t.inSync; }
+            if t is types:ArtifactStateField {
+                a.tracing = t.value;
+                a.tracingInSync = t.inSync;
+            }
             types:ArtifactStateField? st = stateOf(sm, a.name, "sequence", "statistics");
-            if st is types:ArtifactStateField { a.statistics = st.value; a.statisticsInSync = st.inSync; }
+            if st is types:ArtifactStateField {
+                a.statistics = st.value;
+                a.statisticsInSync = st.inSync;
+            }
         }
         return result;
     }
@@ -1022,15 +1076,26 @@ service /graphql on graphqlListener {
         }
 
         types:ProxyService[] result = check storage:getProxyServicesByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:ProxyService a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "proxy-service", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
             types:ArtifactStateField? t = stateOf(sm, a.name, "proxy-service", "tracing");
-            if t is types:ArtifactStateField { a.tracing = t.value; a.tracingInSync = t.inSync; }
+            if t is types:ArtifactStateField {
+                a.tracing = t.value;
+                a.tracingInSync = t.inSync;
+            }
             types:ArtifactStateField? st = stateOf(sm, a.name, "proxy-service", "statistics");
-            if st is types:ArtifactStateField { a.statistics = st.value; a.statisticsInSync = st.inSync; }
+            if st is types:ArtifactStateField {
+                a.statistics = st.value;
+                a.statisticsInSync = st.inSync;
+            }
         }
         return result;
     }
@@ -1057,11 +1122,16 @@ service /graphql on graphqlListener {
         }
 
         types:Task[] result = check storage:getTasksByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:Task a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "task", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -1112,11 +1182,16 @@ service /graphql on graphqlListener {
         }
 
         types:MessageStore[] result = check storage:getMessageStoresByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:MessageStore a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "message-store", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -1143,11 +1218,16 @@ service /graphql on graphqlListener {
         }
 
         types:MessageProcessor[] result = check storage:getMessageProcessorsByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:MessageProcessor a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "message-processor", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -1174,11 +1254,16 @@ service /graphql on graphqlListener {
         }
 
         types:LocalEntry[] result = check storage:getLocalEntriesByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:LocalEntry a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "local-entry", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -1205,11 +1290,16 @@ service /graphql on graphqlListener {
         }
 
         types:DataService[] result = check storage:getDataServicesByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:DataService a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "data-service", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -1284,11 +1374,16 @@ service /graphql on graphqlListener {
         }
 
         types:Connector[] result = check storage:getConnectorsByEnvironmentAndComponent(environmentId, componentId);
-        if result.length() == 0 { return result; }
+        if result.length() == 0 {
+            return result;
+        }
         map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
         foreach types:Connector a in result {
             types:ArtifactStateField? s = stateOf(sm, a.name, "connector", "status");
-            if s is types:ArtifactStateField { a.state = <types:ArtifactState>s.value; a.stateInSync = s.inSync; }
+            if s is types:ArtifactStateField {
+                a.state = <types:ArtifactState>s.value;
+                a.stateInSync = s.inSync;
+            }
         }
         return result;
     }
@@ -1613,7 +1708,7 @@ service /graphql on graphqlListener {
                 types:ReconcileArtifactKey artifact = {artifactName: qualName, artifactType: "listener"};
                 log:printDebug("upsertReconcileDesiredState for listener", componentId = componentId, envId = envId);
                 check storage:upsertReconcileDesiredState(componentId, envId, artifact,
-                    {"status": input.action == types:START ? "enabled" : "disabled"});
+                        {"status": input.action == types:START ? "enabled" : "disabled"});
             }
         }
 
@@ -1631,7 +1726,6 @@ service /graphql on graphqlListener {
         if input.runtimeIds.length() == 0 {
             return error("At least one runtime ID must be provided");
         }
-
 
         // Determine component type - use input if provided, otherwise lookup from first runtime
         types:RuntimeType componentType;
@@ -2215,7 +2309,7 @@ service /graphql on graphqlListener {
     }
 
     // Change artifact status (active/inactive) for all MI runtimes of a component
-    remote function updateArtifactStatus(graphql:Context context, types:ArtifactStatusChangeInput input) returns types:ArtifactStatusChangeResponse|error {
+    isolated remote function updateArtifactStatus(graphql:Context context, types:ArtifactStatusChangeInput input) returns types:ArtifactStatusChangeResponse|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Component? component = check storage:getComponentById(input.componentId);
@@ -2255,7 +2349,7 @@ service /graphql on graphqlListener {
     }
 
     // Mutation to change artifact tracing (enable/disable)
-    remote function updateArtifactTracingStatus(graphql:Context context, types:ArtifactTracingChangeInput input) returns types:ArtifactTracingChangeResponse|error {
+    isolated remote function updateArtifactTracingStatus(graphql:Context context, types:ArtifactTracingChangeInput input) returns types:ArtifactTracingChangeResponse|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Component? component = check storage:getComponentById(input.componentId);
@@ -2295,7 +2389,7 @@ service /graphql on graphqlListener {
     }
 
     // Mutation to change artifact statistics (enable/disable)
-    remote function updateArtifactStatisticsStatus(graphql:Context context, types:ArtifactStatisticsChangeInput input) returns types:ArtifactStatisticsChangeResponse|error {
+    isolated remote function updateArtifactStatisticsStatus(graphql:Context context, types:ArtifactStatisticsChangeInput input) returns types:ArtifactStatisticsChangeResponse|error {
         types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Component? component = check storage:getComponentById(input.componentId);

@@ -31,10 +31,10 @@ public isolated function backoffInterval(int attemptCount, boolean hasError) ret
 
 // Reconcile a single artifact on a single runtime.
 // Reads desired+observed, diffs, filters backoff, dispatches eligible actions.
-public function reconcileArtifact(string runtimeId, string componentId, string envId,
-        types:ReconcileArtifactKey artifact, types:DispatchFn dispatchFn) returns error? {
+public isolated function reconcileArtifact(string runtimeId, string componentId, string envId,
+        types:ReconcileArtifactKey artifact, types:DispatchFn dispatchFn) returns types:ControlCommand[]|error? {
     log:printDebug("reconcileArtifact", runtimeId = runtimeId, componentId = componentId,
-        envId = envId, artifactName = artifact.artifactName, artifactType = artifact.artifactType);
+            envId = envId, artifactName = artifact.artifactName, artifactType = artifact.artifactType);
 
     map<string> desired = check storage:readReconcileDesiredState(componentId, envId, artifact);
     map<string> observed = check storage:readReconcileObservedState(runtimeId, artifact);
@@ -54,20 +54,22 @@ public function reconcileArtifact(string runtimeId, string componentId, string e
             eligible.push(a);
         } else {
             log:printDebug("action backed off", runtimeId = runtimeId, stateKey = a.key,
-                nextAttempt = rec.next_attempt);
+                    nextAttempt = rec.next_attempt);
         }
     }
 
     log:printDebug("reconcileArtifact diff", runtimeId = runtimeId,
-        totalDrift = actions.length(), eligible = eligible.length());
+            totalDrift = actions.length(), eligible = eligible.length());
+
+    types:ControlCommand[] commands = [];
 
     if eligible.length() > 0 {
-        error? e = dispatchFn(runtimeId, artifact, eligible);
-        if e is error {
-            if e is types:PartialDispatchError {
+        types:ControlCommand[]|error? dispatchResult = dispatchFn(runtimeId, artifact, eligible);
+        if dispatchResult is error {
+            if dispatchResult is types:PartialDispatchError {
                 log:printError("Partial dispatch failure during reconciliation", runtimeId = runtimeId,
-                    artifactName = artifact.artifactName, err = e.message());
-                types:PartialDispatchDetail detail = e.detail();
+                        artifactName = artifact.artifactName, err = dispatchResult.message());
+                types:PartialDispatchDetail detail = dispatchResult.detail();
                 if detail.applied.length() > 0 {
                     check doRecordAttempt(runtimeId, artifact, detail.applied, backoffMap);
                     check doOptimisticUpdate(runtimeId, componentId, envId, artifact, detail.applied);
@@ -77,10 +79,13 @@ public function reconcileArtifact(string runtimeId, string componentId, string e
                 }
             } else {
                 log:printError("Failed to dispatch reconciliation actions", runtimeId = runtimeId,
-                    artifactName = artifact.artifactName, err = e.message());
+                        artifactName = artifact.artifactName, err = dispatchResult.message());
                 check doRecordFailure(runtimeId, artifact, eligible, backoffMap);
             }
-            return e;
+            return dispatchResult;
+        }
+        if dispatchResult is types:ControlCommand[] {
+            commands = dispatchResult;
         }
         log:printDebug("dispatch succeeded", runtimeId = runtimeId, actionCount = eligible.length());
         check doRecordAttempt(runtimeId, artifact, eligible, backoffMap);
@@ -88,18 +93,19 @@ public function reconcileArtifact(string runtimeId, string componentId, string e
     }
 
     check doClearConverged(runtimeId, artifact, actions);
+    return commands;
 }
 
 // Reconcile one artifact across all runtimes. Continues on failure.
-public function reconcileArtifactAllRuntimes(string[] runtimeIds, string componentId, string envId,
+public isolated function reconcileArtifactAllRuntimes(string[] runtimeIds, string componentId, string envId,
         types:ReconcileArtifactKey artifact, types:DispatchFn dispatchFn) returns error? {
     log:printDebug("reconcileArtifactAllRuntimes", componentId = componentId,
-        envId = envId, runtimeCount = runtimeIds.length());
+            envId = envId, runtimeCount = runtimeIds.length());
     error[] errors = [];
     foreach string runtimeId in runtimeIds {
-        error? e = reconcileArtifact(runtimeId, componentId, envId, artifact, dispatchFn);
-        if e is error {
-            errors.push(e);
+        types:ControlCommand[]|error? result = reconcileArtifact(runtimeId, componentId, envId, artifact, dispatchFn);
+        if result is error {
+            errors.push(result);
         }
     }
     if errors.length() > 0 {
@@ -127,7 +133,7 @@ public isolated function reconcileDeleteEnvironment(string envId) returns error?
 
 // --- Internal helpers ---
 
-function doRecordAttempt(string runtimeId, types:ReconcileArtifactKey artifact,
+isolated function doRecordAttempt(string runtimeId, types:ReconcileArtifactKey artifact,
         types:ReconcileAction[] actions, map<types:ReconcileBackoffRecord> backoffMap) returns error? {
     int now = time:utcNow()[0];
     foreach types:ReconcileAction a in actions {
@@ -135,12 +141,12 @@ function doRecordAttempt(string runtimeId, types:ReconcileArtifactKey artifact,
         int count = (existing is types:ReconcileBackoffRecord ? existing.attempt_count : 0) + 1;
         int intervalSec = backoffInterval(count, false);
         log:printDebug("recordAttempt", runtimeId = runtimeId, stateKey = a.key,
-            attempt = count, nextBackoffSec = intervalSec);
+                attempt = count, nextBackoffSec = intervalSec);
         check storage:upsertReconcileBackoff(runtimeId, artifact, a.key, count, 0, now + intervalSec);
     }
 }
 
-function doRecordFailure(string runtimeId, types:ReconcileArtifactKey artifact,
+isolated function doRecordFailure(string runtimeId, types:ReconcileArtifactKey artifact,
         types:ReconcileAction[] actions, map<types:ReconcileBackoffRecord> backoffMap) returns error? {
     int now = time:utcNow()[0];
     foreach types:ReconcileAction a in actions {
@@ -148,26 +154,27 @@ function doRecordFailure(string runtimeId, types:ReconcileArtifactKey artifact,
         int count = (existing is types:ReconcileBackoffRecord ? existing.attempt_count : 0) + 1;
         int intervalSec = backoffInterval(count, true);
         log:printDebug("recordFailure", runtimeId = runtimeId, stateKey = a.key,
-            attempt = count, backoffSec = intervalSec);
+                attempt = count, backoffSec = intervalSec);
         check storage:upsertReconcileBackoff(runtimeId, artifact, a.key, count, 1, now + intervalSec);
     }
 }
 
-function doOptimisticUpdate(string runtimeId, string componentId, string envId,
+isolated function doOptimisticUpdate(string runtimeId, string componentId, string envId,
         types:ReconcileArtifactKey artifact, types:ReconcileAction[] actions) returns error? {
     map<string> state = {};
     foreach types:ReconcileAction a in actions {
         state[a.key] = a.value;
     }
     log:printDebug("optimisticUpdate", runtimeId = runtimeId,
-        artifactName = artifact.artifactName, keys = state.keys().toString());
+            artifactName = artifact.artifactName, keys = state.keys().toString());
     check storage:optimisticUpsertObservedState(runtimeId, componentId, envId, artifact, state);
 }
 
-function doClearConverged(string runtimeId, types:ReconcileArtifactKey artifact,
+isolated function doClearConverged(string runtimeId, types:ReconcileArtifactKey artifact,
         types:ReconcileAction[] currentActions) returns error? {
-    string[] activeKeys = from types:ReconcileAction a in currentActions select a.key;
+    string[] activeKeys = from types:ReconcileAction a in currentActions
+        select a.key;
     log:printDebug("clearConverged", runtimeId = runtimeId,
-        artifactName = artifact.artifactName, activeKeyCount = activeKeys.length());
+            artifactName = artifact.artifactName, activeKeyCount = activeKeys.length());
     check storage:deleteReconcileBackoffConverged(runtimeId, artifact, activeKeys);
 }

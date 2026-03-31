@@ -45,7 +45,7 @@ service /icp on httpListener {
     }
 
     // Process heartbeat from runtime (M2: kid-based JWT validation + lazy binding)
-    resource function post heartbeat(http:Request request, @http:Payload json heartbeatJson)
+    isolated resource function post heartbeat(http:Request request, @http:Payload json heartbeatJson)
             returns types:HeartbeatResponse|http:Unauthorized|http:BadRequest|http:Conflict|error? {
         do {
             types:Heartbeat heartbeat = check heartbeatJson.cloneWithType(types:Heartbeat);
@@ -185,7 +185,7 @@ service /icp on httpListener {
     }
 
     // Process delta heartbeat from runtime (M3: kid-based JWT validation)
-    resource function post deltaHeartbeat(http:Request request, @http:Payload types:DeltaHeartbeat deltaHeartbeat)
+    isolated resource function post deltaHeartbeat(http:Request request, @http:Payload types:DeltaHeartbeat deltaHeartbeat)
             returns types:HeartbeatResponse|http:Unauthorized|http:BadRequest|http:Conflict|error? {
         do {
             string runtimeId = deltaHeartbeat.runtimeId;
