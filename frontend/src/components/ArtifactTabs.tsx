@@ -304,11 +304,14 @@ export function ArtifactCarbonArtifacts({ artifact }: TabProps) {
 }
 
 export function ArtifactRuntimes({ artifact }: TabProps) {
-  const runtimes = (artifact.runtimes as Array<{ runtimeId: string; status: string }> | undefined) ?? [];
+  const runtimes = (artifact.runtimes as Array<{ runtimeId: string; runtimeName?: string; status: string }> | undefined) ?? [];
   return (
     <DataTable
-      headers={['Runtime ID', 'Status']}
+      headers={['Runtime Name', 'Runtime ID', 'Status']}
       rows={runtimes.map((r) => [
+        <Typography key="name" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {r.runtimeName || r.runtimeId}
+        </Typography>,
         <Typography key="id" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
           {r.runtimeId}
         </Typography>,
@@ -539,14 +542,15 @@ export function ProxyApiReference({ envId, componentId, artifactType, artifact }
 }
 
 export function AutomationExecutions({ artifact }: TabProps) {
-  const runtimes = (artifact.runtimes as Array<{ runtimeId: string; status: string; executionTimestamps: string[] }> | undefined) ?? [];
-  const allExecutions: Array<{ runtimeId: string; timestamp: string; status: string }> = [];
+  const runtimes = (artifact.runtimes as Array<{ runtimeId: string; runtimeName?: string; status: string; executionTimestamps: string[] }> | undefined) ?? [];
+  const allExecutions: Array<{ runtimeId: string; runtimeName?: string; timestamp: string; status: string }> = [];
 
   runtimes.forEach((runtime) => {
     const timestamps = runtime.executionTimestamps ?? [];
     timestamps.forEach((timestamp) => {
       allExecutions.push({
         runtimeId: runtime.runtimeId,
+        runtimeName: runtime.runtimeName,
         timestamp,
         status: runtime.status,
       });
@@ -558,10 +562,13 @@ export function AutomationExecutions({ artifact }: TabProps) {
 
   return (
     <DataTable
-      headers={['Timestamp', 'Runtime ID', 'Status']}
+      headers={['Timestamp', 'Runtime Name', 'Runtime ID', 'Status']}
       rows={allExecutions.map((exec) => [
         <Typography key="timestamp" variant="body2">
           {exec.timestamp}
+        </Typography>,
+        <Typography key="runtimeName" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {exec.runtimeName || exec.runtimeId}
         </Typography>,
         <Typography key="runtimeId" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
           {exec.runtimeId}

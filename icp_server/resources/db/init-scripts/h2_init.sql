@@ -654,8 +654,8 @@ VALUES (
 -- ============================================================================
 
 CREATE TABLE runtimes (
-    runtime_id VARCHAR(100) NOT NULL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL PRIMARY KEY,
+    name VARCHAR(100) NULL,
     project_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     environment_id CHAR(36) NOT NULL,
@@ -685,7 +685,8 @@ CREATE TABLE runtimes (
     key_id VARCHAR(16) NULL,
     CONSTRAINT fk_runtime_project FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
     CONSTRAINT fk_runtime_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
-    CONSTRAINT fk_runtime_env FOREIGN KEY (environment_id) REFERENCES environments (environment_id) ON DELETE CASCADE
+    CONSTRAINT fk_runtime_env FOREIGN KEY (environment_id) REFERENCES environments (environment_id) ON DELETE CASCADE,
+    CONSTRAINT uq_runtime_identity UNIQUE (component_id, environment_id, name)
 );
 
 CREATE INDEX idx_runtimes_runtime_type ON runtimes (runtime_type);
@@ -729,7 +730,7 @@ ALTER TABLE runtimes ADD CONSTRAINT fk_runtime_key_id FOREIGN KEY (key_id) REFER
 
 -- Services deployed on a runtime
 CREATE TABLE bi_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(100) NOT NULL,
     service_package VARCHAR(200) NOT NULL,
     base_path VARCHAR(500),
@@ -750,7 +751,7 @@ CREATE INDEX idx_bi_service_artifacts_state ON bi_service_artifacts (state);
 
 -- Resources inside a service (HTTP resources etc.)
 CREATE TABLE bi_service_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(100) NOT NULL,
     resource_url VARCHAR(1000) NOT NULL,
     methods CLOB NOT NULL,
@@ -769,7 +770,7 @@ CREATE INDEX idx_bi_service_resource_artifacts_method_first ON bi_service_resour
 
 -- Listeners bound to a runtime (e.g., HTTP/HTTPS)
 CREATE TABLE bi_runtime_listener_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     listener_name VARCHAR(100) NOT NULL,
     listener_package VARCHAR(200) NOT NULL,
     protocol VARCHAR(20) DEFAULT 'HTTP',
@@ -792,7 +793,7 @@ CREATE INDEX idx_bi_runtime_listener_artifacts_state ON bi_runtime_listener_arti
 
 -- Automation artifacts (main function) for BI integrations
 CREATE TABLE bi_automation_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     package_org VARCHAR(200) NOT NULL,
     package_name VARCHAR(200) NOT NULL,
     package_version VARCHAR(50) NOT NULL,
@@ -811,7 +812,7 @@ CREATE INDEX idx_bi_automation_artifacts_execution_timestamp ON bi_automation_ar
 
 -- Runtime log levels for BI components
 CREATE TABLE bi_runtime_log_levels (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_name VARCHAR(200) NOT NULL,
     log_level VARCHAR(20) NOT NULL CHECK (log_level IN ('DEBUG', 'ERROR', 'INFO', 'WARN')),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -831,7 +832,7 @@ CREATE INDEX idx_bi_runtime_log_levels_log_level ON bi_runtime_log_levels (log_l
 -- ============================================================================
 
 CREATE TABLE mi_api_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     url VARCHAR(500) NOT NULL,
@@ -858,7 +859,7 @@ CREATE INDEX idx_mi_api_artifacts_state ON mi_api_artifacts (state);
 
 -- API Resources (MI) - Resources inside an API
 CREATE TABLE mi_api_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
     resource_path VARCHAR(1000) NOT NULL,
     methods VARCHAR(20) NOT NULL, -- Single HTTP method as string (e.g., "POST", "GET")
@@ -876,7 +877,7 @@ CREATE INDEX idx_mi_api_resource_artifacts_methods ON mi_api_resource_artifacts 
 
 -- Proxy Services (MI)
 CREATE TABLE mi_proxy_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     state VARCHAR(20) NOT NULL DEFAULT 'enabled',
@@ -899,7 +900,7 @@ CREATE INDEX idx_mi_proxy_service_artifacts_state ON mi_proxy_service_artifacts 
 
 -- Proxy Service Endpoints (MI)
 CREATE TABLE mi_proxy_service_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
     endpoint_url VARCHAR(500) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -913,7 +914,7 @@ CREATE INDEX idx_mi_proxy_service_endpoint_artifacts_proxy_name ON mi_proxy_serv
 
 -- Endpoints (MI)
 CREATE TABLE mi_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     endpoint_type VARCHAR(100) NOT NULL,
@@ -929,7 +930,7 @@ CREATE TABLE mi_endpoint_artifacts (
 
 -- Endpoint Attributes (MI)
 CREATE TABLE mi_endpoint_attribute_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
     attribute_name VARCHAR(200) NOT NULL,
     attribute_value TEXT,
@@ -955,7 +956,7 @@ CREATE INDEX idx_mi_endpoint_artifacts_state ON mi_endpoint_artifacts (state);
 
 -- Inbound Endpoints (MI)
 CREATE TABLE mi_inbound_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     inbound_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     protocol VARCHAR(50) NOT NULL,
@@ -983,7 +984,7 @@ CREATE INDEX idx_mi_inbound_endpoint_artifacts_state ON mi_inbound_endpoint_arti
 
 -- Sequences (MI)
 CREATE TABLE mi_sequence_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     sequence_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     sequence_type VARCHAR(100),
@@ -1010,7 +1011,7 @@ CREATE INDEX idx_mi_sequence_artifacts_state ON mi_sequence_artifacts (state);
 
 -- Tasks (MI)
 CREATE TABLE mi_task_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     task_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     task_class VARCHAR(500),
@@ -1033,7 +1034,7 @@ CREATE INDEX idx_mi_task_artifacts_state ON mi_task_artifacts (state);
 
 -- Templates (MI)
 CREATE TABLE mi_template_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     template_name VARCHAR(200) NOT NULL,
     template_type VARCHAR(100) NOT NULL,
     tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
@@ -1055,7 +1056,7 @@ CREATE INDEX idx_mi_template_artifacts_template_type ON mi_template_artifacts (t
 
 -- Message Stores (MI)
 CREATE TABLE mi_message_store_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     store_name VARCHAR(200) NOT NULL,
     store_type VARCHAR(100) NOT NULL,
     size BIGINT NOT NULL DEFAULT 0,
@@ -1075,7 +1076,7 @@ CREATE INDEX idx_mi_message_store_artifacts_store_type ON mi_message_store_artif
 
 -- Message Processors (MI)
 CREATE TABLE mi_message_processor_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     processor_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     processor_type VARCHAR(100) NOT NULL,
@@ -1100,7 +1101,7 @@ CREATE INDEX idx_mi_message_processor_artifacts_state ON mi_message_processor_ar
 
 -- Local Entries (MI)
 CREATE TABLE mi_local_entry_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     entry_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     entry_type VARCHAR(100) NOT NULL,
@@ -1125,7 +1126,7 @@ CREATE INDEX idx_mi_local_entry_artifacts_state ON mi_local_entry_artifacts (sta
 
 -- Data Services (MI)
 CREATE TABLE mi_data_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     description TEXT,
@@ -1148,7 +1149,7 @@ CREATE INDEX idx_mi_data_service_artifacts_state ON mi_data_service_artifacts (s
 
 -- Carbon Apps (MI)
 CREATE TABLE mi_carbon_app_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     app_name VARCHAR(200) NOT NULL,
     version VARCHAR(50),
     state VARCHAR(20) NOT NULL DEFAULT 'Active' CHECK (state IN ('Active', 'Faulty')),
@@ -1167,7 +1168,7 @@ CREATE INDEX idx_mi_carbon_app_artifacts_state ON mi_carbon_app_artifacts (state
 
 -- Data Sources (MI)
 CREATE TABLE mi_data_source_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     datasource_name VARCHAR(200) NOT NULL,
     datasource_type VARCHAR(100),
     driver VARCHAR(500),
@@ -1190,7 +1191,7 @@ CREATE INDEX idx_mi_data_source_artifacts_state ON mi_data_source_artifacts (sta
 
 -- Connectors (MI)
 CREATE TABLE mi_connector_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     connector_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     package VARCHAR(200) NOT NULL,
@@ -1213,7 +1214,7 @@ CREATE INDEX idx_mi_connector_artifacts_state ON mi_connector_artifacts (state);
 
 -- Registry Resources (MI)
 CREATE TABLE mi_registry_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     resource_name VARCHAR(200) NOT NULL,
     resource_type VARCHAR(100),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1231,7 +1232,7 @@ CREATE INDEX idx_mi_registry_resource_artifacts_resource_name ON mi_registry_res
 -- ============================================================================
 
 CREATE TABLE mi_runtime_control_commands (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
     artifact_type VARCHAR(100) NOT NULL,
@@ -1281,7 +1282,7 @@ CREATE TABLE reconcile_desired_state (
 );
 
 CREATE TABLE reconcile_observed_state (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     env_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
@@ -1295,7 +1296,7 @@ CREATE TABLE reconcile_observed_state (
 );
 
 CREATE TABLE reconcile_backoff (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
     artifact_type VARCHAR(100) NOT NULL,
     state_key VARCHAR(255) NOT NULL,
@@ -1311,7 +1312,7 @@ CREATE TABLE reconcile_backoff (
 
 CREATE TABLE audit_logs (
     id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    runtime_id VARCHAR(100),
+    runtime_id CHAR(36),
     user_id CHAR(36),
     action VARCHAR(100) NOT NULL,
     resource_type VARCHAR(50),
@@ -1367,7 +1368,7 @@ CREATE INDEX idx_system_events_created_at ON system_events (created_at);
 
 CREATE TABLE runtime_metrics (
     id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     metric_name VARCHAR(100) NOT NULL,
     metric_value DECIMAL(15, 4) NOT NULL,
     metric_unit VARCHAR(20),
@@ -1384,7 +1385,7 @@ CREATE INDEX idx_runtime_metrics_metric_name ON runtime_metrics (metric_name);
 
 CREATE TABLE health_checks (
     id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     check_type VARCHAR(50) NOT NULL,
     status VARCHAR(20) NOT NULL,
     response_time_ms INT,

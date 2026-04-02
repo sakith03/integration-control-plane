@@ -336,6 +336,7 @@ function EnvironmentRuntimeCard({
               <ListingTable>
                 <ListingTable.Head>
                   <ListingTable.Row>
+                    <ListingTable.Cell>Runtime Name</ListingTable.Cell>
                     <ListingTable.Cell>Runtime ID</ListingTable.Cell>
                     <ListingTable.Cell>Type</ListingTable.Cell>
                     <ListingTable.Cell>Component</ListingTable.Cell>
@@ -351,6 +352,7 @@ function EnvironmentRuntimeCard({
                 <ListingTable.Body>
                   {paged.map((r) => (
                     <ListingTable.Row key={r.runtimeId}>
+                      <ListingTable.Cell>{r.runtimeName || r.runtimeId}</ListingTable.Cell>
                       <ListingTable.Cell>{r.runtimeId}</ListingTable.Cell>
                       <ListingTable.Cell>{r.runtimeType}</ListingTable.Cell>
                       <ListingTable.Cell>{r.component?.displayName ?? '—'}</ListingTable.Cell>

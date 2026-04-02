@@ -41,7 +41,7 @@ public isolated function getRuntimes(string? status, string? runtimeType, string
     if componentId is string {
         whereConditions = sql:queryConcat(whereConditions, ` AND component_id = ${componentId} `);
     }
-    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
+    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, name, runtime_type, status, environment_id, project_id, component_id, version, 
                  runtime_hostname, runtime_port,
                  platform_name, platform_version, platform_home, os_name, os_version, 
                  carbon_home, java_vendor, java_version, total_memory, free_memory, max_memory, used_memory, os_arch, server_name,
@@ -100,7 +100,7 @@ public isolated function getRuntimesByIntegrationIds(
         whereConditions = sql:queryConcat(whereConditions, ` AND project_id = ${projectId} `);
     }
 
-    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version, 
+    sql:ParameterizedQuery selectClause = ` SELECT runtime_id, name, runtime_type, status, environment_id, project_id, component_id, version, 
                  runtime_hostname, runtime_port,
                  platform_name, platform_version, platform_home, os_name, os_version, 
                  carbon_home, java_vendor, java_version, total_memory, free_memory, max_memory, used_memory, os_arch, server_name,
@@ -120,7 +120,7 @@ public isolated function getRuntimesByIntegrationIds(
 // Get a specific runtime by ID
 public isolated function getRuntimeById(string runtimeId) returns types:Runtime?|error {
     stream<types:RuntimeDBRecord, sql:Error?> runtimeStream = dbClient->query(`
-        SELECT runtime_id, runtime_type, status, environment_id, project_id, component_id, version,
+        SELECT runtime_id, name, runtime_type, status, environment_id, project_id, component_id, version,
                runtime_hostname, runtime_port,
                platform_name, platform_version, platform_home, os_name, os_version, 
                carbon_home, java_vendor, java_version, total_memory, free_memory, max_memory, used_memory, os_arch, server_name,
@@ -810,6 +810,7 @@ public isolated function mapToRuntime(types:RuntimeDBRecord runtimeRecord) retur
 
     return {
         runtimeId: runtimeRecord.runtime_id,
+        runtimeName: runtimeRecord.name ?: "-",
         runtimeType: runtimeRecord.runtime_type,
         status: runtimeRecord.status,
         environment: check getEnvironmentById(runtimeRecord.environment_id),

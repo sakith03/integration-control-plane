@@ -27,34 +27,35 @@ final cache:Cache hashCache = new (capacity = 1000, evictionFactor = 0.2);
 
 // Process full heartbeat.
 // When preResolved=true, heartbeat.environment/.project/.component are already UUIDs
-// (set by the kid-based heartbeat endpoint) — skip name-to-ID validation.
+// (set by the kid-based heartbeat endpoint) — skip name-to-ID resolution.
 public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean preResolved = false) returns types:HeartbeatResponse|error {
+    check validateHeartbeatProtocolAndRuntime(heartbeat);
     if !preResolved {
-        check validateHeartbeatData(heartbeat);
+        check validateHeartbeatResolution(heartbeat);
     }
 
     boolean isNewRegistration = false;
     boolean fullHeartbeatRequired = false;
+    string runtimeId = heartbeat.runtimeId;
 
-    // Upsert runtime record
-    isNewRegistration = check upsertRuntime(heartbeat);
-
-    if isNewRegistration {
-        log:printInfo(string `Registered new runtime via heartbeat: ${heartbeat.runtime}`);
-    } else {
-        log:printInfo(string `Updated runtime via heartbeat: ${heartbeat.runtime}`);
-    }
-
-    // Start transaction for artifact updates
     transaction {
+        isNewRegistration = check upsertRuntime(heartbeat);
+
+        // After upsertRuntime, use runtimeId for all operations
+        if isNewRegistration {
+            log:printInfo(string `Registered new runtime via heartbeat: ${runtimeId}`);
+        } else {
+            log:printInfo(string `Updated runtime via heartbeat: ${runtimeId}`);
+        }
+
         // Insert all runtime artifacts
-        check insertRuntimeArtifacts(heartbeat);
+        check insertRuntimeArtifacts(runtimeId, heartbeat);
 
         // Validate runtime consistency within component (only for new registrations)
         if isNewRegistration {
             error? validationResult = validateComponentRuntimeConsistency(heartbeat.component, heartbeat.artifacts);
             if validationResult is error {
-                log:printWarn(string `Component consistency validation failed for runtime ${heartbeat.runtime}`, validationResult);
+                log:printWarn(string `Component consistency validation failed for runtime ${runtimeId}`, validationResult);
             }
         }
 
@@ -63,45 +64,45 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean pre
         int totalArtifacts = countTotalArtifacts(heartbeat.artifacts);
         if (totalArtifacts == 0) {
             fullHeartbeatRequired = true;
-            log:printWarn(string `No artifacts reported in heartbeat for runtime ${heartbeat.runtime}`);
+            log:printWarn(string `No artifacts reported in heartbeat for runtime ${runtimeId}`);
         }
         _ = check dbClient->execute(`
             INSERT INTO audit_logs (
                 runtime_id, action, details
             ) VALUES (
-                ${heartbeat.runtime}, ${action},
+                ${runtimeId}, ${action},
                 ${string `Runtime ${action.toLowerAscii()} processed with ${totalArtifacts} total artifacts (${heartbeat.artifacts.services.length()} services,
                  ${heartbeat.artifacts.listeners.length()} listeners)`}
             )
         `);
         check commit;
-        log:printInfo(string `Successfully processed ${action.toLowerAscii()} for runtime ${heartbeat.runtime} with ${totalArtifacts} total artifacts`);
+        log:printInfo(string `Successfully processed ${action.toLowerAscii()} for runtime ${runtimeId} with ${totalArtifacts} total artifacts`);
 
     } on fail error e {
-        log:printError(string `Failed to process heartbeat for runtime ${heartbeat.runtime}`, e);
-        return error(string `Failed to process heartbeat for runtime ${heartbeat.runtime}`, e);
+        log:printError(string `Failed to process heartbeat for runtime ${runtimeId}`, e);
+        return error(string `Failed to process heartbeat for runtime ${runtimeId}`, e);
     }
 
     // Write observed state from heartbeat artifacts (skip for incomplete heartbeats to avoid pruning valid state)
     if !fullHeartbeatRequired {
-        string? componentType = check getComponentTypeByRuntimeId(heartbeat.runtime);
-        log:printDebug(string `Resolved component type: ${componentType ?: "unknown"} for runtime ${heartbeat.runtime}`);
+        string? componentType = check getComponentTypeByRuntimeId(runtimeId);
+        log:printDebug(string `Resolved component type: ${componentType ?: "unknown"} for runtime ${runtimeId}`);
         if componentType == types:MI {
-            check writeObservedStateMI(heartbeat.runtime, heartbeat.component, heartbeat.environment, heartbeat.artifacts);
+            check writeObservedStateMI(runtimeId, heartbeat.component, heartbeat.environment, heartbeat.artifacts);
         } else if componentType == types:BI {
-            check writeObservedStateBI(heartbeat.runtime, heartbeat.component, heartbeat.environment, heartbeat.artifacts, heartbeat.logLevels);
+            check writeObservedStateBI(runtimeId, heartbeat.component, heartbeat.environment, heartbeat.artifacts, heartbeat.logLevels);
         }
     } else {
-        log:printDebug(string `Skipping observed state write for runtime ${heartbeat.runtime}: heartbeat marked incomplete`);
+        log:printDebug(string `Skipping observed state write for runtime ${runtimeId}: heartbeat marked incomplete`);
     }
     types:ControlCommand[] pendingCommands = [];
 
     // Cache the runtime hash value
-    error? cacheResult = hashCache.put(heartbeat.runtime, heartbeat.runtimeHash);
+    error? cacheResult = hashCache.put(runtimeId, heartbeat.runtimeHash);
     if cacheResult is error {
-        log:printWarn(string `Failed to cache runtime hash for ${heartbeat.runtime}`, cacheResult);
+        log:printWarn(string `Failed to cache runtime hash for ${runtimeId}`, cacheResult);
     } else {
-        log:printDebug(string `Cached runtime hash for ${heartbeat.runtime}: ${heartbeat.runtimeHash}`);
+        log:printDebug(string `Cached runtime hash for ${runtimeId}: ${heartbeat.runtimeHash}`);
     }
 
     return {
@@ -113,34 +114,38 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean pre
 
 // Process delta heartbeat with hash validation
 public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbeat) returns types:HeartbeatResponse|error {
-    // Validate delta heartbeat data
-    if deltaHeartbeat.runtime.trim().length() == 0 {
+    if deltaHeartbeat.heartbeatVersion != "v1.0" {
+        return error(string `Unsupported delta heartbeat version: ${deltaHeartbeat.heartbeatVersion}. Only version v1.0 is supported.`);
+    }
+    string runtimeId = deltaHeartbeat.runtimeId;
+    if runtimeId.trim().length() == 0 {
         return error("Runtime ID cannot be empty");
     }
+    log:printDebug(string `Processing delta heartbeat v${deltaHeartbeat.heartbeatVersion} for runtime: ${runtimeId}`);
 
     time:Utc currentTime = time:utcNow();
     string currentTimeStr = check convertUtcToDbDateTime(currentTime);
     boolean hashMatches = false;
 
-    if hashCache.hasKey(deltaHeartbeat.runtime) {
-        any|error cachedHash = hashCache.get(deltaHeartbeat.runtime);
+    if hashCache.hasKey(runtimeId) {
+        any|error cachedHash = hashCache.get(runtimeId);
         hashMatches = cachedHash is string && cachedHash == deltaHeartbeat.runtimeHash;
-        log:printInfo(string `Hash for runtime ${deltaHeartbeat.runtime} matches: ${hashMatches}`);
+        log:printInfo(string `Hash for runtime ${runtimeId} matches: ${hashMatches}`);
     }
 
     if !hashMatches {
         // Hash doesn't match or runtime not in cache, request full heartbeat
-        log:printInfo(string `Hash mismatch for runtime ${deltaHeartbeat.runtime}, requesting full heartbeat`);
+        log:printInfo(string `Hash mismatch for runtime ${runtimeId}, requesting full heartbeat`);
 
         // Still update the timestamp to show runtime is alive
         sql:ExecutionResult|error result = dbClient->execute(`
             UPDATE runtimes
             SET last_heartbeat = CURRENT_TIMESTAMP, status = 'RUNNING'
-            WHERE runtime_id = ${deltaHeartbeat.runtime}
+            WHERE runtime_id = ${runtimeId}
         `);
 
         if result is error {
-            log:printError(string `Failed to update timestamp for runtime ${deltaHeartbeat.runtime}`, result);
+            log:printError(string `Failed to update timestamp for runtime ${runtimeId}`, result);
         }
 
         return {
@@ -156,15 +161,17 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
     sql:ExecutionResult|error timestampResult = dbClient->execute(`
         UPDATE runtimes
         SET last_heartbeat = CURRENT_TIMESTAMP, status = 'RUNNING'
-        WHERE runtime_id = ${deltaHeartbeat.runtime}
+        WHERE runtime_id = ${runtimeId}
     `);
 
     boolean runtimeExists = true;
     if timestampResult is error {
-        log:printError(string `Failed to update timestamp for runtime ${deltaHeartbeat.runtime}`, timestampResult);
+        log:printError(string `Failed to update timestamp for runtime ${runtimeId}`, timestampResult);
         runtimeExists = false;
+        log:printDebug(string `Runtime ${runtimeId} marked as non-existent due to UPDATE error`);
     } else {
         runtimeExists = (timestampResult.affectedRowCount ?: 0) > 0;
+        log:printDebug(string `Runtime ${runtimeId} existence check: ${runtimeExists} (affected rows: ${timestampResult.affectedRowCount ?: 0})`);
     }
 
     // Audit logging
@@ -174,7 +181,7 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
                     `INSERT INTO audit_logs (
                     runtime_id, action, details, timestamp
                 ) VALUES (
-                    ${deltaHeartbeat.runtime}, 'DELTA_HEARTBEAT',
+                    ${runtimeId}, 'DELTA_HEARTBEAT',
                     ${string `Delta heartbeat processed with hash ${deltaHeartbeat.runtimeHash}`},
                     `, sql:queryConcat(sqlQueryFromString(timestampCast(currentTimeStr)), `)`)
             );
@@ -185,37 +192,58 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
                     action, details, timestamp
                 ) VALUES (
                     'DELTA_HEARTBEAT',
-                    ${string `Delta heartbeat received for missing runtime ${deltaHeartbeat.runtime} with hash ${deltaHeartbeat.runtimeHash}`},
+                    ${string `Delta heartbeat received for missing runtime ${runtimeId} with hash ${deltaHeartbeat.runtimeHash}`},
                     `, sql:queryConcat(sqlQueryFromString(timestampCast(currentTimeStr)), `)`)
             );
             _ = check dbClient->execute(auditQuery);
         }
 
         check commit;
-        log:printInfo(string `Successfully processed delta heartbeat for runtime ${deltaHeartbeat.runtime}`);
+        log:printInfo(string `Successfully processed delta heartbeat for runtime ${runtimeId}`);
 
     } on fail error e {
-        log:printError(string `Failed to process delta heartbeat for runtime ${deltaHeartbeat.runtime}`, e);
-        return error(string `Failed to process delta heartbeat for runtime ${deltaHeartbeat.runtime}`, e);
+        log:printError(string `Failed to process delta heartbeat for runtime ${runtimeId}`, e);
+        return error(string `Failed to process delta heartbeat for runtime ${runtimeId}`, e);
+    }
+
+    if !runtimeExists {
+        log:printInfo(string `Runtime ${runtimeId} does not exist, requesting full heartbeat`);
     }
 
     return {
         acknowledged: true,
-        fullHeartbeatRequired: false,
+        fullHeartbeatRequired: !runtimeExists,
         commands: []
     };
 }
 
-// Validate heartbeat data
-isolated function validateHeartbeatData(types:Heartbeat heartbeat) returns error? {
-    if heartbeat.runtime.trim().length() == 0 {
+// Validate heartbeat version, runtime name, and runtimeId. Always called regardless of preResolved.
+public isolated function validateHeartbeatProtocolAndRuntime(types:Heartbeat heartbeat) returns error? {
+    if heartbeat.heartbeatVersion != "v1.0" {
+        return error(string `Unsupported heartbeat version: ${heartbeat.heartbeatVersion}. Only version v1.0 is supported.`);
+    }
+
+    string? runtimeOpt = heartbeat.runtime;
+    if runtimeOpt is string {
+        if runtimeOpt.trim().length() == 0 {
+            return error("Runtime name cannot be empty");
+        }
+        if runtimeOpt.length() > 100 {
+            return error("Runtime name cannot exceed 100 characters");
+        }
+    }
+
+    if heartbeat.runtimeId.trim().length() == 0 {
         return error("Runtime ID cannot be empty");
     }
-
-    if heartbeat.runtime.length() > 100 {
-        return error("Runtime ID cannot exceed 100 characters");
+    if heartbeat.runtimeId.length() != 36 {
+        return error("Runtime ID must be a valid UUID (36 characters)");
     }
+    log:printDebug(string `Processing heartbeat v${heartbeat.heartbeatVersion}: id=${heartbeat.runtimeId}, name=${heartbeat.runtime ?: "null"}`);
+}
 
+// Resolve heartbeat name fields to IDs and validate component consistency. Only called when preResolved=false.
+isolated function validateHeartbeatResolution(types:Heartbeat heartbeat) returns error? {
     if heartbeat.component.trim().length() == 0 {
         return error("Component name cannot be empty");
     }
@@ -487,10 +515,15 @@ isolated function writeObservedStateBI(string runtimeId, string componentId, str
 
 // Upsert runtime record
 isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error {
+    string? runtimeName = heartbeat.runtime;
+    string runtimeId = heartbeat.runtimeId;
+    log:printDebug(string `Upserting runtime: id=${runtimeId}, name=${runtimeName ?: "null"}`);
+
     // Use default values if management hostname and port are not provided
     string runtimeHostname = heartbeat.runtimeHostname ?: "";
     string runtimePort = heartbeat.runtimePort ?: "";
 
+    // Try INSERT first
     sql:ExecutionResult|error insertRes = dbClient->execute(`
         INSERT INTO runtimes (
             runtime_id, name, runtime_type, status, version,
@@ -498,16 +531,16 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             environment_id, project_id, component_id,
             platform_name, platform_version, platform_home,
             os_name, os_version,
-            carbon_home, java_vendor, java_version, 
+            carbon_home, java_vendor, java_version,
             total_memory, free_memory, max_memory, used_memory,
             os_arch, server_name, last_heartbeat
         ) VALUES (
-            ${heartbeat.runtime}, ${heartbeat.runtime}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
+            ${runtimeId}, ${runtimeName}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
             ${runtimeHostname}, ${runtimePort},
             ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
             ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.platformHome},
             ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion},
-            ${heartbeat.nodeInfo.carbonHome}, ${heartbeat.nodeInfo.javaVendor}, ${heartbeat.nodeInfo.javaVersion}, 
+            ${heartbeat.nodeInfo.carbonHome}, ${heartbeat.nodeInfo.javaVendor}, ${heartbeat.nodeInfo.javaVersion},
             ${heartbeat.nodeInfo.totalMemory}, ${heartbeat.nodeInfo.freeMemory}, ${heartbeat.nodeInfo.maxMemory}, ${heartbeat.nodeInfo.usedMemory},
             ${heartbeat.nodeInfo.osArch}, ${heartbeat.nodeInfo.platformName}, CURRENT_TIMESTAMP
         )
@@ -518,9 +551,64 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
         return rows == 1;
     }
 
+    if insertRes is sql:Error && classifySqlError(insertRes) != DUPLICATE_KEY {
+        return insertRes;
+    }
+
+    log:printDebug(string `Runtime already exists for component ${heartbeat.component}, env ${heartbeat.environment}, name ${runtimeName ?: "null"}`);
+
+    stream<record {|string runtime_id;|}, sql:Error?> existing;
+    if runtimeName is string {
+        existing = dbClient->query(`
+            SELECT runtime_id FROM runtimes
+            WHERE component_id = ${heartbeat.component} AND environment_id = ${heartbeat.environment} AND name = ${runtimeName}
+        `);
+    } else {
+        existing = dbClient->query(`
+            SELECT runtime_id FROM runtimes
+            WHERE component_id = ${heartbeat.component} AND environment_id = ${heartbeat.environment} AND name IS NULL
+        `);
+    }
+    record {|string runtime_id;|}[] rows = check from record {|string runtime_id;|} r in existing select r;
+
+    if rows.length() > 0 && rows[0].runtime_id != runtimeId {
+        string oldId = rows[0].runtime_id;
+        log:printInfo(string `Runtime ID changed from ${oldId} to ${runtimeId} for ${runtimeName ?: "null"}`);
+        log:printDebug(string `Deleting old runtime ${oldId} via reconcile cleanup flow`);
+
+        check deleteRuntime(oldId);
+        check deleteReconcileRuntime(oldId);
+
+        log:printDebug(string `Inserting new runtime ${runtimeId} after ID change`);
+        sql:ExecutionResult res = check dbClient->execute(`
+            INSERT INTO runtimes (
+                runtime_id, name, runtime_type, status, version,
+                runtime_hostname, runtime_port,
+                environment_id, project_id, component_id,
+                platform_name, platform_version, platform_home,
+                os_name, os_version,
+                carbon_home, java_vendor, java_version,
+                total_memory, free_memory, max_memory, used_memory,
+                os_arch, server_name, last_heartbeat
+            ) VALUES (
+                ${runtimeId}, ${runtimeName}, ${heartbeat.runtimeType}, ${heartbeat.status}, ${heartbeat.version},
+                ${runtimeHostname}, ${runtimePort},
+                ${heartbeat.environment}, ${heartbeat.project}, ${heartbeat.component},
+                ${heartbeat.nodeInfo.platformName}, ${heartbeat.nodeInfo.platformVersion}, ${heartbeat.nodeInfo.platformHome},
+                ${heartbeat.nodeInfo.osName}, ${heartbeat.nodeInfo.osVersion},
+                ${heartbeat.nodeInfo.carbonHome}, ${heartbeat.nodeInfo.javaVendor}, ${heartbeat.nodeInfo.javaVersion},
+                ${heartbeat.nodeInfo.totalMemory}, ${heartbeat.nodeInfo.freeMemory}, ${heartbeat.nodeInfo.maxMemory}, ${heartbeat.nodeInfo.usedMemory},
+                ${heartbeat.nodeInfo.osArch}, ${heartbeat.nodeInfo.platformName}, CURRENT_TIMESTAMP
+            )
+        `);
+        log:printDebug(string `Successfully inserted runtime ${runtimeId} after ID change`);
+        return (res.affectedRowCount ?: 0) == 1;
+    }
+
+    log:printDebug(string `Updating existing runtime ${runtimeId} with latest heartbeat data`);
     _ = check dbClient->execute(`
         UPDATE runtimes SET
-            name = ${heartbeat.runtime},
+            name = ${runtimeName},
             runtime_type = ${heartbeat.runtimeType},
             status = ${heartbeat.status},
             version = ${heartbeat.version},
@@ -544,17 +632,17 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
             os_arch = ${heartbeat.nodeInfo.osArch},
             server_name = ${heartbeat.nodeInfo.platformName},
             last_heartbeat = CURRENT_TIMESTAMP
-        WHERE runtime_id = ${heartbeat.runtime}
+        WHERE runtime_id = ${runtimeId}
     `);
 
     return false;
 }
 
 // Insert all runtime artifacts
-isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns error? {
+isolated function insertRuntimeArtifacts(string runtimeId, types:Heartbeat heartbeat) returns error? {
     // Delete existing BI services and resources for this runtime before inserting
-    _ = check dbClient->execute(`DELETE FROM bi_service_resource_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
-    _ = check dbClient->execute(`DELETE FROM bi_service_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
+    _ = check dbClient->execute(`DELETE FROM bi_service_resource_artifacts WHERE runtime_id = ${runtimeId}`);
+    _ = check dbClient->execute(`DELETE FROM bi_service_artifacts WHERE runtime_id = ${runtimeId}`);
 
     // Insert services
     foreach types:Service serviceDetail in heartbeat.artifacts.services {
@@ -562,7 +650,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
             INSERT INTO bi_service_artifacts (
                 runtime_id, service_name, service_package, base_path, state
             ) VALUES (
-                ${heartbeat.runtime}, ${serviceDetail.name},
+                ${runtimeId}, ${serviceDetail.name},
                 ${serviceDetail.package}, ${serviceDetail.basePath},
                 ${serviceDetail.state}
             )
@@ -595,7 +683,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
                     INSERT INTO bi_service_resource_artifacts (
                         runtime_id, service_name, resource_url, methods
                     ) VALUES (
-                        ${heartbeat.runtime}, ${serviceDetail.name},
+                        ${runtimeId}, ${serviceDetail.name},
                         ${url}, ${methodsJson}::jsonb
                     )
                 `);
@@ -604,7 +692,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
                     INSERT INTO bi_service_resource_artifacts (
                         runtime_id, service_name, resource_url, methods
                     ) VALUES (
-                        ${heartbeat.runtime}, ${serviceDetail.name},
+                        ${runtimeId}, ${serviceDetail.name},
                         ${url}, ${methodsJson}
                     )
                 `);
@@ -613,7 +701,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
     }
 
     // Delete existing BI listeners for this runtime before inserting
-    _ = check dbClient->execute(`DELETE FROM bi_runtime_listener_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
+    _ = check dbClient->execute(`DELETE FROM bi_runtime_listener_artifacts WHERE runtime_id = ${runtimeId}`);
 
     // Insert listeners
     foreach types:Listener listenerDetail in heartbeat.artifacts.listeners {
@@ -623,7 +711,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
             INSERT INTO bi_runtime_listener_artifacts (
                 runtime_id, listener_name, listener_package, protocol, listener_host, listener_port, state
             ) VALUES (
-                ${heartbeat.runtime}, ${listenerDetail.name},
+                ${runtimeId}, ${listenerDetail.name},
                 ${listenerDetail.package}, ${listenerDetail.protocol},
                 ${host}, ${port},
                 ${listenerDetail.state}
@@ -633,7 +721,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
 
     // Handle automation artifacts for BI integrations (main function)
     // Delete existing automation artifacts first
-    _ = check dbClient->execute(`DELETE FROM bi_automation_artifacts WHERE runtime_id = ${heartbeat.runtime}`);
+    _ = check dbClient->execute(`DELETE FROM bi_automation_artifacts WHERE runtime_id = ${runtimeId}`);
 
     // Only store automation when runtime type is BI, there are no listeners or services, and main artifact exists
     if heartbeat.runtimeType == "BI" && heartbeat.artifacts.listeners.length() == 0 && heartbeat.artifacts.services.length() == 0 {
@@ -645,7 +733,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
                     INSERT INTO bi_automation_artifacts (
                         runtime_id, package_org, package_name, package_version, execution_timestamp
                     ) VALUES (
-                        ${heartbeat.runtime}, ${mainArtifact.packageOrg}, ${mainArtifact.packageName},
+                        ${runtimeId}, ${mainArtifact.packageOrg}, ${mainArtifact.packageName},
                         ${mainArtifact.packageVersion}, ${executionTimeStr}::timestamp
                     )
                 `);
@@ -654,7 +742,7 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
                     INSERT INTO bi_automation_artifacts (
                         runtime_id, package_org, package_name, package_version, execution_timestamp
                     ) VALUES (
-                        ${heartbeat.runtime}, ${mainArtifact.packageOrg}, ${mainArtifact.packageName},
+                        ${runtimeId}, ${mainArtifact.packageOrg}, ${mainArtifact.packageName},
                         ${mainArtifact.packageVersion}, ${executionTimeStr}
                     )
                 `);
@@ -662,9 +750,9 @@ isolated function insertRuntimeArtifacts(types:Heartbeat heartbeat) returns erro
         }
     }
 
-    check insertMIArtifacts(heartbeat);
-    check insertAdditionalMIArtifacts(heartbeat);
-    check insertRuntimeLogLevels(heartbeat);
+    check insertMIArtifacts(runtimeId, heartbeat);
+    check insertAdditionalMIArtifacts(runtimeId, heartbeat);
+    check insertRuntimeLogLevels(runtimeId, heartbeat);
 }
 
 // Delete existing artifacts
@@ -695,7 +783,7 @@ isolated function deleteExistingArtifacts(string runtimeId) returns error? {
 }
 
 // Insert MI artifacts
-isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
+isolated function insertMIArtifacts(string runtimeId, types:Heartbeat heartbeat) returns error? {
     foreach types:RestApi api in <types:RestApi[]>heartbeat.artifacts.apis {
         string artifactId = uuid:createType4AsString();
         string? carbonApp = api?.carbonApp;
@@ -703,7 +791,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         if dbType == MSSQL {
             _ = check dbClient->execute(`
                 MERGE INTO mi_api_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url}, ${urlsJson}, ${api.context},
+                USING (VALUES (${runtimeId}, ${api.name}, ${artifactId}, ${api.url}, ${urlsJson}, ${api.context},
                        ${api.version}, ${api.state}, ${api.tracing}, ${api.statistics}, ${carbonApp}))
                        AS source (runtime_id, api_name, artifact_id, url, urls, context, version, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.api_name = source.api_name)
@@ -719,7 +807,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 INSERT INTO mi_api_artifacts (
                     runtime_id, api_name, url, urls, context, version, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${api.name}, ${api.url}, ${urlsJson},
+                    ${runtimeId}, ${api.name}, ${api.url}, ${urlsJson},
                     ${api.context}, ${api.version}, ${api.state}, ${api.tracing}, ${api.statistics}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, api_name) DO UPDATE SET
@@ -738,7 +826,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 INSERT INTO mi_api_artifacts (
                     runtime_id, api_name, artifact_id, url, urls, context, version, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${api.name}, ${artifactId}, ${api.url}, ${urlsJson},
+                    ${runtimeId}, ${api.name}, ${artifactId}, ${api.url}, ${urlsJson},
                     ${api.context}, ${api.version}, ${api.state}, ${api.tracing}, ${api.statistics}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -772,7 +860,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
             if dbType == MSSQL {
                 _ = check dbClient->execute(`
                     MERGE INTO mi_api_resource_artifacts AS target
-                    USING (VALUES (${heartbeat.runtime}, ${api.name}, ${path}, ${methods}))
+                    USING (VALUES (${runtimeId}, ${api.name}, ${path}, ${methods}))
                            AS source (runtime_id, api_name, resource_path, methods)
                     ON (target.runtime_id = source.runtime_id AND target.api_name = source.api_name
                         AND target.resource_path = source.resource_path)
@@ -787,7 +875,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                     INSERT INTO mi_api_resource_artifacts (
                         runtime_id, api_name, resource_path, methods
                     ) VALUES (
-                        ${heartbeat.runtime}, ${api.name},
+                        ${runtimeId}, ${api.name},
                         ${path}, ${methods}
                     )
                     ON CONFLICT (runtime_id, api_name, resource_path) DO UPDATE SET
@@ -799,7 +887,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                     INSERT INTO mi_api_resource_artifacts (
                         runtime_id, api_name, resource_path, methods
                     ) VALUES (
-                        ${heartbeat.runtime}, ${api.name},
+                        ${runtimeId}, ${api.name},
                         ${path}, ${methods}
                     )
                     ON DUPLICATE KEY UPDATE
@@ -816,7 +904,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_proxy_service_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}))
                        AS source (runtime_id, proxy_name, artifact_id, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.proxy_name = source.proxy_name)
                 WHEN MATCHED THEN
@@ -830,7 +918,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 INSERT INTO mi_proxy_service_artifacts (
                     runtime_id, proxy_name, artifact_id, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}
+                    ${runtimeId}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, proxy_name) DO UPDATE SET
                     state = EXCLUDED.state,
@@ -844,7 +932,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 INSERT INTO mi_proxy_service_artifacts (
                     runtime_id, proxy_name, artifact_id, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}
+                    ${runtimeId}, ${proxy.name}, ${artifactId}, ${proxy.state}, ${proxy.tracing}, ${proxy.statistics}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
                     state = VALUES(state),
@@ -861,7 +949,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 if isMSSQL() {
                     _ = check dbClient->execute(`
                         MERGE INTO mi_proxy_service_endpoint_artifacts AS target
-                        USING (VALUES (${heartbeat.runtime}, ${proxy.name}, ${ep}))
+                        USING (VALUES (${runtimeId}, ${proxy.name}, ${ep}))
                                AS source (runtime_id, proxy_name, endpoint_url)
                         ON (target.runtime_id = source.runtime_id AND target.proxy_name = source.proxy_name AND target.endpoint_url = source.endpoint_url)
                         WHEN MATCHED THEN
@@ -875,7 +963,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                         INSERT INTO mi_proxy_service_endpoint_artifacts (
                             runtime_id, proxy_name, endpoint_url
                         ) VALUES (
-                            ${heartbeat.runtime}, ${proxy.name}, ${ep}
+                            ${runtimeId}, ${proxy.name}, ${ep}
                         )
                         ON CONFLICT (runtime_id, proxy_name, endpoint_url) DO UPDATE SET
                             updated_at = CURRENT_TIMESTAMP
@@ -885,7 +973,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                         INSERT INTO mi_proxy_service_endpoint_artifacts (
                             runtime_id, proxy_name, endpoint_url
                         ) VALUES (
-                            ${heartbeat.runtime}, ${proxy.name}, ${ep}
+                            ${runtimeId}, ${proxy.name}, ${ep}
                         )
                         ON DUPLICATE KEY UPDATE
                             updated_at = CURRENT_TIMESTAMP
@@ -901,7 +989,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_endpoint_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type}, ${endpoint.state}, ${endpoint.tracing}, ${endpoint.statistics}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${endpoint.name}, ${artifactId}, ${endpoint.'type}, ${endpoint.state}, ${endpoint.tracing}, ${endpoint.statistics}, ${carbonApp}))
                        AS source (runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.endpoint_name = source.endpoint_name)
                 WHEN MATCHED THEN
@@ -915,7 +1003,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 INSERT INTO mi_endpoint_artifacts (
                     runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
+                    ${runtimeId}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
                     ${endpoint.state}, ${endpoint.tracing}, ${endpoint.statistics}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, endpoint_name) DO UPDATE SET
@@ -931,7 +1019,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 INSERT INTO mi_endpoint_artifacts (
                     runtime_id, endpoint_name, artifact_id, endpoint_type, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
+                    ${runtimeId}, ${endpoint.name}, ${artifactId}, ${endpoint.'type},
                     ${endpoint.state}, ${endpoint.tracing}, ${endpoint.statistics}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -951,7 +1039,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                 if isMSSQL() {
                     _ = check dbClient->execute(`
                         MERGE INTO mi_endpoint_attribute_artifacts AS target
-                        USING (VALUES (${heartbeat.runtime}, ${endpoint.name}, ${attr.name}, ${attr?.value}))
+                        USING (VALUES (${runtimeId}, ${endpoint.name}, ${attr.name}, ${attr?.value}))
                                AS source (runtime_id, endpoint_name, attribute_name, attribute_value)
                         ON (target.runtime_id = source.runtime_id AND target.endpoint_name = source.endpoint_name AND target.attribute_name = source.attribute_name)
                         WHEN MATCHED THEN
@@ -965,7 +1053,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                         INSERT INTO mi_endpoint_attribute_artifacts (
                             runtime_id, endpoint_name, attribute_name, attribute_value
                         ) VALUES (
-                            ${heartbeat.runtime}, ${endpoint.name}, ${attr.name}, ${attr?.value}
+                            ${runtimeId}, ${endpoint.name}, ${attr.name}, ${attr?.value}
                         )
                         ON CONFLICT (runtime_id, endpoint_name, attribute_name) DO UPDATE SET
                             attribute_value = EXCLUDED.attribute_value,
@@ -976,7 +1064,7 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
                         INSERT INTO mi_endpoint_attribute_artifacts (
                             runtime_id, endpoint_name, attribute_name, attribute_value
                         ) VALUES (
-                            ${heartbeat.runtime}, ${endpoint.name}, ${attr.name}, ${attr?.value}
+                            ${runtimeId}, ${endpoint.name}, ${attr.name}, ${attr?.value}
                         )
                         ON DUPLICATE KEY UPDATE
                             attribute_value = VALUES(attribute_value),
@@ -989,14 +1077,14 @@ isolated function insertMIArtifacts(types:Heartbeat heartbeat) returns error? {
 }
 
 // Insert additional MI artifacts
-isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns error? {
+isolated function insertAdditionalMIArtifacts(string runtimeId, types:Heartbeat heartbeat) returns error? {
     foreach types:InboundEndpoint inbound in <types:InboundEndpoint[]>heartbeat.artifacts.inboundEndpoints {
         string artifactId = uuid:createType4AsString();
         string? carbonApp = inbound?.carbonApp;
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_inbound_endpoint_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${inbound.name}, ${artifactId}, ${inbound.protocol}, ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${inbound.name}, ${artifactId}, ${inbound.protocol}, ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}, ${carbonApp}))
                        AS source (runtime_id, inbound_name, artifact_id, protocol, sequence, state, [statistics], on_error, tracing, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.inbound_name = source.inbound_name)
                 WHEN MATCHED THEN
@@ -1010,7 +1098,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_inbound_endpoint_artifacts (
                     runtime_id, inbound_name, protocol, sequence, state, statistics, on_error, tracing, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${inbound.name}, ${inbound.protocol},
+                    ${runtimeId}, ${inbound.name}, ${inbound.protocol},
                     ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, inbound_name) DO UPDATE SET
@@ -1028,7 +1116,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_inbound_endpoint_artifacts (
                     runtime_id, inbound_name, artifact_id, protocol, sequence, state, statistics, on_error, tracing, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${inbound.name}, ${artifactId}, ${inbound.protocol},
+                    ${runtimeId}, ${inbound.name}, ${artifactId}, ${inbound.protocol},
                     ${inbound.sequence}, ${inbound.state}, ${inbound.statistics}, ${inbound.onError}, ${inbound.tracing}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1050,7 +1138,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_sequence_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${sequence.name}, ${artifactId}, ${sequence.'type}, ${sequence.container}, ${sequence.state}, ${sequence.tracing}, ${sequence.statistics}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${sequence.name}, ${artifactId}, ${sequence.'type}, ${sequence.container}, ${sequence.state}, ${sequence.tracing}, ${sequence.statistics}, ${carbonApp}))
                        AS source (runtime_id, sequence_name, artifact_id, sequence_type, container, state, tracing, [statistics], carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.sequence_name = source.sequence_name)
                 WHEN MATCHED THEN
@@ -1064,7 +1152,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_sequence_artifacts (
                     runtime_id, sequence_name, sequence_type, container, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${sequence.name}, ${sequence.'type},
+                    ${runtimeId}, ${sequence.name}, ${sequence.'type},
                     ${sequence.container}, ${sequence.state}, ${sequence.tracing}, ${sequence.statistics}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, sequence_name) DO UPDATE SET
@@ -1081,7 +1169,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_sequence_artifacts (
                     runtime_id, sequence_name, artifact_id, sequence_type, container, state, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${sequence.name}, ${artifactId}, ${sequence.'type},
+                    ${runtimeId}, ${sequence.name}, ${artifactId}, ${sequence.'type},
                     ${sequence.container}, ${sequence.state}, ${sequence.tracing}, ${sequence.statistics}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1102,7 +1190,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_task_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${task.name}, ${artifactId}, ${task.'class}, ${task.group}, ${task.state}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${task.name}, ${artifactId}, ${task.'class}, ${task.group}, ${task.state}, ${carbonApp}))
                        AS source (runtime_id, task_name, artifact_id, task_class, task_group, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.task_name = source.task_name)
                 WHEN MATCHED THEN
@@ -1116,7 +1204,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_task_artifacts (
                     runtime_id, task_name, task_class, task_group, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${task.name}, ${task.'class},
+                    ${runtimeId}, ${task.name}, ${task.'class},
                     ${task.group}, ${task.state}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, task_name) DO UPDATE SET
@@ -1131,7 +1219,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_task_artifacts (
                     runtime_id, task_name, artifact_id, task_class, task_group, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${task.name}, ${artifactId}, ${task.'class},
+                    ${runtimeId}, ${task.name}, ${artifactId}, ${task.'class},
                     ${task.group}, ${task.state}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1149,7 +1237,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_template_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${template.name}, ${template.'type}, ${template.tracing}, ${template.statistics}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${template.name}, ${template.'type}, ${template.tracing}, ${template.statistics}, ${carbonApp}))
                        AS source (runtime_id, template_name, template_type, tracing, statistics, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.template_name = source.template_name)
                 WHEN MATCHED THEN
@@ -1163,7 +1251,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_template_artifacts (
                     runtime_id, template_name, template_type, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${template.name}, ${template.'type}, ${template.tracing}, ${template.statistics}, ${carbonApp}
+                    ${runtimeId}, ${template.name}, ${template.'type}, ${template.tracing}, ${template.statistics}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, template_name) DO UPDATE SET
                     template_type = EXCLUDED.template_type,
@@ -1177,7 +1265,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_template_artifacts (
                     runtime_id, template_name, template_type, tracing, statistics, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${template.name}, ${template.'type}, ${template.tracing}, ${template.statistics}, ${carbonApp}
+                    ${runtimeId}, ${template.name}, ${template.'type}, ${template.tracing}, ${template.statistics}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
                     template_type = VALUES(template_type),
@@ -1194,7 +1282,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_message_store_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}))
                        AS source (runtime_id, store_name, store_type, size, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.store_name = source.store_name)
                 WHEN MATCHED THEN
@@ -1208,7 +1296,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_message_store_artifacts (
                     runtime_id, store_name, store_type, size, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}
+                    ${runtimeId}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, store_name) DO UPDATE SET
                     store_type = EXCLUDED.store_type,
@@ -1221,7 +1309,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_message_store_artifacts (
                     runtime_id, store_name, store_type, size, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}
+                    ${runtimeId}, ${store.name}, ${store.'type}, ${store.size}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
                     store_type = VALUES(store_type),
@@ -1238,7 +1326,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_message_processor_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${processor.name}, ${artifactId}, ${processor.'type}, ${processor.'class}, ${processor.state}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${processor.name}, ${artifactId}, ${processor.'type}, ${processor.'class}, ${processor.state}, ${carbonApp}))
                        AS source (runtime_id, processor_name, artifact_id, processor_type, processor_class, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.processor_name = source.processor_name)
                 WHEN MATCHED THEN
@@ -1252,7 +1340,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_message_processor_artifacts (
                     runtime_id, processor_name, processor_type, processor_class, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${processor.name}, ${processor.'type},
+                    ${runtimeId}, ${processor.name}, ${processor.'type},
                     ${processor.'class}, ${processor.state}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, processor_name) DO UPDATE SET
@@ -1267,7 +1355,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_message_processor_artifacts (
                     runtime_id, processor_name, artifact_id, processor_type, processor_class, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${processor.name}, ${artifactId}, ${processor.'type},
+                    ${runtimeId}, ${processor.name}, ${artifactId}, ${processor.'type},
                     ${processor.'class}, ${processor.state}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1286,7 +1374,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_local_entry_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${entry.name}, ${artifactId}, ${entry.'type}, ${entry.value}, ${entry.state}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${entry.name}, ${artifactId}, ${entry.'type}, ${entry.value}, ${entry.state}, ${carbonApp}))
                        AS source (runtime_id, entry_name, artifact_id, entry_type, entry_value, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.entry_name = source.entry_name)
                 WHEN MATCHED THEN
@@ -1300,7 +1388,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_local_entry_artifacts (
                     runtime_id, entry_name, entry_type, entry_value, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${entry.name}, ${entry.'type},
+                    ${runtimeId}, ${entry.name}, ${entry.'type},
                     ${entry.value}, ${entry.state}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, entry_name) DO UPDATE SET
@@ -1315,7 +1403,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_local_entry_artifacts (
                     runtime_id, entry_name, artifact_id, entry_type, entry_value, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${entry.name}, ${artifactId}, ${entry.'type},
+                    ${runtimeId}, ${entry.name}, ${artifactId}, ${entry.'type},
                     ${entry.value}, ${entry.state}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1334,7 +1422,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_data_service_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${dataService.name}, ${artifactId}, ${dataService.description}, ${dataService.wsdl}, ${dataService.state}, ${carbonApp}))
+                USING (VALUES (${runtimeId}, ${dataService.name}, ${artifactId}, ${dataService.description}, ${dataService.wsdl}, ${dataService.state}, ${carbonApp}))
                        AS source (runtime_id, service_name, artifact_id, description, wsdl, state, carbon_app)
                 ON (target.runtime_id = source.runtime_id AND target.service_name = source.service_name)
                 WHEN MATCHED THEN
@@ -1348,7 +1436,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_data_service_artifacts (
                     runtime_id, service_name, description, wsdl, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${dataService.name}, ${dataService.description},
+                    ${runtimeId}, ${dataService.name}, ${dataService.description},
                     ${dataService.wsdl}, ${dataService.state}, ${carbonApp}
                 )
                 ON CONFLICT (runtime_id, service_name) DO UPDATE SET
@@ -1363,7 +1451,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_data_service_artifacts (
                     runtime_id, service_name, artifact_id, description, wsdl, state, carbon_app
                 ) VALUES (
-                    ${heartbeat.runtime}, ${dataService.name}, ${artifactId}, ${dataService.description},
+                    ${runtimeId}, ${dataService.name}, ${artifactId}, ${dataService.description},
                     ${dataService.wsdl}, ${dataService.state}, ${carbonApp}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1383,7 +1471,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_carbon_app_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}))
+                USING (VALUES (${runtimeId}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}))
                        AS source (runtime_id, app_name, version, state, artifacts)
                 ON (target.runtime_id = source.runtime_id AND target.app_name = source.app_name)
                 WHEN MATCHED THEN
@@ -1397,7 +1485,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_carbon_app_artifacts (
                     runtime_id, app_name, version, state, artifacts
                 ) VALUES (
-                    ${heartbeat.runtime}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}
+                    ${runtimeId}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}
                 )
                 ON CONFLICT (runtime_id, app_name) DO UPDATE SET
                     version = EXCLUDED.version,
@@ -1410,7 +1498,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_carbon_app_artifacts (
                     runtime_id, app_name, version, state, artifacts
                 ) VALUES (
-                    ${heartbeat.runtime}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}
+                    ${runtimeId}, ${app.name}, ${app.version}, ${app.state}, ${artifactsJson}
                 )
                 ON DUPLICATE KEY UPDATE
                     version = VALUES(version),
@@ -1425,7 +1513,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_data_source_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver}, ${dataSource.url}, ${dataSource.username}, ${dataSource.state}))
+                USING (VALUES (${runtimeId}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver}, ${dataSource.url}, ${dataSource.username}, ${dataSource.state}))
                        AS source (runtime_id, datasource_name, datasource_type, driver, url, username, state)
                 ON (target.runtime_id = source.runtime_id AND target.datasource_name = source.datasource_name)
                 WHEN MATCHED THEN
@@ -1439,7 +1527,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_data_source_artifacts (
                     runtime_id, datasource_name, datasource_type, driver, url, username, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver},
+                    ${runtimeId}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver},
                     ${dataSource.url}, ${dataSource.username}, ${dataSource.state}
                 )
                 ON CONFLICT (runtime_id, datasource_name) DO UPDATE SET
@@ -1455,7 +1543,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_data_source_artifacts (
                     runtime_id, datasource_name, datasource_type, driver, url, username, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver},
+                    ${runtimeId}, ${dataSource.name}, ${dataSource.'type}, ${dataSource.driver},
                     ${dataSource.url}, ${dataSource.username}, ${dataSource.state}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1474,7 +1562,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_connector_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${connector.name}, ${artifactId}, ${connector.package}, ${connector.version}, ${connector.description}, ${connector.state}))
+                USING (VALUES (${runtimeId}, ${connector.name}, ${artifactId}, ${connector.package}, ${connector.version}, ${connector.description}, ${connector.state}))
                        AS source (runtime_id, connector_name, artifact_id, package, version, description, state)
                 ON (target.runtime_id = source.runtime_id AND target.connector_name = source.connector_name AND target.package = source.package)
                 WHEN MATCHED THEN
@@ -1488,7 +1576,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_connector_artifacts (
                     runtime_id, connector_name, package, version, description, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${connector.name}, ${connector.package},
+                    ${runtimeId}, ${connector.name}, ${connector.package},
                     ${connector.version}, ${connector.description}, ${connector.state}
                 )
                 ON CONFLICT (runtime_id, connector_name, package) DO UPDATE SET
@@ -1502,7 +1590,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_connector_artifacts (
                     runtime_id, connector_name, artifact_id, package, version, description, state
                 ) VALUES (
-                    ${heartbeat.runtime}, ${connector.name}, ${artifactId}, ${connector.package},
+                    ${runtimeId}, ${connector.name}, ${artifactId}, ${connector.package},
                     ${connector.version}, ${connector.description}, ${connector.state}
                 )
                 ON DUPLICATE KEY UPDATE
@@ -1519,7 +1607,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
         if isMSSQL() {
             _ = check dbClient->execute(`
                 MERGE INTO mi_registry_resource_artifacts AS target
-                USING (VALUES (${heartbeat.runtime}, ${registryResource.name}, ${registryResource.'type}))
+                USING (VALUES (${runtimeId}, ${registryResource.name}, ${registryResource.'type}))
                        AS source (runtime_id, resource_name, resource_type)
                 ON (target.runtime_id = source.runtime_id AND target.resource_name = source.resource_name)
                 WHEN MATCHED THEN
@@ -1533,7 +1621,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_registry_resource_artifacts (
                     runtime_id, resource_name, resource_type
                 ) VALUES (
-                    ${heartbeat.runtime}, ${registryResource.name}, ${registryResource.'type}
+                    ${runtimeId}, ${registryResource.name}, ${registryResource.'type}
                 )
                 ON CONFLICT (runtime_id, resource_name) DO UPDATE SET
                     updated_at = CURRENT_TIMESTAMP
@@ -1543,7 +1631,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
                 INSERT INTO mi_registry_resource_artifacts (
                     runtime_id, resource_name, resource_type
                 ) VALUES (
-                    ${heartbeat.runtime}, ${registryResource.name}, ${registryResource.'type}
+                    ${runtimeId}, ${registryResource.name}, ${registryResource.'type}
                 )
                 ON DUPLICATE KEY UPDATE
                     updated_at = CURRENT_TIMESTAMP
@@ -1553,7 +1641,7 @@ isolated function insertAdditionalMIArtifacts(types:Heartbeat heartbeat) returns
 }
 
 // Insert runtime log levels for BI components
-isolated function insertRuntimeLogLevels(types:Heartbeat heartbeat) returns error? {
+isolated function insertRuntimeLogLevels(string runtimeId, types:Heartbeat heartbeat) returns error? {
     // Only process log levels if they exist in the heartbeat
     map<log:Level>? logLevels = heartbeat.logLevels;
     if logLevels is () {
@@ -1563,15 +1651,15 @@ isolated function insertRuntimeLogLevels(types:Heartbeat heartbeat) returns erro
     // Delete all existing log levels for this runtime to remove stale entries
     if dbType == MSSQL {
         _ = check dbClient->execute(`
-            DELETE FROM bi_runtime_log_levels WHERE runtime_id = ${heartbeat.runtime}
+            DELETE FROM bi_runtime_log_levels WHERE runtime_id = ${runtimeId}
         `);
     } else if dbType == POSTGRESQL {
         _ = check dbClient->execute(`
-            DELETE FROM bi_runtime_log_levels WHERE runtime_id = ${heartbeat.runtime}
+            DELETE FROM bi_runtime_log_levels WHERE runtime_id = ${runtimeId}
         `);
     } else {
         _ = check dbClient->execute(`
-            DELETE FROM bi_runtime_log_levels WHERE runtime_id = ${heartbeat.runtime}
+            DELETE FROM bi_runtime_log_levels WHERE runtime_id = ${runtimeId}
         `);
     }
 
@@ -1581,7 +1669,7 @@ isolated function insertRuntimeLogLevels(types:Heartbeat heartbeat) returns erro
         if dbType == MSSQL {
             _ = check dbClient->execute(`
                 MERGE INTO bi_runtime_log_levels AS target
-                USING (VALUES (${heartbeat.runtime}, ${componentName}, ${logLevelStr}))
+                USING (VALUES (${runtimeId}, ${componentName}, ${logLevelStr}))
                        AS source (runtime_id, component_name, log_level)
                 ON (target.runtime_id = source.runtime_id AND target.component_name = source.component_name)
                 WHEN MATCHED THEN
@@ -1595,7 +1683,7 @@ isolated function insertRuntimeLogLevels(types:Heartbeat heartbeat) returns erro
                 INSERT INTO bi_runtime_log_levels (
                     runtime_id, component_name, log_level
                 ) VALUES (
-                    ${heartbeat.runtime}, ${componentName}, ${logLevelStr}
+                    ${runtimeId}, ${componentName}, ${logLevelStr}
                 )
                 ON CONFLICT (runtime_id, component_name) DO UPDATE SET
                     log_level = EXCLUDED.log_level,
@@ -1606,7 +1694,7 @@ isolated function insertRuntimeLogLevels(types:Heartbeat heartbeat) returns erro
                 INSERT INTO bi_runtime_log_levels (
                     runtime_id, component_name, log_level
                 ) VALUES (
-                    ${heartbeat.runtime}, ${componentName}, ${logLevelStr}
+                    ${runtimeId}, ${componentName}, ${logLevelStr}
                 )
                 ON DUPLICATE KEY UPDATE
                     log_level = VALUES(log_level),

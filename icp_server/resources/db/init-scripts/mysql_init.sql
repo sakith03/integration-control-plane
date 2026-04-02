@@ -479,8 +479,8 @@ VALUES (
 -- ============================================================================
 
 CREATE TABLE runtimes (
-    runtime_id VARCHAR(100) NOT NULL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL PRIMARY KEY,
+    name VARCHAR(100) NULL,
     project_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     environment_id CHAR(36) NOT NULL,
@@ -515,6 +515,7 @@ CREATE TABLE runtimes (
     CONSTRAINT fk_runtime_project FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
     CONSTRAINT fk_runtime_component FOREIGN KEY (component_id) REFERENCES components (component_id) ON DELETE CASCADE,
     CONSTRAINT fk_runtime_env FOREIGN KEY (environment_id) REFERENCES environments (environment_id) ON DELETE CASCADE,
+    CONSTRAINT uq_runtime_identity UNIQUE (component_id, environment_id, name),
     INDEX idx_runtime_type (runtime_type),
     INDEX idx_status (status),
     INDEX idx_env (environment_id),
@@ -550,7 +551,7 @@ ALTER TABLE runtimes ADD CONSTRAINT fk_runtime_key_id FOREIGN KEY (key_id) REFER
 
 -- Services deployed on a runtime
 CREATE TABLE bi_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(100) NOT NULL,
     service_package VARCHAR(200) NOT NULL,
     base_path VARCHAR(500) NULL,
@@ -594,7 +595,7 @@ method_first  VARCHAR(20)
 
 -- Listeners bound to a runtime (e.g., HTTP/HTTPS)
 CREATE TABLE bi_runtime_listener_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     listener_name VARCHAR(100) NOT NULL,
     listener_package VARCHAR(200) NOT NULL,
     protocol VARCHAR(20) NULL DEFAULT 'HTTP',
@@ -616,7 +617,7 @@ CREATE TABLE bi_runtime_listener_artifacts (
 
 -- Automation artifacts (main function) for BI integrations
 CREATE TABLE bi_automation_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     package_org VARCHAR(200) NOT NULL,
     package_name VARCHAR(200) NOT NULL,
     package_version VARCHAR(50) NOT NULL,
@@ -632,7 +633,7 @@ CREATE TABLE bi_automation_artifacts (
 
 -- Runtime log levels for BI components
 CREATE TABLE bi_runtime_log_levels (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_name VARCHAR(200) NOT NULL,
     log_level ENUM('DEBUG', 'ERROR', 'INFO', 'WARN') NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -650,7 +651,7 @@ CREATE TABLE bi_runtime_log_levels (
 
 -- REST APIs (MI)
 CREATE TABLE mi_api_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     url VARCHAR(500) NOT NULL,
@@ -676,7 +677,7 @@ CREATE TABLE mi_api_artifacts (
 
 -- API Resources (MI) - Resources inside an API
 CREATE TABLE mi_api_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     api_name VARCHAR(200) NOT NULL,
     resource_path VARCHAR(1000) NOT NULL,
     methods VARCHAR(20) NOT NULL, -- Single HTTP method as string (e.g., "POST", "GET")
@@ -691,7 +692,7 @@ CREATE TABLE mi_api_resource_artifacts (
 
 -- Proxy Services (MI)
 CREATE TABLE mi_proxy_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     state ENUM(
@@ -713,7 +714,7 @@ CREATE TABLE mi_proxy_service_artifacts (
 
 -- Proxy Service Endpoints (MI)
 CREATE TABLE mi_proxy_service_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     proxy_name VARCHAR(200) NOT NULL,
     endpoint_url VARCHAR(500) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -726,7 +727,7 @@ CREATE TABLE mi_proxy_service_endpoint_artifacts (
 
 -- Endpoints (MI)
 CREATE TABLE mi_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     endpoint_type VARCHAR(100) NOT NULL,
@@ -750,7 +751,7 @@ CREATE TABLE mi_endpoint_artifacts (
 
 -- Endpoint Attributes (MI)
 CREATE TABLE mi_endpoint_attribute_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     endpoint_name VARCHAR(200) NOT NULL,
     attribute_name VARCHAR(200) NOT NULL,
     attribute_value TEXT NULL,
@@ -765,7 +766,7 @@ CREATE TABLE mi_endpoint_attribute_artifacts (
 
 -- Inbound Endpoints (MI)
 CREATE TABLE mi_inbound_endpoint_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     inbound_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     protocol VARCHAR(50) NOT NULL,
@@ -791,7 +792,7 @@ CREATE TABLE mi_inbound_endpoint_artifacts (
 
 -- Sequences (MI)
 CREATE TABLE mi_sequence_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     sequence_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     sequence_type VARCHAR(100) NULL,
@@ -816,7 +817,7 @@ CREATE TABLE mi_sequence_artifacts (
 
 -- Tasks (MI)
 CREATE TABLE mi_task_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     task_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     task_class VARCHAR(500) NULL,
@@ -838,7 +839,7 @@ CREATE TABLE mi_task_artifacts (
 
 -- Templates (MI)
 CREATE TABLE mi_template_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     template_name VARCHAR(200) NOT NULL,
     template_type VARCHAR(100) NOT NULL,
     tracing VARCHAR(20) NOT NULL DEFAULT 'disabled',
@@ -855,7 +856,7 @@ CREATE TABLE mi_template_artifacts (
 
 -- Message Stores (MI)
 CREATE TABLE mi_message_store_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     store_name VARCHAR(200) NOT NULL,
     store_type VARCHAR(100) NOT NULL,
     size BIGINT NOT NULL DEFAULT 0,
@@ -871,7 +872,7 @@ CREATE TABLE mi_message_store_artifacts (
 
 -- Message Processors (MI)
 CREATE TABLE mi_message_processor_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     processor_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     processor_type VARCHAR(100) NOT NULL,
@@ -894,7 +895,7 @@ CREATE TABLE mi_message_processor_artifacts (
 
 -- Local Entries (MI)
 CREATE TABLE mi_local_entry_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     entry_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     entry_type VARCHAR(100) NOT NULL,
@@ -917,7 +918,7 @@ CREATE TABLE mi_local_entry_artifacts (
 
 -- Data Services (MI)
 CREATE TABLE mi_data_service_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     service_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     description TEXT NULL,
@@ -939,7 +940,7 @@ CREATE TABLE mi_data_service_artifacts (
 
 -- Carbon Apps (MI)
 CREATE TABLE mi_carbon_app_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     app_name VARCHAR(200) NOT NULL,
     version VARCHAR(50) NULL,
     state ENUM('Active', 'Faulty') NOT NULL DEFAULT 'Active',
@@ -955,7 +956,7 @@ CREATE TABLE mi_carbon_app_artifacts (
 
 -- Data Sources (MI)
 CREATE TABLE mi_data_source_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     datasource_name VARCHAR(200) NOT NULL,
     datasource_type VARCHAR(100) NULL,
     driver VARCHAR(500) NULL,
@@ -977,7 +978,7 @@ CREATE TABLE mi_data_source_artifacts (
 
 -- Connectors (MI)
 CREATE TABLE mi_connector_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     connector_name VARCHAR(200) NOT NULL,
     artifact_id CHAR(36) NOT NULL UNIQUE,
     package VARCHAR(200) NOT NULL,
@@ -999,7 +1000,7 @@ CREATE TABLE mi_connector_artifacts (
 
 -- Registry Resources (MI)
 CREATE TABLE mi_registry_resource_artifacts (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     resource_name VARCHAR(200) NOT NULL,
     resource_type VARCHAR(100) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1015,7 +1016,7 @@ CREATE TABLE mi_registry_resource_artifacts (
 -- ============================================================================
 
 CREATE TABLE mi_runtime_control_commands (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
     artifact_type VARCHAR(100) NOT NULL,
@@ -1068,7 +1069,7 @@ CREATE TABLE reconcile_desired_state (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE reconcile_observed_state (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     component_id CHAR(36) NOT NULL,
     env_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
@@ -1083,7 +1084,7 @@ CREATE TABLE reconcile_observed_state (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE reconcile_backoff (
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     artifact_name VARCHAR(200) NOT NULL,
     artifact_type VARCHAR(100) NOT NULL,
     state_key VARCHAR(255) NOT NULL,
@@ -1115,7 +1116,7 @@ CREATE TABLE mi_logger_intended_state (
 
 CREATE TABLE audit_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    runtime_id VARCHAR(100) NULL,
+    runtime_id CHAR(36) NULL,
     user_id CHAR(36) NULL,
     action VARCHAR(100) NOT NULL,
     resource_type VARCHAR(50) NULL, -- runtime, service, listener, command
@@ -1165,7 +1166,7 @@ CREATE TABLE system_events (
 
 CREATE TABLE runtime_metrics (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     metric_name VARCHAR(100) NOT NULL,
     metric_value DECIMAL(15, 4) NOT NULL,
     metric_unit VARCHAR(20) NULL,
@@ -1179,7 +1180,7 @@ CREATE TABLE runtime_metrics (
 
 CREATE TABLE health_checks (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    runtime_id VARCHAR(100) NOT NULL,
+    runtime_id CHAR(36) NOT NULL,
     check_type VARCHAR(50) NOT NULL, -- heartbeat, connectivity, resource
     status ENUM(
         'HEALTHY',
