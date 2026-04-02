@@ -6,8 +6,8 @@ import ballerina/time;
 import ballerina/uuid;
 
 // MI dispatch: fire HTTP calls immediately via sendMIControlCommandAsync.
-public function dispatchMI(string runtimeId, types:ReconcileArtifactKey artifact,
-        types:ReconcileAction[] actions) returns error? {
+public isolated function dispatchMI(string runtimeId, types:ReconcileArtifactKey artifact,
+        types:ReconcileAction[] actions) returns types:ControlCommand[]|error? {
     foreach types:ReconcileAction a in actions {
         if a.key == "status" {
             string miAction = a.value == "enabled" ? types:ARTIFACT_ENABLE : types:ARTIFACT_DISABLE;
@@ -22,56 +22,56 @@ public function dispatchMI(string runtimeId, types:ReconcileArtifactKey artifact
             log:printWarn("dispatchMI: unknown key", runtimeId = runtimeId, key = a.key);
         }
     }
+    return [];
 }
 
-// BI collector: builds a DispatchFn that converts ReconcileActions to ControlCommands
-// and appends them to a shared list.
-public function buildBICollector(types:ControlCommand[] commands) returns types:DispatchFn {
-    return function(string runtimeId, types:ReconcileArtifactKey artifact,
-            types:ReconcileAction[] actions) returns error? {
-        time:Utc now = time:utcNow();
-        // Preserve the package qualifier for disambiguation across packages
-        string qualifiedName = artifact.artifactName;
-        string rawName = types:rawArtifactName(qualifiedName);
-        string pkg = qualifiedName != rawName
-            ? qualifiedName.substring(0, qualifiedName.length() - rawName.length() - 1)
-            : "";
-        foreach types:ReconcileAction a in actions {
-            if a.key == "status" {
-                types:ControlAction action = a.value == "enabled" ? types:START : types:STOP;
-                commands.push({
-                    commandId: uuid:createType1AsString(),
-                    runtimeId: runtimeId,
-                    targetArtifact: {name: rawName, "package": pkg},
-                    action: action,
-                    issuedAt: now,
-                    status: types:PENDING
-                });
-            } else if a.key == "logLevel" {
-                json payload = {
-                    "componentName": rawName,
-                    "componentPackage": pkg,
-                    "logLevel": a.value
-                };
-                commands.push({
-                    commandId: uuid:createType1AsString(),
-                    runtimeId: runtimeId,
-                    targetArtifact: {name: rawName, "package": pkg},
-                    action: types:SET_LOGGER_LEVEL,
-                    issuedAt: now,
-                    status: types:PENDING,
-                    payload: payload.toJsonString()
-                });
-            } else {
-                log:printWarn("buildBICollector: unknown key", runtimeId = runtimeId, key = a.key);
-            }
+// BI dispatch: converts ReconcileActions to ControlCommands returned to the caller.
+isolated function dispatchBI(string runtimeId, types:ReconcileArtifactKey artifact,
+        types:ReconcileAction[] actions) returns types:ControlCommand[]|error? {
+    time:Utc now = time:utcNow();
+    types:ControlCommand[] commands = [];
+    // Preserve the package qualifier for disambiguation across packages
+    string qualifiedName = artifact.artifactName;
+    string rawName = types:rawArtifactName(qualifiedName);
+    string pkg = qualifiedName != rawName
+        ? qualifiedName.substring(0, qualifiedName.length() - rawName.length() - 1)
+        : "";
+    foreach types:ReconcileAction a in actions {
+        if a.key == "status" {
+            types:ControlAction action = a.value == "enabled" ? types:START : types:STOP;
+            commands.push({
+                commandId: uuid:createType1AsString(),
+                runtimeId: runtimeId,
+                targetArtifact: {name: rawName, "package": pkg},
+                action: action,
+                issuedAt: now,
+                status: types:PENDING
+            });
+        } else if a.key == "logLevel" {
+            json payload = {
+                "componentName": rawName,
+                "componentPackage": pkg,
+                "logLevel": a.value
+            };
+            commands.push({
+                commandId: uuid:createType1AsString(),
+                runtimeId: runtimeId,
+                targetArtifact: {name: rawName, "package": pkg},
+                action: types:SET_LOGGER_LEVEL,
+                issuedAt: now,
+                status: types:PENDING,
+                payload: payload.toJsonString()
+            });
+        } else {
+            log:printWarn("dispatchBI: unknown key", runtimeId = runtimeId, key = a.key);
         }
-    };
+    }
+    return commands;
 }
 
 // Reconcile from a full heartbeat. Called from runtime_service after processHeartbeat.
 // Returns BI control commands to send back in heartbeat response.
-public function reconcileFromHeartbeat(string runtimeId, string componentId, string envId,
+public isolated function reconcileFromHeartbeat(string runtimeId, string componentId, string envId,
         string runtimeType) returns types:ControlCommand[] {
     do {
         // Determine component type
@@ -84,20 +84,23 @@ public function reconcileFromHeartbeat(string runtimeId, string componentId, str
         // Reconcile each artifact
         types:ControlCommand[] biCommands = [];
         log:printInfo("Starting reconciliation from heartbeat", runtimeId = runtimeId,
-            componentType = componentType, artifactCount = artifactKeys.length());
+                componentType = componentType, artifactCount = artifactKeys.length());
         foreach types:ReconcileArtifactKey ak in artifactKeys {
             if componentType == types:MI {
-                error? e = reconcileArtifact(runtimeId, componentId, envId, ak, dispatchMI);
-                if e is error {
+                types:ControlCommand[]|error? result = reconcileArtifact(runtimeId, componentId, envId, ak, dispatchMI);
+                if result is error {
                     log:printWarn("reconcileFromHeartbeat MI failed", runtimeId = runtimeId,
-                        artifactName = ak.artifactName, err = e.message());
+                            artifactName = ak.artifactName, err = result.message());
                 }
             } else if componentType == types:BI {
-                types:DispatchFn collector = buildBICollector(biCommands);
-                error? e = reconcileArtifact(runtimeId, componentId, envId, ak, collector);
-                if e is error {
+                types:ControlCommand[]|error? result = reconcileArtifact(runtimeId, componentId, envId, ak, dispatchBI);
+                if result is error {
                     log:printWarn("reconcileFromHeartbeat BI failed", runtimeId = runtimeId,
-                        artifactName = ak.artifactName, err = e.message());
+                            artifactName = ak.artifactName, err = result.message());
+                } else if result is types:ControlCommand[] {
+                    foreach types:ControlCommand cmd in result {
+                        biCommands.push(cmd);
+                    }
                 }
             }
         }
@@ -110,7 +113,7 @@ public function reconcileFromHeartbeat(string runtimeId, string componentId, str
 }
 
 // Reconcile from delta heartbeat (no artifact payload — query desired state keys).
-public function reconcileDelta(string runtimeId) returns types:ControlCommand[] {
+public isolated function reconcileDelta(string runtimeId) returns types:ControlCommand[] {
     log:printDebug("reconcileDelta: start", runtimeId = runtimeId);
     do {
         // Look up runtime context
@@ -129,17 +132,20 @@ public function reconcileDelta(string runtimeId) returns types:ControlCommand[] 
         types:ControlCommand[] biCommands = [];
         foreach types:ReconcileArtifactKey ak in artifactKeys {
             if componentType == types:MI {
-                error? e = reconcileArtifact(runtimeId, componentId, envId, ak, dispatchMI);
-                if e is error {
+                types:ControlCommand[]|error? result = reconcileArtifact(runtimeId, componentId, envId, ak, dispatchMI);
+                if result is error {
                     log:printWarn("reconcileDelta MI failed", runtimeId = runtimeId,
-                        artifactName = ak.artifactName, err = e.message());
+                            artifactName = ak.artifactName, err = result.message());
                 }
             } else if componentType == types:BI {
-                types:DispatchFn collector = buildBICollector(biCommands);
-                error? e = reconcileArtifact(runtimeId, componentId, envId, ak, collector);
-                if e is error {
+                types:ControlCommand[]|error? result = reconcileArtifact(runtimeId, componentId, envId, ak, dispatchBI);
+                if result is error {
                     log:printWarn("reconcileDelta BI failed", runtimeId = runtimeId,
-                        artifactName = ak.artifactName, err = e.message());
+                            artifactName = ak.artifactName, err = result.message());
+                } else if result is types:ControlCommand[] {
+                    foreach types:ControlCommand cmd in result {
+                        biCommands.push(cmd);
+                    }
                 }
             }
         }
