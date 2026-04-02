@@ -218,7 +218,7 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
 }
 
 // Validate heartbeat version, runtime name, and runtimeId. Always called regardless of preResolved.
-isolated function validateHeartbeatProtocolAndRuntime(types:Heartbeat heartbeat) returns error? {
+public isolated function validateHeartbeatProtocolAndRuntime(types:Heartbeat heartbeat) returns error? {
     if heartbeat.heartbeatVersion != "v1.0" {
         return error(string `Unsupported heartbeat version: ${heartbeat.heartbeatVersion}. Only version v1.0 is supported.`);
     }
@@ -574,19 +574,10 @@ isolated function upsertRuntime(types:Heartbeat heartbeat) returns boolean|error
     if rows.length() > 0 && rows[0].runtime_id != runtimeId {
         string oldId = rows[0].runtime_id;
         log:printInfo(string `Runtime ID changed from ${oldId} to ${runtimeId} for ${runtimeName ?: "null"}`);
-        log:printDebug(string `Deleting old runtime ${oldId} and all artifacts (cascade delete)`);
+        log:printDebug(string `Deleting old runtime ${oldId} via reconcile cleanup flow`);
 
-        if runtimeName is string {
-            _ = check dbClient->execute(`
-                DELETE FROM runtimes
-                WHERE component_id = ${heartbeat.component} AND environment_id = ${heartbeat.environment} AND name = ${runtimeName}
-            `);
-        } else {
-            _ = check dbClient->execute(`
-                DELETE FROM runtimes
-                WHERE component_id = ${heartbeat.component} AND environment_id = ${heartbeat.environment} AND name IS NULL
-            `);
-        }
+        check deleteRuntime(oldId);
+        check deleteReconcileRuntime(oldId);
 
         log:printDebug(string `Inserting new runtime ${runtimeId} after ID change`);
         sql:ExecutionResult res = check dbClient->execute(`

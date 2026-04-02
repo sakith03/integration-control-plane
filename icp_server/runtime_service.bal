@@ -50,6 +50,13 @@ service /icp on httpListener {
         do {
             types:Heartbeat heartbeat = check heartbeatJson.cloneWithType(types:Heartbeat);
 
+            // Validate heartbeat protocol and runtime fields BEFORE any DB operations
+            error? validationErr = storage:validateHeartbeatProtocolAndRuntime(heartbeat);
+            if validationErr is error {
+                log:printWarn(string `Heartbeat rejected — validation failed: ${validationErr.message()}`);
+                return <http:BadRequest>{body: string `Invalid heartbeat: ${validationErr.message()}`};
+            }
+
             string runtimeId = heartbeat.runtimeId;
 
             // --- Extract kid and validate JWT ---
