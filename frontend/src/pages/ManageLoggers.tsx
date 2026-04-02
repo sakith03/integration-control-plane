@@ -36,7 +36,6 @@ import {
   MenuItem,
   PageContent,
   Select,
-  Snackbar,
   Stack,
   TablePagination,
   TextField,
@@ -85,7 +84,6 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
   const { data: loggers = [], isLoading, isError, error, refetch } = useLoggers(environmentId, componentId);
   const updateLogLevel = useUpdateLogLevel();
   const [updatingLogger, setUpdatingLogger] = useState<string | null>(null);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [runtimeDrawer, setRuntimeDrawer] = useState<{ loggerName: string; runtimeIds: string[] } | null>(null);
@@ -102,7 +100,7 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
         componentType,
         logLevel: newLevel,
       });
-      setSnackbarOpen(true);
+      await refetch();
     } catch (error) {
       console.error('Failed to update log level:', error);
     } finally {
@@ -164,7 +162,7 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
           </ListingTable.Head>
           <ListingTable.Body>
             {paginatedLoggers.map((logger) => {
-              const uniqueKey = `${logger.loggerName || ''}|${logger.componentName}|${logger.logLevel}|${[...logger.runtimeIds].sort().join(',')}`;
+              const uniqueKey = `${logger.loggerName || ''}|${logger.componentName}`;
 
               return (
                 <ListingTable.Row key={uniqueKey}>
@@ -181,18 +179,21 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell>
-                    <Select
-                      value={logger.logLevel}
-                      onChange={(e) => handleLogLevelChange(uniqueKey, logger.loggerName, logger.componentName, logger.runtimeIds, e.target.value as LogLevel)}
-                      size="small"
-                      disabled={updatingLogger === uniqueKey}
-                      sx={{ minWidth: 120 }}>
-                      {logLevels.map((level) => (
-                        <MenuItem key={level} value={level}>
-                          <Chip label={level} size="small" color={getLogLevelColor(level)} sx={{ minWidth: 70 }} />
-                        </MenuItem>
-                      ))}
-                    </Select>
+                    <Stack direction="row" alignItems="center" gap={1}>
+                      <Select
+                        value={logger.logLevel}
+                        onChange={(e) => handleLogLevelChange(uniqueKey, logger.loggerName, logger.componentName, logger.runtimeIds, e.target.value as LogLevel)}
+                        size="small"
+                        disabled={updatingLogger === uniqueKey}
+                        sx={{ minWidth: 120 }}>
+                        {logLevels.map((level) => (
+                          <MenuItem key={level} value={level}>
+                            <Chip label={level} size="small" color={getLogLevelColor(level)} sx={{ minWidth: 70 }} />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      <Box sx={{ width: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{(logger.logLevelInSync === false || updatingLogger === uniqueKey) && <CircularProgress size={16} />}</Box>
+                    </Stack>
                   </ListingTable.Cell>
                   <ListingTable.Cell>
                     <Button variant="outlined" size="small" onClick={() => setRuntimeDrawer({ loggerName: logger.loggerName || logger.componentName, runtimeIds: logger.runtimeIds })}>
@@ -218,12 +219,6 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
           rowsPerPageOptions={[5, 10, 25, 50]}
         />
       </ListingTable.Container>
-      <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={() => setSnackbarOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
-        <Alert onClose={() => setSnackbarOpen(false)} severity="success" variant="filled" sx={{ width: '100%' }}>
-          Logger level update in progress, please refresh after sometime to view the change
-        </Alert>
-      </Snackbar>
-
       {runtimeDrawer && (
         <Drawer anchor="right" open onClose={() => setRuntimeDrawer(null)} variant="persistent" sx={drawerSx}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={headerSx}>

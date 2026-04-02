@@ -1325,8 +1325,17 @@ service /graphql on graphqlListener {
             // MI: Fetch loggers from management API
             return check fetchMILoggersByRuntime(runtimeId, runtime);
         } else {
-            // BI: Fetch loggers from database
-            return check fetchBILoggersByRuntime(runtimeId);
+            // BI: Fetch loggers from database, then overlay reconcile state
+            types:Logger[] result = check fetchBILoggersByRuntime(runtimeId);
+            if result.length() > 0 {
+                map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(
+                    runtime.component.id, runtime.environment.id);
+                foreach types:Logger lg in result {
+                    types:ArtifactStateField? s = stateOf(sm, lg.componentName, "log-level", "logLevel");
+                    if s is types:ArtifactStateField { lg.logLevel = <types:LogLevel>s.value; lg.logLevelInSync = s.inSync; }
+                }
+            }
+            return result;
         }
     }
 
@@ -1362,8 +1371,15 @@ service /graphql on graphqlListener {
             // MI: Fetch loggers from management API for all runtimes
             return check fetchMILoggersByEnvironmentAndComponent(environmentId, componentId, component.projectId);
         } else {
-            // BI: Fetch loggers from database for all runtimes
-            return check storage:getLoggersByEnvironmentAndComponent(environmentId, componentId);
+            // BI: Fetch loggers from database, then overlay reconcile state
+            types:LoggerGroup[] result = check storage:getLoggersByEnvironmentAndComponent(environmentId, componentId);
+            if result.length() == 0 { return result; }
+            map<map<types:ArtifactStateField>> sm = check storage:queryArtifactState(componentId, environmentId);
+            foreach types:LoggerGroup lg in result {
+                types:ArtifactStateField? s = stateOf(sm, lg.componentName, "log-level", "logLevel");
+                if s is types:ArtifactStateField { lg.logLevel = <types:LogLevel>s.value; lg.logLevelInSync = s.inSync; }
+            }
+            return result;
         }
     }
 

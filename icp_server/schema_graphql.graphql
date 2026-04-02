@@ -284,6 +284,7 @@ type Logger {
   loggerName: String
   componentName: String!
   logLevel: LogLevel!
+  logLevelInSync: Boolean
   runtimeId: String!
 }
 
@@ -294,6 +295,7 @@ type LoggerGroup {
   loggerName: String
   componentName: String!
   logLevel: LogLevel!
+  logLevelInSync: Boolean
   runtimeIds: [String!]!
 }
 
