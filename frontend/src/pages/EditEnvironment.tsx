@@ -35,26 +35,32 @@ function EditEnvironmentForm({ env, orgHandler }: { env: GqlEnvironment; orgHand
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutation = useUpdateEnvironment();
   const backUrl = resourceUrl({ level: 'organizations', org: orgHandler }, 'environments');
-  const isDirty = name !== env.name || handler !== env.handler || description !== (env.description ?? '') || critical !== env.critical;
+
+  // Normalize string fields once for consistent use everywhere
+  const trimmedName = name.trim();
+  const trimmedHandler = handler.trim();
+  const trimmedDescription = description.trim();
+
+  const isDirty = trimmedName !== env.name || trimmedHandler !== env.handler || trimmedDescription !== (env.description ?? '') || critical !== env.critical;
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedHandler(handler), 400);
+    debounceRef.current = setTimeout(() => setDebouncedHandler(trimmedHandler), 400);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [handler]);
+  }, [trimmedHandler]);
 
   const availability = useEnvironmentHandlerAvailability(debouncedHandler);
-  const handlerChanged = handler !== env.handler;
+  const handlerChanged = trimmedHandler !== env.handler;
   const handlerTaken = handlerChanged && debouncedHandler !== '' && availability.data?.handlerUnique === false;
 
   const save = () => {
     setError(null);
     mutation.mutate(
-      { environmentId: env.id, name, handler: handlerChanged ? handler : undefined, description, critical },
+      { environmentId: env.id, name: trimmedName, handler: handlerChanged ? trimmedHandler : undefined, description: trimmedDescription, critical },
       {
-        onSuccess: () => navigate(backUrl, { state: { updated: true, name } }),
+        onSuccess: () => navigate(backUrl, { state: { updated: true, name: trimmedName } }),
         onError: (err) => setError(err.message ?? 'Failed to update environment. Please try again.'),
       },
     );
@@ -87,7 +93,7 @@ function EditEnvironmentForm({ env, orgHandler }: { env: GqlEnvironment; orgHand
         <Button variant="outlined" onClick={() => navigate(backUrl)}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={save} disabled={!name.trim() || !handler.trim() || handlerTaken || !isDirty || mutation.isPending}>
+        <Button variant="contained" onClick={save} disabled={!trimmedName || !trimmedHandler || handlerTaken || !isDirty || mutation.isPending}>
           Save
         </Button>
       </Stack>

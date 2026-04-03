@@ -67,17 +67,18 @@ export default function CreateEnvironment(scope: OrgScope): JSX.Element {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutation = useCreateEnvironment();
 
-  const effectiveHandler = handlerEdited ? handler : toHandler(name);
+  const effectiveHandler = handler || toHandler(name);
+  const normalizedEffectiveHandler = effectiveHandler.trim();
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedHandler(effectiveHandler), 400);
+    debounceRef.current = setTimeout(() => setDebouncedHandler(normalizedEffectiveHandler), 400);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [effectiveHandler]);
+  }, [normalizedEffectiveHandler]);
 
-  const handlerMissing = !effectiveHandler.trim() && (!!name.trim() || handlerEdited);
+  const handlerMissing = !normalizedEffectiveHandler && (!!name.trim() || handlerEdited);
   const availability = useEnvironmentHandlerAvailability(debouncedHandler);
   const handlerTaken = debouncedHandler !== '' && availability.data?.handlerUnique === false;
 
@@ -89,7 +90,7 @@ export default function CreateEnvironment(scope: OrgScope): JSX.Element {
     setError(null);
     const trimmedName = name.trim();
     mutation.mutate(
-      { name: trimmedName, environmentHandler: effectiveHandler, description: description.trim(), critical },
+      { name: trimmedName, environmentHandler: normalizedEffectiveHandler, description: description.trim(), critical },
       {
         onSuccess: () => navigate(resourceUrl(scope, 'environments'), { state: { success: true, environmentName: trimmedName } }),
         onError: (err) => setError(formatErrorMessage(err)),
@@ -147,8 +148,10 @@ export default function CreateEnvironment(scope: OrgScope): JSX.Element {
                   aria-label={handlerEdited ? 'Stop editing handler' : 'Edit handler'}
                   onClick={() => {
                     if (!handlerEdited) {
-                      setHandler(effectiveHandler);
+                      // Enabling edit mode: capture current auto-generated value
+                      setHandler(toHandler(name));
                     }
+                    // Toggle edit state without resetting handler value
                     setHandlerEdited(!handlerEdited);
                   }}>
                   <Edit size={16} />
@@ -165,7 +168,7 @@ export default function CreateEnvironment(scope: OrgScope): JSX.Element {
         <Button variant="outlined" onClick={() => navigate(resourceUrl(scope, 'environments'))}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={submit} disabled={!name.trim() || !effectiveHandler.trim() || handlerTaken || mutation.isPending}>
+        <Button variant="contained" onClick={submit} disabled={!name.trim() || !normalizedEffectiveHandler || handlerTaken || mutation.isPending}>
           Create
         </Button>
       </Stack>

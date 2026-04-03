@@ -408,17 +408,17 @@ public isolated function checkEnvironmentHandlerAvailability(string environmentH
     log:printDebug(string `Checking environment handler availability for handler: ${environmentHandlerCandidate}`);
 
     // Check if the handler already exists
-    sql:ParameterizedQuery query = `SELECT COUNT(*) as HANDLECOUNT 
+    sql:ParameterizedQuery query = `SELECT COUNT(*) as handlecount 
                                    FROM environments 
                                    WHERE handler = ${environmentHandlerCandidate}`;
 
     int existingHandlerCount = 0;
 
-    stream<record {}, sql:Error?> handlerCountStream = dbClient->query(query);
+    stream<record {|int handlecount;|}, sql:Error?> handlerCountStream = dbClient->query(query);
 
-    check from record {} countRecord in handlerCountStream
+    check from record {|int handlecount;|} countRecord in handlerCountStream
         do {
-            existingHandlerCount = <int>countRecord["HANDLECOUNT"];
+            existingHandlerCount = countRecord.handlecount;
         };
 
     boolean isHandlerUnique = existingHandlerCount == 0;
@@ -433,16 +433,16 @@ public isolated function checkEnvironmentHandlerAvailability(string environmentH
         while counter <= 10 { // Limit to 10 attempts to avoid infinite loop
             string candidate = string `${baseHandler}${counter}`;
 
-            sql:ParameterizedQuery alternateQuery = `SELECT COUNT(*) as HANDLECOUNT 
+            sql:ParameterizedQuery alternateQuery = `SELECT COUNT(*) as handlecount 
                                                    FROM environments 
                                                    WHERE handler = ${candidate}`;
 
             int candidateCount = 0;
-            stream<record {}, sql:Error?> candidateStream = dbClient->query(alternateQuery);
+            stream<record {|int handlecount;|}, sql:Error?> candidateStream = dbClient->query(alternateQuery);
 
-            check from record {} candidateRecord in candidateStream
+            check from record {|int handlecount;|} candidateRecord in candidateStream
                 do {
-                    candidateCount = <int>candidateRecord["HANDLECOUNT"];
+                    candidateCount = candidateRecord.handlecount;
                 };
 
             if candidateCount == 0 {
