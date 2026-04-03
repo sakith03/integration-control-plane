@@ -272,15 +272,21 @@ public isolated function updateEnvironment(string environmentId, string? name, s
         updateFields = sql:queryConcat(updateFields, `, name = ${name} `);
     }
     if handler is string {
+        // Trim and validate handler the same way as createEnvironment
+        string trimmedHandler = handler.trim();
+        if trimmedHandler == "" {
+            return error("Environment handler cannot be empty");
+        }
+
         // Check for duplicate handler (excluding current environment)
-        sql:ParameterizedQuery handlerCheckQuery = `SELECT COUNT(*) as cnt FROM environments WHERE handler = ${handler} AND environment_id != ${environmentId}`;
+        sql:ParameterizedQuery handlerCheckQuery = `SELECT COUNT(*) as cnt FROM environments WHERE handler = ${trimmedHandler} AND environment_id != ${environmentId}`;
         stream<record {|int cnt;|}, sql:Error?> handlerCheckStream = dbClient->query(handlerCheckQuery);
         record {|int cnt;|}[] handlerCheckResult = check from record {|int cnt;|} r in handlerCheckStream
             select r;
         if handlerCheckResult.length() > 0 && handlerCheckResult[0].cnt > 0 {
-            return error(string `Environment handler '${handler}' is already taken`);
+            return error(string `Environment handler '${trimmedHandler}' is already taken`);
         }
-        updateFields = sql:queryConcat(updateFields, `, handler = ${handler} `);
+        updateFields = sql:queryConcat(updateFields, `, handler = ${trimmedHandler} `);
     }
     if description is string {
         updateFields = sql:queryConcat(updateFields, `, description = ${description} `);
@@ -319,21 +325,6 @@ public isolated function updateEnvironmentProductionStatus(string environmentId,
     }
     log:printInfo(string `Successfully updated environment production status ${environmentId}`);
     return ();
-}
-
-// Get environment ID by name (now uses handler for lookups since configs use handlers)
-public isolated function getEnvironmentIdByName(string environmentName) returns string|error {
-    stream<record {|string environment_id;|}, sql:Error?> envStream = dbClient->query(`
-        SELECT environment_id FROM environments WHERE handler = ${environmentName}
-    `);
-
-    record {|string environment_id;|}[] envRecords = check from record {|string environment_id;|} env in envStream
-        select env;
-
-    if envRecords.length() == 0 {
-        return error(string `Environment with handler '${environmentName}' not found.`);
-    }
-    return envRecords[0].environment_id;
 }
 
 // Delete an environment by ID
