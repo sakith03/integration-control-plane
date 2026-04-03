@@ -1164,6 +1164,7 @@ type ArtifactStatusChangeResponse {
 # Input for artifact tracing change
 input ArtifactTracingChangeInput {
   componentId: String!
+  environmentId: String!
   artifactType: String!
   artifactName: String!
   trace: String!
@@ -1182,6 +1183,7 @@ type ArtifactTracingChangeResponse {
 # Supported artifact types: proxy-service, endpoint, api, sequence, inbound-endpoint, template
 input ArtifactStatisticsChangeInput {
   componentId: String!
+  environmentId: String!
   artifactType: String!
   artifactName: String!
   statistics: String!
