@@ -197,7 +197,6 @@ public type Heartbeat record {|
 public type DeltaHeartbeat record {|
     string heartbeatVersion = "v1.0"; // Version of the heartbeat format
     string runtimeId; // Unique identifier for the runtime
-    string runtime; // Alias for runtimeId (for backward compatibility)
     string runtimeHash;
     time:Utc timestamp;
 |};
