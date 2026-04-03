@@ -73,6 +73,7 @@ export function useUpdateArtifactToggleStatus(kind: ArtifactToggleKind) {
     mutationFn: (input: ArtifactToggleStatusInput) => {
       const mutationInput: Record<string, string> = {
         componentId: input.componentId,
+        environmentId: input.envId,
         artifactType: toBackendArtifactType(input.artifactType),
         artifactName: input.artifactName,
         [config.requestField]: input.value,

@@ -2289,6 +2289,7 @@ public type ArtifactStatusChangeResponse record {|
 // Input type for changing artifact tracing
 public type ArtifactTracingChangeInput record {|
     string componentId;
+    string environmentId;
     string artifactType; // e.g., "proxy-service"
     string artifactName;
     string trace; // "enable" or "disable"
@@ -2306,6 +2307,7 @@ public type ArtifactTracingChangeResponse record {|
 // Input type for changing artifact statistics
 public type ArtifactStatisticsChangeInput record {|
     string componentId;
+    string environmentId;
     string artifactType; // e.g., "proxy-service"
     string artifactName;
     string statistics; // "enable" or "disable"

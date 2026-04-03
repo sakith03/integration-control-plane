@@ -2370,7 +2370,7 @@ service /graphql on graphqlListener {
             return error("Insufficient permissions to change artifact tracing");
         }
 
-        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);
+        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", input.environmentId, component.projectId, input.componentId);
         if runtimes.length() == 0 {
             log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
@@ -2416,7 +2416,7 @@ service /graphql on graphqlListener {
             return error(string `Artifact type '${input.artifactType}' does not support statistics. Supported types: ProxyService, Endpoint, RestApi, Sequence, InboundEndpoint`);
         }
 
-        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", (), component.projectId, input.componentId);
+        types:Runtime[] runtimes = check storage:getRuntimes((), "MI", input.environmentId, component.projectId, input.componentId);
         if runtimes.length() == 0 {
             log:printWarn("No MI runtimes found for component", componentId = input.componentId);
             return {
