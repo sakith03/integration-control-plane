@@ -225,9 +225,6 @@ public isolated function validateHeartbeatProtocolAndRuntime(types:Heartbeat hea
 
     string? runtimeOpt = heartbeat.runtime;
     if runtimeOpt is string {
-        if runtimeOpt.trim().length() == 0 {
-            return error("Runtime name cannot be empty");
-        }
         if runtimeOpt.length() > 100 {
             return error("Runtime name cannot exceed 100 characters");
         }
