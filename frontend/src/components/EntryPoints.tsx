@@ -528,6 +528,7 @@ export default function Environment({
   onOpenDrawerForTab: (a: GqlArtifact, type: string, envId: string, tab: string) => void;
 }) {
   const refreshEnvironmentArtifacts = useRefreshEnvironmentArtifacts();
+  const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'entryPoints' | 'allArtifacts'>('entryPoints');
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
@@ -553,6 +554,7 @@ export default function Environment({
     setIsRefreshing(true);
     try {
       await refreshEnvironmentArtifacts(env.id, componentId);
+      queryClient.invalidateQueries({ queryKey: ['componentRuntimes', env.id, projectId, componentId] });
     } finally {
       setTimeout(() => setIsRefreshing(false), 500);
     }
@@ -574,13 +576,11 @@ export default function Environment({
     <Card variant="outlined" sx={{ mb: 3 }}>
       <CardContent>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="h5" component="h2" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
+            {env.name}
+          </Typography>
           <Stack direction="row" alignItems="center" gap={1}>
-            <Typography variant="h5" component="h2" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
-              {env.name}
-            </Typography>
             {totalCount > 0 && <Chip label={`${onlineCount}/${totalCount} ${isOnline ? 'Online' : 'Offline'}`} size="small" color={isOnline ? 'success' : 'default'} />}
-          </Stack>
-          <Stack direction="row" alignItems="center" gap={1}>
             <IconButton size="small" onClick={handleRefresh} disabled={isRefreshing} aria-label="Refresh">
               <RefreshCw
                 size={16}
