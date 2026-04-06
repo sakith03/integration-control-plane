@@ -117,7 +117,10 @@ export default function EditComponent(scope: ProjectScope | ComponentScope): JSX
         label="Description"
         placeholder="Enter description here"
         value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        onChange={(e) => {
+          setDescription(e.target.value);
+          resetError();
+        }}
         fullWidth
         multiline
         minRows={2}
