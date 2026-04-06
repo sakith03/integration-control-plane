@@ -138,7 +138,7 @@ export default function EditComponent(scope: ProjectScope | ComponentScope): JSX
           Cancel
         </Button>
         <Button variant="contained" onClick={submit} disabled={!displayName.trim() || mutation.isPending}>
-          Save Changes
+          Save
         </Button>
       </Stack>
     </PageContent>
