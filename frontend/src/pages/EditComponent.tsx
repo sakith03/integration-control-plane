@@ -28,10 +28,10 @@ import NotFound from '../components/NotFound';
 export default function EditComponent(scope: ProjectScope | ComponentScope): JSX.Element {
   const navigate = useNavigate();
   const { componentHandler } = useParams<{ componentHandler: string }>();
-  const { data: project } = useProjectByHandler(scope.project);
+  const { data: project, error: projectError, isLoading: projectLoading } = useProjectByHandler(scope.project);
   const projectId = project?.id ?? '';
 
-  const { data: component, isLoading } = useComponentByHandler(projectId, componentHandler);
+  const { data: component, error: componentError, isLoading: componentLoading } = useComponentByHandler(projectId, componentHandler);
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const mutation = useUpdateComponent();
@@ -62,12 +62,17 @@ export default function EditComponent(scope: ProjectScope | ComponentScope): JSX
     });
   };
 
-  if (isLoading) {
+  if (projectLoading || componentLoading) {
     return (
       <PageContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
         <CircularProgress />
       </PageContent>
     );
+  }
+
+  if (projectError || componentError) {
+    const errorMessage = projectError?.message || componentError?.message || 'An error occurred';
+    return <NotFound message={errorMessage} backTo={resourceUrl(scope, 'overview')} backLabel="Back to Project" />;
   }
 
   if (!component) {
