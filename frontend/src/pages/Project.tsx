@@ -17,7 +17,7 @@
  */
 
 import { Avatar, Button, CircularProgress, Grid, IconButton, ListingTable, PageContent, Stack, TablePagination, Tooltip, Typography } from '@wso2/oxygen-ui';
-import { Plus, PlugZap, RefreshCw, Trash2 } from '@wso2/oxygen-ui-icons-react';
+import { Plus, PlugZap, RefreshCw, Trash2, Pencil } from '@wso2/oxygen-ui-icons-react';
 import EmptyListing from '../components/EmptyListing';
 import IntegrationTypesCard from '../components/IntegrationTypesCard';
 import SearchField from '../components/SearchField';
@@ -28,6 +28,7 @@ import { useProjectByHandler, useComponents, type GqlComponent } from '../api/qu
 import NotFound from '../components/NotFound';
 import { formatDistanceToNow } from '../utils/time';
 import { resourceUrl, narrow, broaden, newComponentUrl, type ProjectScope } from '../nav';
+import { editComponentUrl } from '../paths';
 import { Permissions } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 import { useLoadProjectPermissions } from '../hooks/usePermissionLoader';
@@ -96,7 +97,7 @@ function IntegrationsTable({
                 <ListingTable.Cell>Type</ListingTable.Cell>
                 <ListingTable.Cell>Last Updated</ListingTable.Cell>
                 <Authorized permissions={Permissions.INTEGRATION_MANAGE}>
-                  <ListingTable.Cell width={60}>Action</ListingTable.Cell>
+                  <ListingTable.Cell width={100}>Actions</ListingTable.Cell>
                 </Authorized>
               </ListingTable.Row>
             </ListingTable.Head>
@@ -135,18 +136,31 @@ function IntegrationsTable({
                   </ListingTable.Cell>
                   <Authorized permissions={Permissions.INTEGRATION_MANAGE}>
                     <ListingTable.Cell>
-                      <Tooltip title="Delete">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          aria-label={`Delete ${c.displayName}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleting(c);
-                          }}>
-                          <Trash2 size={16} />
-                        </IconButton>
-                      </Tooltip>
+                      <Stack direction="row" gap={0.5}>
+                        <Tooltip title="Edit">
+                          <IconButton
+                            size="small"
+                            aria-label={`Edit ${c.displayName}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(editComponentUrl(scope.org, scope.project, c.handler));
+                            }}>
+                            <Pencil size={16} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            aria-label={`Delete ${c.displayName}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleting(c);
+                            }}>
+                            <Trash2 size={16} />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
                     </ListingTable.Cell>
                   </Authorized>
                 </ListingTable.Row>

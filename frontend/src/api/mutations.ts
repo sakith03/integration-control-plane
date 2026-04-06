@@ -231,6 +231,31 @@ export function useCreateComponent() {
   });
 }
 
+export interface UpdateComponentInput {
+  id: string;
+  displayName: string;
+  description: string;
+  componentType: 'MI' | 'BI';
+}
+
+const UPDATE_COMPONENT = `
+  mutation UpdateComponent($component: ComponentUpdateInput!) {
+    updateComponent(component: $component) {
+      id, name, displayName, handler, orgId, projectId, createdAt, updatedAt, description
+    }
+  }`;
+
+export function useUpdateComponent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateComponentInput) => gql<{ updateComponent: GqlComponent }>(UPDATE_COMPONENT, { component: input }).then((d) => d.updateComponent),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['components'] });
+      qc.invalidateQueries({ queryKey: ['component'] });
+    },
+  });
+}
+
 interface DeleteComponentResult {
   status: string;
   canDelete: boolean;

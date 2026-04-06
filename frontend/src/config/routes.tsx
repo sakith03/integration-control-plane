@@ -18,6 +18,7 @@ import ProtectedRoute from '../auth/ProtectedRoute';
 import Projects from '../pages/Projects';
 import CreateProject from '../pages/CreateProject';
 import CreateComponent from '../pages/CreateComponent';
+import EditComponent from '../pages/EditComponent';
 import Project from '../pages/Project';
 import Component from '../pages/Component';
 import RuntimeLogs from '../pages/RuntimeLogs';
@@ -80,6 +81,7 @@ const routes: AppRoute[] = [
               { path: 'organizations/:orgHandler/projects/new', element: createElement(withScope(CreateProject, ['organizations'])) },
               { path: 'organizations/:orgHandler/projects/:projectId/edit', element: <EditProject /> },
               { path: 'organizations/:orgHandler/projects/:projectHandler/components/new', element: createElement(withScope(CreateComponent, ['projects'])) },
+              { path: 'organizations/:orgHandler/projects/:projectHandler/components/:componentHandler/edit', element: createElement(withScope(EditComponent, ['projects', 'components'])) },
               { path: 'organizations/:orgHandler/environments/new', element: createElement(withScope(CreateEnvironment, ['organizations'])) },
               { path: 'organizations/:orgHandler/environments/:envId/edit', element: <EditEnvironment /> },
               { path: 'organizations/:orgHandler/settings/access-control/users/new', element: <CreateUser /> },
