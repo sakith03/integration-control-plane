@@ -77,16 +77,18 @@ function ProjectCard({ project, onClick, onSettings, onDelete }: { project: GqlP
             }}>
             <Pencil size={16} />
           </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            aria-label={`Delete ${project.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}>
-            <Trash2 size={16} />
-          </IconButton>
+          <Authorized permissions={Permissions.PROJECT_MANAGE}>
+            <IconButton
+              size="small"
+              color="error"
+              aria-label={`Delete ${project.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}>
+              <Trash2 size={16} />
+            </IconButton>
+          </Authorized>
         </Stack>
       </Stack>
     </Card>
@@ -107,25 +109,27 @@ function ProjectListItem({ project, onClick, onSettings, onDelete }: { project: 
           </Typography>
         </Stack>
         <Stack direction="row" spacing={0.5}>
-          <IconButton
-            size="small"
-            aria-label={`Edit ${project.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSettings();
-            }}>
-            <Pencil size={16} />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            aria-label={`Delete ${project.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}>
-            <Trash2 size={16} />
-          </IconButton>
+          <Authorized permissions={Permissions.PROJECT_MANAGE}>
+            <IconButton
+              size="small"
+              aria-label={`Edit ${project.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSettings();
+              }}>
+              <Pencil size={16} />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              aria-label={`Delete ${project.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}>
+              <Trash2 size={16} />
+            </IconButton>
+          </Authorized>
         </Stack>
       </CardContent>
     </Card>
@@ -177,6 +181,8 @@ export default function Projects(scope: OrgScope): JSX.Element {
   };
 
   const handleCloseDialog = () => {
+    // Prevent closing while delete is in progress
+    if (deleteMutation.isPending) return;
     setDeleteDialogOpen(false);
     setProjectToDelete(null);
     setDeleteError(null);
@@ -277,7 +283,16 @@ export default function Projects(scope: OrgScope): JSX.Element {
           <DialogContentText sx={{ mt: 2, mb: 1 }}>
             Type <strong>{projectToDelete?.name}</strong> to confirm:
           </DialogContentText>
-          <TextField fullWidth label="Confirm project name" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={projectToDelete?.name} autoFocus helperText={`Type "${projectToDelete?.name}" to enable deletion`} />
+          <TextField
+            fullWidth
+            label="Confirm project name"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={projectToDelete?.name}
+            autoFocus
+            helperText={`Type "${projectToDelete?.name}" to enable deletion`}
+            disabled={deleteMutation.isPending}
+          />
           {deleteError && (
             <Alert severity="error" sx={{ mt: 2 }}>
               {deleteError}
@@ -285,7 +300,9 @@ export default function Projects(scope: OrgScope): JSX.Element {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button onClick={handleCloseDialog} disabled={deleteMutation.isPending}>
+            Cancel
+          </Button>
           <Button color="error" onClick={handleDeleteConfirm} disabled={confirmText !== projectToDelete?.name || deleteMutation.isPending}>
             {deleteMutation.isPending ? 'Deleting...' : 'Delete Project'}
           </Button>
