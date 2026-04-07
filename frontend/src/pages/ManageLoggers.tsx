@@ -41,7 +41,7 @@ import {
   TextField,
   Typography,
 } from '@wso2/oxygen-ui';
-import { Maximize2, RefreshCw, X } from '@wso2/oxygen-ui-icons-react';
+import { Maximize2, RefreshCw, Server, X } from '@wso2/oxygen-ui-icons-react';
 import DataTable from '../components/DataTable';
 import { useState, type JSX } from 'react';
 import { useQueryClient, useQueries } from '@tanstack/react-query';
@@ -196,7 +196,7 @@ function LoggersList({ environmentId, componentId, componentType }: { environmen
                     </Stack>
                   </ListingTable.Cell>
                   <ListingTable.Cell>
-                    <Button variant="outlined" size="small" onClick={() => setRuntimeDrawer({ loggerName: logger.loggerName || logger.componentName, runtimeIds: logger.runtimeIds })}>
+                    <Button variant="contained" size="small" startIcon={<Server size={14} />} onClick={() => setRuntimeDrawer({ loggerName: logger.loggerName || logger.componentName, runtimeIds: logger.runtimeIds })}>
                       View Runtimes
                     </Button>
                   </ListingTable.Cell>

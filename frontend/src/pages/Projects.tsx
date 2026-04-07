@@ -16,12 +16,35 @@
  * under the License.
  */
 
-import { Avatar, Button, Card, CardContent, CircularProgress, Grid, IconButton, PageContent, PageTitle, Stack, TablePagination, ToggleButton, ToggleButtonGroup, Typography } from '@wso2/oxygen-ui';
-import { Clock, Folder, LayoutGrid, List, Plus, RefreshCw, Settings } from '@wso2/oxygen-ui-icons-react';
+import {
+  Alert,
+  Avatar,
+  Button,
+  Card,
+  CardContent,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Grid,
+  IconButton,
+  PageContent,
+  PageTitle,
+  Stack,
+  TablePagination,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from '@wso2/oxygen-ui';
+import { Clock, Folder, LayoutGrid, List, Pencil, Plus, RefreshCw, Trash2 } from '@wso2/oxygen-ui-icons-react';
 import SearchField from '../components/SearchField';
 import { useNavigate } from 'react-router';
 import { useState, type JSX } from 'react';
 import { useProjects, type GqlProject } from '../api/queries';
+import { useDeleteProject } from '../api/mutations';
 import EmptyListing from '../components/EmptyListing';
 import { formatDistanceToNow } from '../utils/time';
 import { resourceUrl, narrow, newProjectUrl, type OrgScope } from '../nav';
@@ -30,7 +53,7 @@ import { useAccessControl } from '../contexts/AccessControlContext';
 import { Permissions } from '../constants/permissions';
 import Authorized from '../components/Authorized';
 
-function ProjectCard({ project, onClick, onSettings }: { project: GqlProject; onClick: () => void; onSettings: () => void }) {
+function ProjectCard({ project, onClick, onSettings, onDelete }: { project: GqlProject; onClick: () => void; onSettings: () => void; onDelete: () => void }) {
   return (
     <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { boxShadow: 2 } }} onClick={onClick}>
       <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2.5 }}>
@@ -44,21 +67,33 @@ function ProjectCard({ project, onClick, onSettings }: { project: GqlProject; on
           <Clock size={14} />
           {formatDistanceToNow(project.updatedAt)}
         </Typography>
-        <IconButton
-          size="small"
-          aria-label={`Settings for ${project.name}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSettings();
-          }}>
-          <Settings size={16} />
-        </IconButton>
+        <Stack direction="row" spacing={0.5}>
+          <IconButton
+            size="small"
+            aria-label={`Edit ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSettings();
+            }}>
+            <Pencil size={16} />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            aria-label={`Delete ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}>
+            <Trash2 size={16} />
+          </IconButton>
+        </Stack>
       </Stack>
     </Card>
   );
 }
 
-function ProjectListItem({ project, onClick, onSettings }: { project: GqlProject; onClick: () => void; onSettings: () => void }) {
+function ProjectListItem({ project, onClick, onSettings, onDelete }: { project: GqlProject; onClick: () => void; onSettings: () => void; onDelete: () => void }) {
   return (
     <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { boxShadow: 1 } }} onClick={onClick}>
       <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
@@ -71,15 +106,27 @@ function ProjectListItem({ project, onClick, onSettings }: { project: GqlProject
             Updated {formatDistanceToNow(project.updatedAt)}
           </Typography>
         </Stack>
-        <IconButton
-          size="small"
-          aria-label={`Settings for ${project.name}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSettings();
-          }}>
-          <Settings size={16} />
-        </IconButton>
+        <Stack direction="row" spacing={0.5}>
+          <IconButton
+            size="small"
+            aria-label={`Edit ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSettings();
+            }}>
+            <Pencil size={16} />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            aria-label={`Delete ${project.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}>
+            <Trash2 size={16} />
+          </IconButton>
+        </Stack>
       </CardContent>
     </Card>
   );
@@ -91,9 +138,50 @@ export default function Projects(scope: OrgScope): JSX.Element {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<GqlProject | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState('');
   const { hasOrgPermission } = useAccessControl();
   const canCreateProject = hasOrgPermission(Permissions.PROJECT_MANAGE);
   const { data: projects, isLoading, refetch } = useProjects();
+  const deleteMutation = useDeleteProject();
+
+  const handleDeleteClick = (project: GqlProject) => {
+    setProjectToDelete(project);
+    setDeleteDialogOpen(true);
+    setDeleteError(null);
+    setConfirmText('');
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!projectToDelete) return;
+    setDeleteError(null);
+    deleteMutation.mutate(
+      { orgId: projectToDelete.orgId, projectId: projectToDelete.id },
+      {
+        onSuccess: (result) => {
+          if (result.status === 'success') {
+            setDeleteDialogOpen(false);
+            setProjectToDelete(null);
+            setConfirmText('');
+            refetch();
+          } else {
+            const statusMsg = result.status ? ` (Status: ${result.status})` : '';
+            setDeleteError(result.details ?? `Failed to delete project. Please try again.${statusMsg}`);
+          }
+        },
+        onError: (err) => setDeleteError(err.message ?? 'Failed to delete project. Please try again.'),
+      },
+    );
+  };
+
+  const handleCloseDialog = () => {
+    setDeleteDialogOpen(false);
+    setProjectToDelete(null);
+    setDeleteError(null);
+    setConfirmText('');
+  };
 
   const filtered = (projects ?? []).filter((p) => {
     if (!query) return true;
@@ -153,14 +241,14 @@ export default function Projects(scope: OrgScope): JSX.Element {
             <Grid container spacing={2}>
               {paginated.map((p) => (
                 <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <ProjectCard project={p} onClick={() => navigate(resourceUrl(narrow(scope, p.handler), 'overview'))} onSettings={() => navigate(editProjectUrl(scope.org, p.id))} />
+                  <ProjectCard project={p} onClick={() => navigate(resourceUrl(narrow(scope, p.handler), 'overview'))} onSettings={() => navigate(editProjectUrl(scope.org, p.id))} onDelete={() => handleDeleteClick(p)} />
                 </Grid>
               ))}
             </Grid>
           ) : (
             <Stack spacing={1.5}>
               {paginated.map((p) => (
-                <ProjectListItem key={p.id} project={p} onClick={() => navigate(resourceUrl(narrow(scope, p.handler), 'overview'))} onSettings={() => navigate(editProjectUrl(scope.org, p.id))} />
+                <ProjectListItem key={p.id} project={p} onClick={() => navigate(resourceUrl(narrow(scope, p.handler), 'overview'))} onSettings={() => navigate(editProjectUrl(scope.org, p.id))} onDelete={() => handleDeleteClick(p)} />
               ))}
             </Stack>
           )}
@@ -181,6 +269,28 @@ export default function Projects(scope: OrgScope): JSX.Element {
           )}
         </>
       )}
+
+      <Dialog open={deleteDialogOpen} onClose={handleCloseDialog}>
+        <DialogTitle>Delete Project</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Are you sure you want to delete the project "{projectToDelete?.name}"? This action cannot be undone and will remove all associated data.</DialogContentText>
+          <DialogContentText sx={{ mt: 2, mb: 1 }}>
+            Type <strong>{projectToDelete?.name}</strong> to confirm:
+          </DialogContentText>
+          <TextField fullWidth label="Confirm project name" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={projectToDelete?.name} autoFocus helperText={`Type "${projectToDelete?.name}" to enable deletion`} />
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button color="error" onClick={handleDeleteConfirm} disabled={confirmText !== projectToDelete?.name || deleteMutation.isPending}>
+            {deleteMutation.isPending ? 'Deleting...' : 'Delete Project'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </PageContent>
   );
 }
