@@ -62,7 +62,7 @@ export default function Component(scope: ComponentScope): JSX.Element {
             <Typography variant="h1">{component.displayName ?? scope.component}</Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4, ml: 9 }}>
-            {component.description || '+ Add Description'}
+            {component.description}
           </Typography>
           {environments.map((env) => (
             <Environment
