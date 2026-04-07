@@ -68,16 +68,16 @@ function ProjectCard({ project, onClick, onSettings, onDelete }: { project: GqlP
           {formatDistanceToNow(project.updatedAt)}
         </Typography>
         <Stack direction="row" spacing={0.5}>
-          <IconButton
-            size="small"
-            aria-label={`Edit ${project.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSettings();
-            }}>
-            <Pencil size={16} />
-          </IconButton>
           <Authorized permissions={Permissions.PROJECT_MANAGE}>
+            <IconButton
+              size="small"
+              aria-label={`Edit ${project.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSettings();
+              }}>
+              <Pencil size={16} />
+            </IconButton>
             <IconButton
               size="small"
               color="error"
@@ -169,7 +169,6 @@ export default function Projects(scope: OrgScope): JSX.Element {
             setDeleteDialogOpen(false);
             setProjectToDelete(null);
             setConfirmText('');
-            refetch();
           } else {
             const statusMsg = result.status ? ` (Status: ${result.status})` : '';
             setDeleteError(result.details ?? `Failed to delete project. Please try again.${statusMsg}`);
