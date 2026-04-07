@@ -1469,6 +1469,7 @@ service /graphql on graphqlListener {
                 types:ArtifactStateField? s = stateOf(sm, lg.componentName, "log-level", "logLevel");
                 if s is types:ArtifactStateField {
                     lg.logLevel = <types:LogLevel>s.value;
+                    lg.logLevelInSync = s.inSync;
                 }
             }
             return result;
