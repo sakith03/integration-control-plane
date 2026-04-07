@@ -41,7 +41,7 @@ import {
   Tabs,
   Typography,
 } from '@wso2/oxygen-ui';
-import { Check, Copy, FileText, Plus, RefreshCw, Server, Trash2, X } from '@wso2/oxygen-ui-icons-react';
+import { Check, Copy, FileText, Key, Plus, RefreshCw, Server, Trash2, X } from '@wso2/oxygen-ui-icons-react';
 import { useCallback, useEffect, useState, type JSX } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router';
@@ -92,32 +92,36 @@ function SecretDrawer({ env, onClose }: { env: GqlEnvironment; onClose: () => vo
             No unbound secrets for this environment.
           </Typography>
         ) : (
-          <ListingTable>
-            <ListingTable.Head>
-              <ListingTable.Row>
-                <ListingTable.Cell>Key ID</ListingTable.Cell>
-                <ListingTable.Cell>Created</ListingTable.Cell>
-                <ListingTable.Cell>Created By</ListingTable.Cell>
-                <ListingTable.Cell align="right">Action</ListingTable.Cell>
-              </ListingTable.Row>
-            </ListingTable.Head>
-            <ListingTable.Body>
-              {unboundSecrets.map((secret) => (
-                <ListingTable.Row key={secret.keyId}>
-                  <ListingTable.Cell>
-                    <code>{secret.keyId}....</code>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell>{formatDistanceToNow(secret.createdAt)}</ListingTable.Cell>
-                  <ListingTable.Cell>{secret.createdBy ?? '—'}</ListingTable.Cell>
-                  <ListingTable.Cell align="right">
-                    <IconButton size="small" color="error" aria-label={`Revoke ${secret.keyId}`} onClick={() => setRevoking(secret.keyId)}>
-                      <Trash2 size={16} />
-                    </IconButton>
+          <Box sx={{ width: '100%', overflowX: 'auto' }}>
+            <ListingTable sx={{ width: '100%', tableLayout: 'fixed' }}>
+              <ListingTable.Head>
+                <ListingTable.Row>
+                  <ListingTable.Cell sx={{ width: '30%' }}>Key ID</ListingTable.Cell>
+                  <ListingTable.Cell sx={{ width: '25%' }}>Created</ListingTable.Cell>
+                  <ListingTable.Cell sx={{ width: '30%' }}>Created By</ListingTable.Cell>
+                  <ListingTable.Cell align="right" sx={{ width: '15%' }}>
+                    Action
                   </ListingTable.Cell>
                 </ListingTable.Row>
-              ))}
-            </ListingTable.Body>
-          </ListingTable>
+              </ListingTable.Head>
+              <ListingTable.Body>
+                {unboundSecrets.map((secret) => (
+                  <ListingTable.Row key={secret.keyId}>
+                    <ListingTable.Cell>
+                      <code style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secret.keyId}....</code>
+                    </ListingTable.Cell>
+                    <ListingTable.Cell sx={{ whiteSpace: 'nowrap' }}>{formatDistanceToNow(secret.createdAt)}</ListingTable.Cell>
+                    <ListingTable.Cell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secret.createdBy ?? '—'}</ListingTable.Cell>
+                    <ListingTable.Cell align="right">
+                      <IconButton size="small" color="error" aria-label={`Revoke ${secret.keyId}`} onClick={() => setRevoking(secret.keyId)}>
+                        <Trash2 size={16} />
+                      </IconButton>
+                    </ListingTable.Cell>
+                  </ListingTable.Row>
+                ))}
+              </ListingTable.Body>
+            </ListingTable>
+          </Box>
         )}
       </Stack>
 
@@ -315,7 +319,7 @@ function EnvironmentRuntimeCard({
               </IconButton>
               <Authorized permissions={[Permissions.ENVIRONMENT_MANAGE, Permissions.ENVIRONMENT_MANAGE_NONPROD]}>
                 <Stack direction="row" gap={1}>
-                  <Button variant="outlined" size="small" onClick={() => setDrawerOpen(true)}>
+                  <Button variant="contained" size="small" startIcon={<Key size={14} />} onClick={() => setDrawerOpen(true)}>
                     Manage Secrets
                   </Button>
                   <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setAddOpen(true)}>

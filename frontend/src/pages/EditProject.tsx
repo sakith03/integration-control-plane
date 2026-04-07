@@ -16,12 +16,12 @@
  * under the License.
  */
 
-import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, PageContent, Stack, TextField, Typography } from '@wso2/oxygen-ui';
-import { ArrowLeft, Trash2 } from '@wso2/oxygen-ui-icons-react';
+import { Alert, Button, CircularProgress, PageContent, Stack, TextField, Typography } from '@wso2/oxygen-ui';
+import { ArrowLeft } from '@wso2/oxygen-ui-icons-react';
 import { useState, type JSX } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useProjects, type GqlProject } from '../api/queries';
-import { useUpdateProject, useDeleteProject } from '../api/mutations';
+import { useUpdateProject } from '../api/mutations';
 import { orgProjectsUrl } from '../paths';
 
 function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHandler: string }): JSX.Element {
@@ -29,11 +29,7 @@ function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHand
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [confirmText, setConfirmText] = useState('');
   const updateMutation = useUpdateProject();
-  const deleteMutation = useDeleteProject();
   const backUrl = orgProjectsUrl(orgHandler);
   const isDirty = name !== project.name || description !== (project.description ?? '');
 
@@ -48,42 +44,15 @@ function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHand
     );
   };
 
-  const handleDelete = () => {
-    setDeleteError(null);
-    deleteMutation.mutate(
-      { orgId: project.orgId, projectId: project.id },
-      {
-        onSuccess: (result) => {
-          if (result.status === 'success') {
-            navigate(backUrl, { state: { deleted: true, name: project.name } });
-          } else {
-            const statusMsg = result.status ? ` (Status: ${result.status})` : '';
-            setDeleteError(result.details ?? `Failed to delete project. Please try again.${statusMsg}`);
-          }
-        },
-        onError: (err) => setDeleteError(err.message ?? 'Failed to delete project. Please try again.'),
-      },
-    );
-  };
-
-  const handleCloseDialog = () => {
-    setDeleteDialogOpen(false);
-    setDeleteError(null);
-    setConfirmText('');
-  };
-
   return (
     <PageContent>
       <Button startIcon={<ArrowLeft size={16} />} onClick={() => navigate(backUrl)} sx={{ mb: 2 }}>
         Back to Projects
       </Button>
 
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
-        <Typography variant="h1">Edit Project</Typography>
-        <Button variant="outlined" color="error" startIcon={<Trash2 size={18} />} onClick={() => setDeleteDialogOpen(true)}>
-          Delete Project
-        </Button>
-      </Stack>
+      <Typography variant="h1" sx={{ mb: 4 }}>
+        Edit Project
+      </Typography>
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3, maxWidth: 600 }}>
@@ -105,28 +74,6 @@ function EditProjectForm({ project, orgHandler }: { project: GqlProject; orgHand
           Save
         </Button>
       </Stack>
-
-      <Dialog open={deleteDialogOpen} onClose={handleCloseDialog}>
-        <DialogTitle>Delete Project</DialogTitle>
-        <DialogContent>
-          <DialogContentText>Are you sure you want to delete the project "{project.name}"? This action cannot be undone and will remove all associated data.</DialogContentText>
-          <DialogContentText sx={{ mt: 2, mb: 1 }}>
-            Type <strong>{project.name}</strong> to confirm:
-          </DialogContentText>
-          <TextField fullWidth label="Confirm project name" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={project.name} autoFocus helperText={`Type "${project.name}" to enable deletion`} />
-          {deleteError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {deleteError}
-            </Alert>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button color="error" onClick={handleDelete} disabled={confirmText !== project.name || deleteMutation.isPending}>
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete Project'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </PageContent>
   );
 }

@@ -45,7 +45,7 @@ import {
   Tooltip,
   Typography,
 } from '@wso2/oxygen-ui';
-import { RefreshCw, ListFilter, LayoutGrid, Settings, Play, X, Trash2, UserPlus } from '@wso2/oxygen-ui-icons-react';
+import { RefreshCw, ListFilter, LayoutGrid, Server, Settings, Play, Plus, X, Trash2, UserPlus } from '@wso2/oxygen-ui-icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
@@ -333,7 +333,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
             </Button>
           )}
           {showRuntimesButton && (
-            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Runtimes')} sx={{ ml: showSourceButton || showParametersButton || showWsdlButton ? 0 : 'auto' }}>
+            <Button variant="contained" size="small" startIcon={<Server size={14} />} onClick={() => onOpenDrawerTab('Runtimes')} sx={{ ml: showSourceButton || showParametersButton || showWsdlButton ? 0 : 'auto' }}>
               View Runtimes
             </Button>
           )}
@@ -433,8 +433,8 @@ function EntryPointsList({ envId, componentId, projectId, componentType, onOpenD
           No entry points found for this integration. Add runtime to get started.
         </Typography>
         <Authorized permissions={[Permissions.INTEGRATION_MANAGE]}>
-          <Button variant="contained" size="small" onClick={() => navigate(`${resourceUrl(scope, 'runtimes')}?action=add-runtime&environmentId=${encodeURIComponent(envId)}`)}>
-            + Add Runtime
+          <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => navigate(`${resourceUrl(scope, 'runtimes')}?action=add-runtime&environmentId=${encodeURIComponent(envId)}`)}>
+            Add Runtime
           </Button>
         </Authorized>
       </Stack>

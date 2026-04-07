@@ -41,7 +41,7 @@ import {
   TablePagination,
   Typography,
 } from '@wso2/oxygen-ui';
-import { Check, Copy, FileText, Plus, Trash2, X } from '@wso2/oxygen-ui-icons-react';
+import { Check, Copy, FileText, Key, Plus, RefreshCw, Trash2, X } from '@wso2/oxygen-ui-icons-react';
 import SearchField from '../components/SearchField';
 import { LogFilesDrawer } from '../components/LogFilesDrawer';
 import { useCallback, useEffect, useState, type JSX } from 'react';
@@ -230,49 +230,53 @@ function BoundSecretDrawer({ componentId, environmentId, environmentName, onClos
           <CircularProgress sx={{ mx: 'auto', my: 4 }} />
         ) : secrets.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-            No bound secrets for this component in this environment.
+            No bound secrets for this integration in this environment.
           </Typography>
         ) : (
-          <ListingTable>
-            <ListingTable.Head>
-              <ListingTable.Row>
-                <ListingTable.Cell>Key ID</ListingTable.Cell>
-                <ListingTable.Cell>Created</ListingTable.Cell>
-                <ListingTable.Cell>Created By</ListingTable.Cell>
-                <ListingTable.Cell>Runtimes</ListingTable.Cell>
-                <ListingTable.Cell align="right">Action</ListingTable.Cell>
-              </ListingTable.Row>
-            </ListingTable.Head>
-            <ListingTable.Body>
-              {secrets.map((secret) => (
-                <ListingTable.Row key={secret.keyId}>
-                  <ListingTable.Cell>
-                    <code>{secret.keyId}....</code>
-                  </ListingTable.Cell>
-                  <ListingTable.Cell>{formatDistanceToNow(secret.createdAt)}</ListingTable.Cell>
-                  <ListingTable.Cell>{secret.createdBy ?? '—'}</ListingTable.Cell>
-                  <ListingTable.Cell>
-                    {secret.runtimes.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        —
-                      </Typography>
-                    ) : (
-                      <Stack direction="row" gap={0.5} flexWrap="wrap">
-                        {secret.runtimes.map((rt) => (
-                          <Chip key={rt.runtimeId} label={rt.runtimeId} size="small" color={rt.status === 'RUNNING' ? 'success' : 'default'} />
-                        ))}
-                      </Stack>
-                    )}
-                  </ListingTable.Cell>
-                  <ListingTable.Cell align="right">
-                    <IconButton size="small" color="error" aria-label={`Revoke ${secret.keyId}`} onClick={() => setRevoking(secret.keyId)}>
-                      <Trash2 size={16} />
-                    </IconButton>
+          <Box sx={{ width: '100%', overflowX: 'auto' }}>
+            <ListingTable sx={{ width: '100%', tableLayout: 'fixed' }}>
+              <ListingTable.Head>
+                <ListingTable.Row>
+                  <ListingTable.Cell sx={{ width: '20%' }}>Key ID</ListingTable.Cell>
+                  <ListingTable.Cell sx={{ width: '15%' }}>Created</ListingTable.Cell>
+                  <ListingTable.Cell sx={{ width: '15%' }}>Created By</ListingTable.Cell>
+                  <ListingTable.Cell sx={{ width: '40%' }}>Runtimes</ListingTable.Cell>
+                  <ListingTable.Cell align="right" sx={{ width: '10%' }}>
+                    Action
                   </ListingTable.Cell>
                 </ListingTable.Row>
-              ))}
-            </ListingTable.Body>
-          </ListingTable>
+              </ListingTable.Head>
+              <ListingTable.Body>
+                {secrets.map((secret) => (
+                  <ListingTable.Row key={secret.keyId}>
+                    <ListingTable.Cell>
+                      <code style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secret.keyId}....</code>
+                    </ListingTable.Cell>
+                    <ListingTable.Cell sx={{ whiteSpace: 'nowrap' }}>{formatDistanceToNow(secret.createdAt)}</ListingTable.Cell>
+                    <ListingTable.Cell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secret.createdBy ?? '—'}</ListingTable.Cell>
+                    <ListingTable.Cell>
+                      {secret.runtimes.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">
+                          —
+                        </Typography>
+                      ) : (
+                        <Stack direction="row" gap={0.5} flexWrap="wrap">
+                          {secret.runtimes.map((rt) => (
+                            <Chip key={rt.runtimeId} label={rt.runtimeId} size="small" color={rt.status === 'RUNNING' ? 'success' : 'default'} />
+                          ))}
+                        </Stack>
+                      )}
+                    </ListingTable.Cell>
+                    <ListingTable.Cell align="right">
+                      <IconButton size="small" color="error" aria-label={`Revoke ${secret.keyId}`} onClick={() => setRevoking(secret.keyId)}>
+                        <Trash2 size={16} />
+                      </IconButton>
+                    </ListingTable.Cell>
+                  </ListingTable.Row>
+                ))}
+              </ListingTable.Body>
+            </ListingTable>
+          </Box>
         )}
       </Stack>
 
@@ -306,6 +310,8 @@ function EnvironmentRuntimeCard({
   runtimes,
   onDelete,
   onViewLogs,
+  onRefresh,
+  isRefreshing,
   autoOpenAddRuntime,
   onAutoOpenConsumed,
 }: {
@@ -318,6 +324,8 @@ function EnvironmentRuntimeCard({
   runtimes: GqlRuntime[];
   onDelete: (runtime: GqlRuntime) => void;
   onViewLogs: (runtime: GqlRuntime) => void;
+  onRefresh: () => void;
+  isRefreshing?: boolean;
   autoOpenAddRuntime?: boolean;
   onAutoOpenConsumed?: () => void;
 }) {
@@ -351,18 +359,23 @@ function EnvironmentRuntimeCard({
               </Typography>
               <Chip label={`${filtered.length} runtime${filtered.length !== 1 ? 's' : ''}`} size="small" color={filtered.length > 0 ? 'primary' : 'default'} />
             </Stack>
-            {componentId && (
-              <Authorized permissions={[Permissions.INTEGRATION_MANAGE]}>
-                <Stack direction="row" gap={1}>
-                  <Button variant="outlined" size="small" onClick={() => setDrawerOpen(true)}>
-                    Manage Secrets
-                  </Button>
-                  <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
-                    Add Runtime
-                  </Button>
-                </Stack>
-              </Authorized>
-            )}
+            <Stack direction="row" gap={1} alignItems="center">
+              <IconButton size="small" aria-label={`Refresh runtimes for ${environmentName}`} onClick={onRefresh} disabled={isRefreshing}>
+                <RefreshCw size={16} />
+              </IconButton>
+              {componentId && (
+                <Authorized permissions={[Permissions.INTEGRATION_MANAGE]}>
+                  <Stack direction="row" gap={1}>
+                    <Button variant="contained" size="small" startIcon={<Key size={14} />} onClick={() => setDrawerOpen(true)}>
+                      Manage Secrets
+                    </Button>
+                    <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
+                      Add Runtime
+                    </Button>
+                  </Stack>
+                </Authorized>
+              )}
+            </Stack>
           </Stack>
           <Divider sx={{ mb: 2 }} />
           <SearchField value={query} onChange={setQuery} placeholder="Search runtimes..." sx={{ mb: 2, width: '100%', maxWidth: 400 }} />
@@ -548,6 +561,7 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
             </Typography>
           ) : (
             environments.map((env, index) => {
+              const query = runtimeQueries[index];
               const runtimes = runtimeQueries[index]?.data ?? [];
               return (
                 <EnvironmentRuntimeCard
@@ -561,6 +575,8 @@ export default function Runtime(scope: ProjectScope | ComponentScope): JSX.Eleme
                   runtimes={runtimes}
                   onDelete={handleStartDelete}
                   onViewLogs={setViewingLogs}
+                  onRefresh={() => query?.refetch()}
+                  isRefreshing={query?.isFetching}
                   autoOpenAddRuntime={shouldAutoOpenAddRuntime && (autoOpenEnvironmentId ? env.id === autoOpenEnvironmentId : index === 0)}
                   onAutoOpenConsumed={clearAutoOpenAction}
                 />
