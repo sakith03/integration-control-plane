@@ -76,6 +76,7 @@ configurable string ssoClientSecret = "";
 configurable string ssoRedirectUri = "";
 configurable string ssoUsernameClaim = "email"; // Claim to use for username: "email" or "preferred_username"
 configurable string[] ssoScopes = ["openid", "email", "profile"];
+configurable string ssoJwksUrl = ""; // OIDC provider's JWKS endpoint (e.g. https://provider/.well-known/jwks.json)
 configurable boolean ssoAllowInsecureTLS = false; // Set true for local/self-signed OIDC provider certs
 
 // Logging configuration
@@ -127,6 +128,7 @@ public isolated function getSSOConfig() returns types:SSOConfig => {
     authorizationEndpoint: ssoAuthorizationEndpoint,
     tokenEndpoint: ssoTokenEndpoint,
     logoutEndpoint: ssoLogoutEndpoint,
+    jwksUrl: ssoJwksUrl,
     clientId: resolvedSsoClientId,
     clientSecret: resolvedSsoClientSecret,
     redirectUri: ssoRedirectUri,
@@ -154,6 +156,10 @@ public isolated function validateSSOConfig(types:SSOConfig config) returns error
     }
     if config.logoutEndpoint.trim() == "" {
         return error("SSO is enabled but 'ssoLogoutEndpoint' is not configured");
+    }
+    if config.jwksUrl.trim() == "" {
+        return error("SSO is enabled but 'ssoJwksUrl' is not configured. " +
+            "Set it to the OIDC provider's JWKS endpoint (e.g. https://provider/.well-known/jwks.json)");
     }
     if config.clientId.trim() == "" {
         return error("SSO is enabled but 'ssoClientId' is not configured");

@@ -26,7 +26,8 @@ import { useAuth } from '../auth/AuthContext';
 import { isSsoEnabled } from '../config/api';
 
 function friendlyLoginError(err: unknown, isSso = false): string {
-  const message = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  const rawMessage = err instanceof Error ? err.message : String(err);
+  const message = rawMessage.toLowerCase();
   const status = (err as Record<string, unknown>)?.status as number | undefined;
 
   if (status === 401 || message.includes('invalid credentials') || message.includes('unauthorized')) return 'Incorrect username or password. Please try again.';
@@ -34,8 +35,8 @@ function friendlyLoginError(err: unknown, isSso = false): string {
   if (status === 403 || message.includes('locked') || message.includes('disabled') || message.includes('forbidden')) return 'Your account has been locked or disabled. Please contact your administrator.';
   if (status === 404 || message.includes('not found')) return 'Account not found. Please check your username and try again.';
   if (message.includes('failed to fetch') || message.includes('networkerror') || err instanceof TypeError) return 'Unable to connect to the server. Please check your connection and try again.';
+  if (isSso) return rawMessage && !rawMessage.startsWith('SSO login failed (') ? rawMessage : 'Single sign-on is currently unavailable. Please try again later or use username and password.';
   if ((status && status >= 500) || message.includes('internal') || message.includes('server error')) return 'Something went wrong on our end. Please try again later.';
-  if (isSso) return 'Single sign-on is currently unavailable. Please try again later or use username and password.';
   return 'Sign-in failed. Please try again or contact your administrator.';
 }
 

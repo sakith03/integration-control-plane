@@ -93,7 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     const res = await fetch(`${oidcAuthorizeApiUrl()}?state=${encodeURIComponent(state)}`);
     if (!res.ok) {
       const body = await res.text();
-      const err: Error & { status?: number } = new Error(body || `SSO login failed (${res.status})`);
+      let errorMessage = body || `SSO login failed (${res.status})`;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed.message) errorMessage = parsed.message;
+      } catch { /* keep raw body */ }
+      const err: Error & { status?: number } = new Error(errorMessage);
       err.status = res.status;
       throw err;
     }

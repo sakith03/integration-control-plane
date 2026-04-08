@@ -39,10 +39,26 @@ const string TEST_USER_ID = "550e8400-e29b-41d4-a716-446655440001";
 const string TEST_USER_EMAIL = "[email protected]";
 const string TEST_USER_NAME = "Test User";
 
+// RSA signing configuration for the mock provider
+const string MOCK_KEYSTORE_PATH = "tests/resources/keys/mock_oidc.p12";
+const string MOCK_KEYSTORE_PASSWORD = "mocktest";
+const string MOCK_KEY_ALIAS = "mock-oidc-key";
+
+// Pre-built JWKS response (matches the RSA key pair in tests/resources/keys/)
+const string MOCK_JWKS_RESPONSE = "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"mock-oidc-key-1\",\"use\":\"sig\",\"alg\":\"RS256\",\"n\":\"rDMqu37NM8gqDnF7tUHwYxsxRuCwmuMN5YXpfFBaNl0A6gPbInnmqlUGCdMgClPokOR7iKOflT1q6YobPEejl3beK91ChdtgoHUC2-K1cqGgG7buaQqAVCEDpuxpa21_0EwKUiG8i1C9yYBq8yL9ESqGKHgHtliY3iVT5pSn7fYmmbnWKLeFfXl_Z4y5zwOlbgWVIaw25k93icCKe6enka54_VAE8trNhkJ9Bvn_vwDLJ7eGyYV3lsGpcEeYbg3rt_B6g_2ZMxHNvOIrC1n6-9voJjVmjA7xP9Yjs8g2jVJecl4nQTxrNzR48luclzIRm8hwoUkCrmGRQlFJ8R9Yew\",\"e\":\"AQAB\"}]}";
+
 // Mock OIDC Provider Service
 listener http:Listener mockOidcListener = check new (check int:fromString(MOCK_OIDC_PROVIDER_PORT));
 
 service /oauth2 on mockOidcListener {
+
+    // JWKS endpoint - serves the public key for ID token signature verification
+    resource function get jwks() returns http:Response {
+        http:Response response = new;
+        response.statusCode = 200;
+        response.setJsonPayload(checkpanic MOCK_JWKS_RESPONSE.fromJsonString());
+        return response;
+    }
 
     // Token endpoint - exchanges authorization code for tokens
     resource function post token(http:Request request) returns http:Response {
@@ -104,7 +120,7 @@ service /oauth2 on mockOidcListener {
                 return response;
             }
 
-            // Generate mock ID token
+            // Generate mock ID token (signed with RSA)
             string idToken = check generateMockIdToken();
 
             // Return successful token response
@@ -133,22 +149,26 @@ service /oauth2 on mockOidcListener {
     }
 }
 
-// Generate a mock ID token (JWT)
+// Generate a mock ID token signed with RS256
 function generateMockIdToken() returns string|error {
     // Get current timestamp
     time:Utc currentTime = time:utcNow();
     int currentTimestamp = <int>currentTime[0];
     int expiryTimestamp = currentTimestamp + 3600; // 1 hour from now
 
-    // Create ID token claims
+    // Create ID token claims with RSA signature
     jwt:IssuerConfig issuerConfig = {
         username: TEST_USER_ID,
         issuer: MOCK_ISSUER,
         audience: MOCK_CLIENT_ID,
         expTime: 3600,
         signatureConfig: {
-            algorithm: jwt:HS256,
-            config: "mock-secret-key-for-testing-purposes-only"
+            algorithm: jwt:RS256,
+            config: {
+                keyStore: {path: MOCK_KEYSTORE_PATH, password: MOCK_KEYSTORE_PASSWORD},
+                keyAlias: MOCK_KEY_ALIAS,
+                keyPassword: MOCK_KEYSTORE_PASSWORD
+            }
         },
         customClaims: {
             "sub": TEST_USER_ID,
@@ -162,4 +182,3 @@ function generateMockIdToken() returns string|error {
     string idToken = check jwt:issue(issuerConfig);
     return idToken;
 }
-
