@@ -47,8 +47,8 @@ function testRenewTokenWithoutAuthHeader() returns error? {
 function testRenewTokenWithInvalidToken() returns error? {
     log:printInfo("Test: Token renewal with invalid token");
 
-    // Create an invalid token (wrong signature)
-    string invalidToken = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+    // Create an invalid token (clearly fake to avoid triggering secret scanners)
+    string invalidToken = "Bearer FAKE_TOKEN_INVALID";
 
     // Send renew token request with invalid token
     http:Response response = check authClient->post("/auth/renew-token", {}, {

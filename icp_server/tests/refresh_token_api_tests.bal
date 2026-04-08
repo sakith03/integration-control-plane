@@ -14,6 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import icp_server.auth as auth;
+import icp_server.storage as storage;
+
 import ballerina/http;
 import ballerina/log;
 import ballerina/test;
@@ -54,7 +57,7 @@ function testRefreshTokenWithEmptyToken() returns error? {
     };
 
     http:Response response = check authClient->post("/auth/refresh-token", refreshRequest);
-    test:assertTrue(response.statusCode == 400 || response.statusCode == 401, "Should reject empty refresh token");
+    test:assertEquals(response.statusCode, 400, "Should reject empty refresh token");
 
     json responseBody = check response.getJsonPayload();
     test:assertTrue(responseBody.message is string, "Error message should be present");
@@ -82,17 +85,32 @@ function testRefreshTokenWithMissingToken() returns error? {
 
 // Test: Refresh token with expired token
 @test:Config {
-    groups: ["refresh-token", "api", "negative"],
-    enable: false // Enable manually to test with expired tokens
+    groups: ["refresh-token", "api", "negative"]
 }
 function testRefreshTokenWithExpiredToken() returns error? {
     log:printInfo("Test: Refresh token with expired token");
 
-    // This test requires creating an expired token in the database
-    // For now, we'll test with a token that was valid but has expired
+    // Generate and store an expired token in the database
+    string tokenId = auth:generateTokenId();
+    string userId = "770e8400-e29b-41d4-a716-446655440001"; // orgdev user from test data
+    string refreshToken = auth:generateRefreshToken();
+    string tokenHash = auth:hashRefreshToken(refreshToken);
+    int expirySeconds = -1; // Expired 1 second ago
 
+    // Store the expired token
+    error? storeResult = storage:storeRefreshToken(
+            tokenId,
+            userId,
+            tokenHash,
+            expirySeconds,
+            "Test User Agent",
+            "192.168.1.100"
+    );
+    test:assertFalse(storeResult is error, "Should store expired token successfully");
+
+    // Try to use the expired token
     json refreshRequest = {
-        refreshToken: "expired-refresh-token"
+        refreshToken: refreshToken // Use the actual token, not the hash
     };
 
     http:Response response = check authClient->post("/auth/refresh-token", refreshRequest);

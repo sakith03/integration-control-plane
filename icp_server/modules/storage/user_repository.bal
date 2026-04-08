@@ -103,8 +103,8 @@ public isolated function getAllUsersV2() returns json[]|error {
 }
 
 isolated function getGroupsForUser(string userId) returns json[]|error {
-    stream<record {|string group_id; string group_name; string description;|}, sql:Error?> groupStream = dbClient->query(
-        `SELECT g.group_id, g.group_name, COALESCE(g.description, '') as description
+    stream<record {|string group_id; string group_name; string description?;|}, sql:Error?> groupStream = dbClient->query(
+        `SELECT g.group_id, g.group_name, g.description
          FROM user_groups g
          JOIN group_user_mapping gum ON g.group_id = gum.group_id
          WHERE gum.user_uuid = ${userId}
@@ -112,7 +112,7 @@ isolated function getGroupsForUser(string userId) returns json[]|error {
     );
 
     // Collect groups as records
-    record {|string group_id; string group_name; string description;|}[] groupRecords = check from var g in groupStream
+    record {|string group_id; string group_name; string description?;|}[] groupRecords = check from var g in groupStream
         select g;
 
     // Transform to JSON

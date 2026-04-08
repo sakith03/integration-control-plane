@@ -46,6 +46,20 @@ function testValidateRefreshTokenValid() returns error? {
     );
     test:assertFalse(storeResult is error, "Should store token successfully");
 
+    // Test nullable metadata handling - store another token with null userAgent and ipAddress
+    string tokenId2 = auth:generateTokenId();
+    string refreshToken2 = auth:generateRefreshToken();
+    string tokenHash2 = auth:hashRefreshToken(refreshToken2);
+    error? storeResult2 = storage:storeRefreshToken(
+            tokenId2,
+            userId,
+            tokenHash2,
+            expirySeconds,
+            (),
+            ()
+    );
+    test:assertFalse(storeResult2 is error, "Should store token with nullable metadata successfully");
+
     // Validate the token
     types:User|error validationResult = storage:validateRefreshToken(tokenHash);
 
@@ -85,6 +99,20 @@ function testValidateRefreshTokenExpired() returns error? {
     );
     test:assertFalse(storeResult is error, "Should store expired token successfully");
 
+    // Test nullable metadata handling - store another expired token with null userAgent
+    string tokenId2 = auth:generateTokenId();
+    string refreshToken2 = auth:generateRefreshToken();
+    string tokenHash2 = auth:hashRefreshToken(refreshToken2);
+    error? storeResult2 = storage:storeRefreshToken(
+            tokenId2,
+            userId,
+            tokenHash2,
+            expirySeconds,
+            (),
+            "192.168.1.200"
+    );
+    test:assertFalse(storeResult2 is error, "Should store expired token with null userAgent successfully");
+
     // Try to validate the expired token
     types:User|error validationResult = storage:validateRefreshToken(tokenHash);
 
@@ -120,6 +148,20 @@ function testValidateRefreshTokenRevoked() returns error? {
             "192.168.1.100"
     );
     test:assertFalse(storeResult is error, "Should store token successfully");
+
+    // Test nullable metadata handling - store another token with null ipAddress
+    string tokenId2 = auth:generateTokenId();
+    string refreshToken2 = auth:generateRefreshToken();
+    string tokenHash2 = auth:hashRefreshToken(refreshToken2);
+    error? storeResult2 = storage:storeRefreshToken(
+            tokenId2,
+            userId,
+            tokenHash2,
+            expirySeconds,
+            "Test User Agent 2",
+            ()
+    );
+    test:assertFalse(storeResult2 is error, "Should store token with null ipAddress successfully");
 
     // Revoke the token
     error? revokeResult = storage:revokeRefreshToken(tokenHash);
