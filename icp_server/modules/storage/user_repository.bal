@@ -43,7 +43,7 @@ public isolated function getUserDetailsById(string userId) returns types:User|er
 // Get single user with group memberships (RBAC v2)
 public isolated function getUserWithGroupsById(string userId) returns json|error {
     log:printDebug(string `Fetching user with group memberships for userId: ${userId}`);
-    
+
     // Get user details
     types:User|error user = getUserDetailsById(userId);
     if user is error {
@@ -71,7 +71,7 @@ public isolated function getUserWithGroupsById(string userId) returns json|error
 // Get all users with their group memberships (RBAC v2)
 public isolated function getAllUsersV2() returns json[]|error {
     log:printDebug("Fetching all users with group memberships (RBAC v2)");
-    
+
     // Get all users
     stream<types:User, sql:Error?> userStream = dbClient->query(
         `SELECT user_id, username, display_name, is_super_admin, is_project_author, is_oidc_user, require_password_change, created_at, updated_at
@@ -104,7 +104,7 @@ public isolated function getAllUsersV2() returns json[]|error {
 
 isolated function getGroupsForUser(string userId) returns json[]|error {
     stream<record {|string group_id; string group_name; string description;|}, sql:Error?> groupStream = dbClient->query(
-        `SELECT g.group_id, g.group_name, g.description
+        `SELECT g.group_id, g.group_name, COALESCE(g.description, '') as description
          FROM user_groups g
          JOIN group_user_mapping gum ON g.group_id = gum.group_id
          WHERE gum.user_uuid = ${userId}
@@ -128,24 +128,25 @@ isolated function getGroupsForUser(string userId) returns json[]|error {
 // Note: This only creates the user record in the main DB. Credentials are managed separately by auth backend.
 public isolated function createUserV2(string userId, string username, string displayName, string[] groupIds, boolean isOidcUser = false) returns json|error {
     log:printDebug(string `Creating user (RBAC v2): ${username} with userId: ${userId}`);
-    
+
     // Check if user already exists in main DB
     stream<record {|int count;|}, sql:Error?> countStream = dbClient->query(
         `SELECT COUNT(*) as count FROM users WHERE user_id = ${userId} OR username = ${username}`
     );
-    
-    record {|int count;|}[] countResult = check from var c in countStream select c;
+
+    record {|int count;|}[] countResult = check from var c in countStream
+        select c;
     if countResult.length() > 0 && countResult[0].count > 0 {
         return error(string `User '${username}' already exists in main database`);
     }
-    
+
     transaction {
         // Insert user into main database
         sql:ExecutionResult _ = check dbClient->execute(
             `INSERT INTO users (user_id, username, display_name, is_super_admin, is_project_author, is_oidc_user)
              VALUES (${userId}, ${username}, ${displayName}, ${false}, ${false}, ${isOidcUser})`
         );
-        
+
         // Add user to groups if specified
         foreach string groupId in groupIds {
             sql:ExecutionResult _ = check dbClient->execute(
@@ -153,25 +154,33 @@ public isolated function createUserV2(string userId, string username, string dis
             );
             log:printInfo(string `Added user ${userId} to group ${groupId}`);
         }
-        
+
         check commit;
         log:printInfo(string `Successfully created user ${username} with ${groupIds.length()} group assignments`, userId = userId);
     } on fail error e {
         log:printError(string `Transaction failed while creating user ${username}`, 'error = e);
         if e is sql:Error {
             match classifySqlError(e) {
-                DUPLICATE_KEY => { return error("A user with this username already exists", e); }
-                VALUE_TOO_LONG => { return error("The provided value exceeds the maximum allowed length", e); }
-                FOREIGN_KEY_VIOLATION => { return error("The specified group does not exist", e); }
-                _ => { return error("An unexpected error occurred. Please contact your administrator.", e); }
+                DUPLICATE_KEY => {
+                    return error("A user with this username already exists", e);
+                }
+                VALUE_TOO_LONG => {
+                    return error("The provided value exceeds the maximum allowed length", e);
+                }
+                FOREIGN_KEY_VIOLATION => {
+                    return error("The specified group does not exist", e);
+                }
+                _ => {
+                    return error("An unexpected error occurred. Please contact your administrator.", e);
+                }
             }
         }
         return error("An unexpected error occurred while creating the user. Please contact your administrator.", e);
     }
-    
+
     // Fetch and return the created user with groups
     json[] groups = check getGroupsForUser(userId);
-    
+
     return {
         userId: userId,
         username: username,
@@ -189,27 +198,28 @@ public isolated function createUserV2(string userId, string username, string dis
 // Safety checks: Cannot delete system admin or self
 public isolated function deleteUserV2(string userId, string currentUserId) returns error? {
     log:printDebug(string `Deleting user (RBAC v2): ${userId}`);
-    
+
     // Safety check: Cannot delete system admin
     if userId == "550e8400-e29b-41d4-a716-446655440000" {
         return error("Cannot delete system administrator");
     }
-    
+
     // Safety check: Cannot delete self
     if userId == currentUserId {
         return error("Cannot delete your own user account");
     }
-    
+
     // Check if user exists
     stream<record {|int count;|}, sql:Error?> countStream = dbClient->query(
         `SELECT COUNT(*) as count FROM users WHERE user_id = ${userId}`
     );
-    
-    record {|int count;|}[] countResult = check from var c in countStream select c;
+
+    record {|int count;|}[] countResult = check from var c in countStream
+        select c;
     if countResult.length() == 0 || countResult[0].count == 0 {
         return error(string `User not found: ${userId}`);
     }
-    
+
     transaction {
         // Delete user from main database (cascades to group_user_mapping via foreign key)
         sql:ExecutionResult result = check dbClient->execute(
@@ -220,21 +230,25 @@ public isolated function deleteUserV2(string userId, string currentUserId) retur
         sql:ExecutionResult _ = check dbClient->execute(
             `DELETE FROM refresh_tokens WHERE user_id = ${userId}`
         );
-        
+
         check commit;
-        
+
         if result.affectedRowCount == 0 {
             log:printWarn(string `User ${userId} was not found during deletion`);
             return error(string `User not found: ${userId}`);
         }
-        
+
         log:printInfo(string `Successfully deleted user ${userId} from main database`);
     } on fail error e {
         log:printError(string `Transaction failed while deleting user ${userId}`, 'error = e);
         if e is sql:Error {
             match classifySqlError(e) {
-                FOREIGN_KEY_VIOLATION => { return error("Cannot delete user because they have dependent resources", e); }
-                _ => { return error("An unexpected error occurred. Please contact your administrator.", e); }
+                FOREIGN_KEY_VIOLATION => {
+                    return error("Cannot delete user because they have dependent resources", e);
+                }
+                _ => {
+                    return error("An unexpected error occurred. Please contact your administrator.", e);
+                }
             }
         }
         return error("An unexpected error occurred while deleting the user. Please contact your administrator.", e);

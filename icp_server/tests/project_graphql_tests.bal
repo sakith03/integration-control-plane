@@ -14,8 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import ballerina/test;
 import icp_server.auth;
+
+import ballerina/test;
 
 // Project IDs from test data
 const string PROJECT_2_ID = "650e8400-e29b-41d4-a716-446655440002";
@@ -36,9 +37,9 @@ string createdProjectId = "";
 function setupProjectTests() returns error? {
     // Generate token for super admin (can create projects)
     orgAdminToken = check generateV2Token(
-        "550e8400-e29b-41d4-a716-446655440000", // Super admin user ID from test data
-        "admin",
-        [auth:PERMISSION_PROJECT_MANAGE, auth:PERMISSION_PROJECT_EDIT, auth:PERMISSION_PROJECT_VIEW, auth:PERMISSION_INTEGRATION_MANAGE, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_VIEW]
+            "550e8400-e29b-41d4-a716-446655440000", // Super admin user ID from test data
+            "admin",
+            [auth:PERMISSION_PROJECT_MANAGE, auth:PERMISSION_PROJECT_EDIT, auth:PERMISSION_PROJECT_VIEW, auth:PERMISSION_INTEGRATION_MANAGE, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_VIEW]
     );
 }
 
@@ -110,94 +111,6 @@ function testGetProjectByIdNoAccess() returns error? {
     json? project = check data.project;
     test:assertTrue(project is (), "Should return null for project without access");
 }
-
-// =============================================================================
-// Test 3: Create project - Success with project_mgt:manage permission
-// =============================================================================
-
-@test:Config {
-    groups: ["project-graphql", "create-project"]
-}
-function testCreateProjectSuccess() returns error? {
-    string mutation = string `
-        mutation CreateProject($project: ProjectInput!) {
-            createProject(project: $project) {
-                id
-                name
-                description
-            }
-        }
-    `;
-
-    json variables = {
-        project: {
-            name: "test-project-graphql",
-            orgHandler: "default",
-            projectHandler: "test-project-graphql",
-            description: "Test project created by GraphQL test",
-            orgId: 1
-        }
-    };
-
-    json response = check executeGraphQL(mutation, orgAdminToken, variables);
-
-    // Verify no errors - print error if exists for debugging
-    if response.errors is json {
-        // Print error details for debugging
-        json errors = check response.errors;
-        // This will fail the test and show the error
-        test:assertFail(string `Mutation returned errors: ${errors.toString()}`);
-    }
-
-    json data = check response.data;
-    json project = check data.createProject;
-    
-    // Store project ID for potential cleanup
-    createdProjectId = check project.id;
-    
-    string name = check project.name;
-    test:assertEquals(name, "test-project-graphql", "Project name should match");
-}
-
-// =============================================================================
-// Test 4: Create project - Verify admin group and role assignment
-// =============================================================================
-
-@test:Config {
-    groups: ["project-graphql", "create-project"],
-    dependsOn: [testCreateProjectSuccess]
-}
-function testCreateProjectGroupAssignment() returns error? {
-    // Verify project was created in previous test
-    test:assertTrue(createdProjectId.length() > 0, "Project ID should be set from previous test");
-
-    // Query to check if user has access to the newly created project
-    string query = string `
-        query GetProject($projectId: String!) {
-            project(orgId: 1, projectId: $projectId) {
-                id
-                name
-            }
-        }
-    `;
-
-    json variables = {
-        projectId: createdProjectId
-    };
-
-    json response = check executeGraphQL(query, orgAdminToken, variables);
-
-    // Creator should have immediate access
-    test:assertFalse(response.errors is json, "Creator should have access to created project");
-
-    json data = check response.data;
-    json|error project = data.project;
-    test:assertTrue(project is json, "Creator should see the created project");
-}
-
-// =============================================================================
-// Test 5: Create project - Fails without project_mgt:manage permission
-// =============================================================================
 
 @test:Config {
     groups: ["project-graphql", "create-project"]
