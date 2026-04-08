@@ -169,7 +169,7 @@ public isolated function extractUserContextV2(string authorizationHeader) return
 // ============================================================================
 
 // Generate a cryptographically secure refresh token
-// Returns a 256-bit random token encoded as a base64 string
+// Returns a base64-encoded string derived from two UUIDv4 values (~244 bits of randomness).
 public isolated function generateRefreshToken() returns string {
     log:printDebug("Generating refresh token");
 
