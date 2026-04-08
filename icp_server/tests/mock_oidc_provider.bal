@@ -45,7 +45,7 @@ const string MOCK_KEYSTORE_PASSWORD = "mocktest";
 const string MOCK_KEY_ALIAS = "mock-oidc-key";
 
 // Pre-built JWKS response (matches the RSA key pair in tests/resources/keys/)
-const string MOCK_JWKS_RESPONSE = "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"mock-oidc-key-1\",\"use\":\"sig\",\"alg\":\"RS256\",\"n\":\"rDMqu37NM8gqDnF7tUHwYxsxRuCwmuMN5YXpfFBaNl0A6gPbInnmqlUGCdMgClPokOR7iKOflT1q6YobPEejl3beK91ChdtgoHUC2-K1cqGgG7buaQqAVCEDpuxpa21_0EwKUiG8i1C9yYBq8yL9ESqGKHgHtliY3iVT5pSn7fYmmbnWKLeFfXl_Z4y5zwOlbgWVIaw25k93icCKe6enka54_VAE8trNhkJ9Bvn_vwDLJ7eGyYV3lsGpcEeYbg3rt_B6g_2ZMxHNvOIrC1n6-9voJjVmjA7xP9Yjs8g2jVJecl4nQTxrNzR48luclzIRm8hwoUkCrmGRQlFJ8R9Yew\",\"e\":\"AQAB\"}]}";
+const string MOCK_JWKS_RESPONSE = "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"mock-oidc-key\",\"use\":\"sig\",\"alg\":\"RS256\",\"n\":\"rDMqu37NM8gqDnF7tUHwYxsxRuCwmuMN5YXpfFBaNl0A6gPbInnmqlUGCdMgClPokOR7iKOflT1q6YobPEejl3beK91ChdtgoHUC2-K1cqGgG7buaQqAVCEDpuxpa21_0EwKUiG8i1C9yYBq8yL9ESqGKHgHtliY3iVT5pSn7fYmmbnWKLeFfXl_Z4y5zwOlbgWVIaw25k93icCKe6enka54_VAE8trNhkJ9Bvn_vwDLJ7eGyYV3lsGpcEeYbg3rt_B6g_2ZMxHNvOIrC1n6-9voJjVmjA7xP9Yjs8g2jVJecl4nQTxrNzR48luclzIRm8hwoUkCrmGRQlFJ8R9Yew\",\"e\":\"AQAB\"}]}";
 
 // Mock OIDC Provider Service
 listener http:Listener mockOidcListener = check new (check int:fromString(MOCK_OIDC_PROVIDER_PORT));
@@ -162,6 +162,7 @@ function generateMockIdToken() returns string|error {
         issuer: MOCK_ISSUER,
         audience: MOCK_CLIENT_ID,
         expTime: 3600,
+        keyId: MOCK_KEY_ALIAS,
         signatureConfig: {
             algorithm: jwt:RS256,
             config: {
