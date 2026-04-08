@@ -169,7 +169,7 @@ public isolated function extractUserContextV2(string authorizationHeader) return
 // ============================================================================
 
 // Generate a cryptographically secure refresh token
-// Returns a 256-bit random token encoded as a base64 string
+// Returns a base64-encoded string derived from two UUIDv4 values (~244 bits of randomness).
 public isolated function generateRefreshToken() returns string {
     log:printDebug("Generating refresh token");
 
@@ -178,13 +178,8 @@ public isolated function generateRefreshToken() returns string {
     string uuid1 = uuid:createType4AsString();
     string uuid2 = uuid:createType4AsString();
 
-    // Combine two UUIDs for 256 bits of randomness and hash with SHA-256
-    string combined = uuid1 + uuid2;
-    byte[] combinedBytes = combined.toBytes();
-    byte[] hashedBytes = crypto:hashSha256(combinedBytes);
-
-    // Encode as base64 for storage and transmission
-    string refreshToken = hashedBytes.toBase64();
+    // Combine two UUIDs and encode as base64
+    string refreshToken = (uuid1 + uuid2).toBytes().toBase64();
 
     log:printDebug("Refresh token generated successfully");
     return refreshToken;

@@ -131,7 +131,8 @@ public isolated function getSSOConfig() returns types:SSOConfig => {
     clientSecret: resolvedSsoClientSecret,
     redirectUri: ssoRedirectUri,
     usernameClaim: ssoUsernameClaim,
-    scopes: ssoScopes
+    scopes: ssoScopes,
+    allowInsecureTLS: ssoAllowInsecureTLS
 };
 
 // Validate SSO configuration
