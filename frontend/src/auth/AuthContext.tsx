@@ -97,7 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       try {
         const parsed = JSON.parse(body);
         if (parsed.message) errorMessage = parsed.message;
-      } catch { /* keep raw body */ }
+      } catch {
+        /* keep raw body */
+      }
       const err: Error & { status?: number } = new Error(errorMessage);
       err.status = res.status;
       throw err;
