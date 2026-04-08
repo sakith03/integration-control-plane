@@ -37,9 +37,7 @@ JAVA_OPTS=""
 if [ -f /etc/alpine-release ] || (ldd --version 2>&1 | grep -qi musl); then
     echo "Alpine Linux detected - disabling native Netty tcnative libraries"
     # Disable Netty native SSL/TLS to use Java's built-in SSL implementation
-    JAVA_OPTS="-Dio.netty.native.workdir=/tmp/netty-native -Dorg.jboss.netty.epollBugWorkaround=true"
-    # Force disable native transports
-    JAVA_OPTS="$JAVA_OPTS -Dio.netty.transport.noNative=true"
+    JAVA_OPTS="-Dio.netty.native.workdir=/tmp/netty-native -Dio.netty.transport.noNative=true -Dio.netty.handler.ssl.noOpenSsl=true"
 fi
 
 # Read ssoEnabled from deployment.toml and update the frontend config file
