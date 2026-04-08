@@ -32,22 +32,20 @@ fi
 # Change to bin directory so relative paths in config work correctly
 cd "$SCRIPT_DIR"
 
-# Read ssoEnabled from deployment.toml and update the frontend config file
-SSO_ENABLED="false"  # Default value
-if [ -f "$CONFIG_FILE" ]; then
-    SSO_VALUE=$(grep -E "^\s*ssoEnabled\s*=" "$CONFIG_FILE" | awk -F= '{print $2}' | tr -d ' ')
-    if [ ! -z "$SSO_VALUE" ]; then
-        SSO_ENABLED="$SSO_VALUE"
-    fi
+# Detect if running on Alpine Linux (musl libc) and configure JVM accordingly
+JAVA_OPTS=""
+if [ -f /etc/alpine-release ] || (ldd --version 2>&1 | grep -qi musl); then
+    echo "Alpine Linux detected - disabling native Netty tcnative libraries"
+    # Disable Netty native SSL/TLS to use Java's built-in SSL implementation
+    JAVA_OPTS="-Dio.netty.native.workdir=/tmp/netty-native -Dio.netty.transport.noNative=true -Dio.netty.handler.ssl.noOpenSsl=true"
 fi
-
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Warning: Configuration file not found at $CONFIG_FILE"
     echo "Starting ICP Server without custom configuration..."
-    java -jar "$JAR_FILE" "$@"
+    java $JAVA_OPTS -jar "$JAR_FILE" "$@"
 else
     echo "Starting ICP Server with configuration: $CONFIG_FILE"
     export BAL_CONFIG_FILES="$CONFIG_FILE"
-    java -jar "$JAR_FILE" "$@"
+    java $JAVA_OPTS -jar "$JAR_FILE" "$@"
 fi

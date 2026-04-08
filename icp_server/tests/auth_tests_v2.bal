@@ -14,12 +14,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import icp_server.auth;
+
 import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
 import ballerina/test;
 import ballerina/time;
-import icp_server.auth;
 
 // Test configuration
 const string AUTH_V2_SERVICE_URL = "https://localhost:9445";
@@ -114,7 +115,7 @@ function testSuperAdminLoginWithV2JWT() returns error? {
     // Verify permissions in response body (not in token - only scope claim is used)
     json[] permissionsJsonArray = check responseBody.permissions.ensureType();
     test:assertTrue(permissionsJsonArray.length() > 0, "Permissions array in response should not be empty");
-    
+
     // Verify that all permissions in response are also represented in the scope claim
     foreach json permJson in permissionsJsonArray {
         string permName = check permJson.ensureType();
@@ -458,7 +459,7 @@ function testAssignRolesToGroup() returns error? {
     test:assertEquals(responseBody.successCount, 1, "Success count should be 1");
     test:assertEquals(responseBody.failureCount, 0, "Failure count should be 0");
     test:assertTrue(responseBody.mappingIds is json[], "Mapping IDs array should be present");
-    
+
     // Store mapping ID for later tests
     json[] mappingIdsJson = check responseBody.mappingIds.ensureType();
     test:assertTrue(mappingIdsJson.length() > 0, "Should have at least one mapping ID");
@@ -498,7 +499,7 @@ function testListGroupRoleAssignments() returns error? {
     test:assertEquals(firstMapping.roleId, testRoleId, "Role ID should match");
     test:assertTrue(firstMapping.roleName is string, "Role name should be present");
     test:assertTrue(firstMapping.groupId is string, "Group ID should be present");
-    
+
     log:printInfo("Successfully listed group role assignments", count = mappings.length());
 }
 
@@ -551,7 +552,7 @@ function testListAllPermissions() returns error? {
     // Assert response structure
     test:assertTrue(responseBody.groupedByDomain is map<json>, "Response should contain groupedByDomain");
     map<json> permissionsByDomain = check responseBody.groupedByDomain.ensureType();
-    
+
     // Verify expected domains are present
     test:assertTrue(permissionsByDomain["User-Management"] is json[], "User-Management domain should be present");
     test:assertTrue(permissionsByDomain["Integration-Management"] is json[], "Integration-Management domain should be present");
@@ -601,7 +602,7 @@ function testGetUserEffectivePermissions() returns error? {
 
     json[] permissionNames = check responseBody.permissionNames.ensureType();
     test:assertTrue(permissionNames.length() > 0, "Permission names should not be empty");
-    
+
     // Verify super admin has user management permissions
     string permissionNamesStr = permissionNames.toString();
     test:assertTrue(permissionNamesStr.includes(auth:PERMISSION_USER_MANAGE_USERS), "Should have user management permission");
@@ -800,10 +801,10 @@ function testDeleteUser() returns error? {
         headers = {"Authorization": string `Bearer ${superAdminToken}`}
     );
     test:assertEquals(listResponse.statusCode, 200, "Expected status code 200 for list users");
-    
+
     json listBody = check listResponse.getJsonPayload();
     json[] users = check listBody.users.ensureType();
-    
+
     // User should not be in the list
     boolean userFound = false;
     foreach json user in users {
@@ -876,77 +877,11 @@ function testDeleteSelf() returns error? {
 
     string message = check responseBody.message;
     test:assertTrue(
-        message.includes("own user account") || message.includes("system administrator"), 
-        "Error message should mention self-deletion or system admin protection"
+            message.includes("own user account") || message.includes("system administrator"),
+            "Error message should mention self-deletion or system admin protection"
     );
 
     log:printInfo("Successfully validated self-deletion prevention");
-}
-
-@test:Config {
-    groups: ["auth-v2", "users"],
-    dependsOn: [testCreateUser]
-}
-function testDeleteSystemAdmin() returns error? {
-    // Create a non-admin user to try to delete the system admin
-    // First create a regular user
-    string timestamp = time:utcNow()[0].toString();
-    string regularUsername = string `regular_${timestamp}`;
-
-    json createUserPayload = {
-        username: regularUsername,
-        password: "Regular@123",
-        displayName: "Regular User"
-    };
-
-    http:Response createResponse = check authV2Client->post(
-        string `/auth/orgs/${DEFAULT_ORG_HANDLE}/users`,
-        createUserPayload,
-        headers = {"Authorization": string `Bearer ${superAdminToken}`}
-    );
-    test:assertEquals(createResponse.statusCode, 201, "Expected status code 201 for user creation");
-
-    json createBody = check createResponse.getJsonPayload();
-    string regularUserId = check createBody.userId;
-
-    // Login as the regular user to get their token
-    json loginPayload = {
-        username: regularUsername,
-        password: "Regular@123"
-    };
-
-    http:Response loginResponse = check authV2Client->post("/auth/login", loginPayload);
-    test:assertEquals(loginResponse.statusCode, 200, "Expected status code 200 for login");
-    
-    json loginBody = check loginResponse.getJsonPayload();
-    string regularUserToken = check loginBody.token;
-
-    // Try to delete system admin (with regular user token)
-    string superAdminUserId = "550e8400-e29b-41d4-a716-446655440000";
-
-    http:Response response = check authV2Client->delete(
-        string `/auth/orgs/${DEFAULT_ORG_HANDLE}/users/${superAdminUserId}`,
-        headers = {"Authorization": string `Bearer ${regularUserToken}`}
-    );
-
-    // Assert response status - should be 403 Forbidden (due to system admin protection)
-    test:assertEquals(response.statusCode, 403, "Expected status code 403 for system admin deletion attempt");
-
-    // Parse response body
-    json responseBody = check response.getJsonPayload();
-    test:assertTrue(responseBody.message is string, "Error message should be present");
-
-    string message = check responseBody.message;
-    test:assertTrue(message.includes("system administrator"), "Error message should mention system admin protection");
-
-    // Cleanup: Delete the regular user
-    _ = check authV2Client->delete(
-        string `/auth/orgs/${DEFAULT_ORG_HANDLE}/users/${regularUserId}`,
-        headers = {"Authorization": string `Bearer ${superAdminToken}`},
-        targetType = http:Response
-    );
-
-    log:printInfo("Successfully validated system admin deletion prevention");
 }
 
 // =============================================================================

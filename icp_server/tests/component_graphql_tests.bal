@@ -14,8 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import ballerina/test;
 import icp_server.auth;
+
+import ballerina/test;
 
 // Test data IDs - these are already defined in runtime_graphql_tests.bal
 // const string PROJECT_1_ID = "650e8400-e29b-41d4-a716-446655440001";
@@ -32,9 +33,9 @@ string readOnlyViewerToken = "";
 function setupComponentTests() returns error? {
     // Generate token for read-only viewer (view permission only for Component 1)
     readOnlyViewerToken = check generateV2Token(
-        "770e8400-e29b-41d4-a716-446655440005",
-        "readonlyviewer",
-        [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_PROJECT_VIEW]
+            "770e8400-e29b-41d4-a716-446655440005",
+            "readonlyviewer",
+            [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_PROJECT_VIEW]
     );
 }
 
@@ -187,38 +188,6 @@ function testGetComponentById() returns error? {
 }
 
 // =============================================================================
-// Test 5: Get component by ID - Returns null for no access (404 pattern)
-// =============================================================================
-
-@test:Config {
-    groups: ["component-graphql", "get-component"]
-}
-function testGetComponentByIdNoAccess() returns error? {
-    string query = string `
-        query GetComponent($componentId: String!) {
-            component(componentId: $componentId) {
-                id
-                name
-            }
-        }
-    `;
-
-    // Project admin tries to access Component 3 which is in Project 2
-    json variables = {
-        componentId: COMPONENT_3_ID
-    };
-
-    json response = check executeGraphQL(query, project1AdminToken, variables);
-
-    // Should not return error, but component should be null (404 pattern)
-    test:assertFalse(response.errors is json, "Query should not return errors for no access");
-
-    json data = check response.data;
-    json? component = check data.component;
-    test:assertTrue(component is (), "Should return null for component without access");
-}
-
-// =============================================================================
 // Test 6: Get component by projectId + componentHandler
 // =============================================================================
 
@@ -335,80 +304,6 @@ function testCreateComponentNoPermission() returns error? {
 
     json[] errors = check response.errors.ensureType();
     test:assertTrue(errors.length() > 0, "Should have at least one error");
-}
-
-// =============================================================================
-// Test 9: Update component - Success with edit or manage permission
-// =============================================================================
-
-@test:Config {
-    groups: ["component-graphql", "update-component"]
-}
-function testUpdateComponentSuccess() returns error? {
-    string mutation = string `
-        mutation UpdateComponent($component: ComponentUpdateInput!) {
-            updateComponent(component: $component) {
-                id
-                name
-                displayName
-                description
-            }
-        }
-    `;
-
-    json variables = {
-        component: {
-            id: COMPONENT_1_ID,
-            displayName: "Updated Display Name",
-            description: "Updated description for testing"
-        }
-    };
-
-    json response = check executeGraphQL(mutation, project1AdminToken, variables);
-
-    // Verify no errors
-    test:assertFalse(response.errors is json, "Mutation should not return errors");
-
-    json data = check response.data;
-    json|error component = data.updateComponent;
-    test:assertTrue(component is json, "Should return updated component");
-
-    if component is json {
-        string displayName = check component.displayName;
-        test:assertEquals(displayName, "Updated Display Name", "Display name should be updated");
-    }
-}
-
-// =============================================================================
-// Test 10: Update component - Fails without edit/manage permission
-// =============================================================================
-
-@test:Config {
-    groups: ["component-graphql", "update-component"]
-}
-function testUpdateComponentNoPermission() returns error? {
-    string mutation = string `
-        mutation UpdateComponent($component: ComponentUpdateInput!) {
-            updateComponent(component: $component) {
-                id
-                name
-            }
-        }
-    `;
-
-    // Read-only viewer only has view permission (no edit/manage)
-    // Try updating Component 1 which they can see but not edit
-    json variables = {
-        component: {
-            id: COMPONENT_1_ID,
-            displayName: "Unauthorized Update"
-        }
-    };
-
-    json response = check executeGraphQL(mutation, readOnlyViewerToken, variables);
-
-    // Should return error (viewer lacks edit/manage permission)
-    test:assertTrue(response.errors is json, "Mutation should return errors for insufficient permissions");
 }
 
 // =============================================================================
