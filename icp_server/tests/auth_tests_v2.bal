@@ -23,14 +23,14 @@ import ballerina/test;
 import ballerina/time;
 
 // Test configuration
-const string AUTH_V2_SERVICE_URL = "https://localhost:9445";
+const string AUTH_V2_SERVICE_URL = "https://localhost:9446";
 const string SUPER_ADMIN_USERNAME = "admin";
 const string SUPER_ADMIN_PASSWORD = "admin";
 const string DEFAULT_ORG_HANDLE = "default";
 const string SUPER_ADMIN_USER_ID = "550e8400-e29b-41d4-a716-446655440000";
 
 // v1
-const string AUTH_SERVICE_URL = "https://localhost:9445";
+const string AUTH_SERVICE_URL = "https://localhost:9446";
 const string TEST_USERNAME = "admin";
 const string TEST_PASSWORD = "admin";
 const string INVALID_USERNAME = "nonexistent";

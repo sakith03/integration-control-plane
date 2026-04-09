@@ -23,9 +23,13 @@ spec:
   selector:
     app: icp
   ports:
+    - port: 9446
+      targetPort: 9446
+      name: https
+      appProtocol: https
     - port: 9445
       targetPort: 9445
-      name: https
+      name: runtime
       appProtocol: https
     - port: 9449
       targetPort: 9449

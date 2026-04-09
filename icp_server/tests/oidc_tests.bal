@@ -20,7 +20,7 @@ import ballerina/log;
 import ballerina/test;
 
 // Test configuration
-const string AUTH_SERVICE_URL = "https://localhost:9445";
+const string AUTH_SERVICE_URL = "https://localhost:9446";
 const string MOCK_OIDC_PROVIDER_PORT = "9458";
 const string MOCK_OIDC_PROVIDER_URL = "http://localhost:" + MOCK_OIDC_PROVIDER_PORT;
 

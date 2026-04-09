@@ -35,13 +35,26 @@ listener http:Listener httpListener = new (serverPort,
     }
 );
 
+// HTTP service configuration
+listener http:Listener runtimeListener = new (runtimeListenerPort,
+    config = {
+        host: serverHost,
+        secureSocket: {
+            key: {
+                path: keystorePath,
+                password: resolvedKeystorePassword
+            }
+        }
+    }
+);
+
 // Runtime management service
 // No @http:ServiceConfig auth block — each request is validated via kid-based
 // JWT lookup (extractKidFromJwt → lookupOrgSecretByKeyId → validateRuntimeJwtWithSecret).
-service /icp on httpListener {
+service /icp on runtimeListener {
 
     function init() {
-        log:printInfo("Runtime service started at " + serverHost + ":" + serverPort.toString());
+        log:printInfo("Runtime service started at " + serverHost + ":" + runtimeListenerPort.toString());
     }
 
     // Process heartbeat from runtime (M2: kid-based JWT validation + lazy binding)

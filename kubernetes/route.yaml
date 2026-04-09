@@ -30,4 +30,4 @@ spec:
             value: /
       backendRefs:
         - name: icp-service
-          port: 9445
+          port: 9446

@@ -19,9 +19,9 @@ This application supports runtime configuration, allowing you to modify backend 
 
 ```json
 {
-  "VITE_GRAPHQL_URL": "https://localhost:9445/graphql",
-  "VITE_AUTH_BASE_URL": "https://localhost:9445/auth",
-  "VITE_LOGS_URL": "https://localhost:9445/icp/observability/logs?live=true"
+  "VITE_GRAPHQL_URL": "https://localhost:9446/graphql",
+  "VITE_AUTH_BASE_URL": "https://localhost:9446/auth",
+  "VITE_OBSERVABILITY_URL": "https://localhost:9446/icp/observability"
 }
 ```
 
@@ -33,9 +33,9 @@ Edit `public/config.json` with your backend URLs, then restart the dev server:
 
 ```json
 {
-  "VITE_GRAPHQL_URL": "https://localhost:9445/graphql",
-  "VITE_AUTH_BASE_URL": "https://localhost:9445/auth",
-  "VITE_OBSERVABILITY_URL": "https://localhost:9445/icp/observability"
+  "VITE_GRAPHQL_URL": "https://localhost:9446/graphql",
+  "VITE_AUTH_BASE_URL": "https://localhost:9446/auth",
+  "VITE_OBSERVABILITY_URL": "https://localhost:9446/icp/observability"
 }
 ```
 
@@ -62,9 +62,9 @@ Create a `docker-entrypoint.sh`:
 # Generate config.json from environment variables
 cat > /usr/share/nginx/html/config.json <<EOF
 {
-  "VITE_GRAPHQL_URL": "${GRAPHQL_URL:-https://localhost:9445/graphql}",
-  "VITE_AUTH_BASE_URL": "${AUTH_BASE_URL:-https://localhost:9445/auth}",
-  "VITE_LOGS_URL": "${LOGS_URL:-https://localhost:9445/icp/observability/logs?live=true}"
+  "VITE_GRAPHQL_URL": "${GRAPHQL_URL:-https://localhost:9446/graphql}",
+  "VITE_AUTH_BASE_URL": "${AUTH_BASE_URL:-https://localhost:9446/auth}",
+  "VITE_OBSERVABILITY_URL": "${OBSERVABILITY_URL:-https://localhost:9446/icp/observability}"
 }
 EOF
 
@@ -87,7 +87,7 @@ Run with:
 ```bash
 docker run -e GRAPHQL_URL=https://api.prod.com/graphql \
            -e AUTH_BASE_URL=https://auth.prod.com/auth \
-           -e LOGS_URL=https://logs.prod.com/logs \
+           -e OBSERVABILITY_URL=https://api.prod.com/icp/observability \
            my-app
 ```
 
@@ -103,7 +103,7 @@ data:
     {
       "VITE_GRAPHQL_URL": "https://api.k8s.com/graphql",
       "VITE_AUTH_BASE_URL": "https://auth.k8s.com/auth",
-      "VITE_LOGS_URL": "https://logs.k8s.com/logs"
+      "VITE_OBSERVABILITY_URL": "https://api.k8s.com/icp/observability"
     }
 ---
 apiVersion: v1
@@ -143,10 +143,9 @@ If `config.json` fails to load:
 **Default values:**
 
 ```typescript
-graphqlUrl: 'https://localhost:9445/graphql';
-authBaseUrl: 'https://localhost:9445/auth';
-logsUrl: 'https://localhost:9445/icp/observability/logs?live=true';
-metricsUrl: 'https://localhost:9445/icp/observability/metrics';
+graphqlUrl: 'https://localhost:9446/graphql';
+authBaseUrl: 'https://localhost:9446/auth';
+observabilityUrl: 'https://localhost:9446/icp/observability';
 ```
 
 ## Benefits
