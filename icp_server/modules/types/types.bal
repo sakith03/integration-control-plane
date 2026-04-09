@@ -1962,6 +1962,7 @@ public type SSOConfig record {|
     string authorizationEndpoint;
     string tokenEndpoint;
     string logoutEndpoint;
+    string jwksUrl; // OIDC provider's JWKS endpoint for ID token signature validation
     string clientId;
     string clientSecret;
     string redirectUri;

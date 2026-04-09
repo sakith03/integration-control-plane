@@ -4,7 +4,6 @@ import icp_server.utils as utils;
 import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
-import ballerina/time;
 import ballerina/url;
 
 // Build OIDC authorization URL with query parameters
@@ -109,38 +108,54 @@ public isolated function exchangeCodeForTokens(string code, types:SSOConfig conf
     return tokenData;
 }
 
-// Decode and validate ID token, return claims
+// Validate ID token signature using the provider's JWKS and return claims
 public isolated function decodeAndValidateIdToken(string idToken, types:SSOConfig config)
     returns types:OIDCIdTokenClaims|http:Unauthorized|http:InternalServerError {
 
-    log:printInfo("Decoding ID token");
+    log:printInfo("Validating ID token signature and claims");
 
-    // Decode JWT without signature validation (validation deferred to security hardening)
-    [jwt:Header, jwt:Payload]|jwt:Error decodeResult = jwt:decode(idToken);
-    if decodeResult is jwt:Error {
-        log:printError("Failed to decode ID token", decodeResult);
-        return utils:createUnauthorizedError("Invalid ID token");
+    // Build validator config with JWKS-based signature verification
+    jwt:ValidatorSignatureConfig signatureConfig = {
+        jwksConfig: {url: config.jwksUrl}
+    };
+    if config.allowInsecureTLS {
+        signatureConfig = {
+            jwksConfig: {
+                url: config.jwksUrl,
+                clientConfig: {secureSocket: {disable: true}}
+            }
+        };
     }
 
-    // Extract payload from decode result
-    jwt:Payload payload = decodeResult[1];
+    jwt:ValidatorConfig validatorConfig = {
+        issuer: config.issuer,
+        audience: config.clientId,
+        clockSkew: 30, // 30 seconds tolerance for clock drift
+        signatureConfig: signatureConfig
+    };
 
-    // Manually construct OIDCIdTokenClaims from JWT payload
+    jwt:Payload|jwt:Error validatedPayload = jwt:validate(idToken, validatorConfig);
+    if validatedPayload is jwt:Error {
+        string errMsg = validatedPayload.message();
+        // Distinguish infrastructure/transport failures from actual token validation failures.
+        // JWKS retrieval errors, connection issues, and TLS failures are provider-side problems
+        // and should not be reported as 401 (which implies a bad token from the user).
+        if errMsg.includes("JWKS") || errMsg.includes("connection") || errMsg.includes("Failed to retrieve")
+                || errMsg.includes("TLS") || errMsg.includes("SSL") {
+            log:printError("Infrastructure error during ID token validation", validatedPayload);
+            return utils:createInternalServerError("Failed to validate ID token: OIDC provider unavailable");
+        }
+        log:printError("ID token validation failed", validatedPayload);
+        return utils:createUnauthorizedError("Invalid or untrusted ID token");
+    }
+
+    // Manually construct OIDCIdTokenClaims from validated payload
     // This is necessary because jwt:Payload may contain additional fields (like nbf, jti)
     // that are not part of our closed OIDCIdTokenClaims record
-    types:OIDCIdTokenClaims|error claims = buildIdTokenClaims(payload);
+    types:OIDCIdTokenClaims|error claims = buildIdTokenClaims(validatedPayload);
     if claims is error {
         log:printError("Failed to build ID token claims structure", claims);
         return utils:createUnauthorizedError("Invalid ID token structure");
-    }
-
-    log:printInfo("Successfully decoded ID token");
-
-    // Validate claims
-    error? validationError = validateIdTokenClaims(claims, config);
-    if validationError is error {
-        log:printError("ID token validation failed", validationError);
-        return utils:createUnauthorizedError(validationError.message());
     }
 
     log:printInfo("ID token validation successful", sub = claims.sub);
@@ -210,43 +225,6 @@ isolated function buildIdTokenClaims(jwt:Payload payload) returns types:OIDCIdTo
     };
 
     return claims;
-}
-
-// Validate ID token claims
-isolated function validateIdTokenClaims(types:OIDCIdTokenClaims claims, types:SSOConfig config) returns error? {
-    // Validate issuer
-    if claims.iss != config.issuer {
-        return error(string `Invalid issuer: expected '${config.issuer}', got '${claims.iss}'`);
-    }
-
-    // Validate audience (can be string or string[])
-    boolean validAudience = false;
-    if claims.aud is string {
-        validAudience = claims.aud == config.clientId;
-    } else {
-        // aud is string[]
-        string[] audiences = <string[]>claims.aud;
-        foreach string aud in audiences {
-            if aud == config.clientId {
-                validAudience = true;
-                break;
-            }
-        }
-    }
-
-    if !validAudience {
-        return error(string `Invalid audience: token not intended for this client`);
-    }
-
-    // Validate expiry
-    time:Utc currentTime = time:utcNow();
-    int currentTimestamp = <int>currentTime[0]; // Get seconds from Utc tuple
-
-    if claims.exp <= currentTimestamp {
-        return error("ID token has expired");
-    }
-
-    return;
 }
 
 // Extract user information from ID token claims

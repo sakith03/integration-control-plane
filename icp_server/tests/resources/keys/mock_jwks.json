@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "mock-oidc-key",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "rDMqu37NM8gqDnF7tUHwYxsxRuCwmuMN5YXpfFBaNl0A6gPbInnmqlUGCdMgClPokOR7iKOflT1q6YobPEejl3beK91ChdtgoHUC2-K1cqGgG7buaQqAVCEDpuxpa21_0EwKUiG8i1C9yYBq8yL9ESqGKHgHtliY3iVT5pSn7fYmmbnWKLeFfXl_Z4y5zwOlbgWVIaw25k93icCKe6enka54_VAE8trNhkJ9Bvn_vwDLJ7eGyYV3lsGpcEeYbg3rt_B6g_2ZMxHNvOIrC1n6-9voJjVmjA7xP9Yjs8g2jVJecl4nQTxrNzR48luclzIRm8hwoUkCrmGRQlFJ8R9Yew",
+      "e": "AQAB"
+    }
+  ]
+}
