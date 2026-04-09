@@ -136,6 +136,15 @@ public isolated function decodeAndValidateIdToken(string idToken, types:SSOConfi
 
     jwt:Payload|jwt:Error validatedPayload = jwt:validate(idToken, validatorConfig);
     if validatedPayload is jwt:Error {
+        string errMsg = validatedPayload.message();
+        // Distinguish infrastructure/transport failures from actual token validation failures.
+        // JWKS retrieval errors, connection issues, and TLS failures are provider-side problems
+        // and should not be reported as 401 (which implies a bad token from the user).
+        if errMsg.includes("JWKS") || errMsg.includes("connection") || errMsg.includes("Failed to retrieve")
+                || errMsg.includes("TLS") || errMsg.includes("SSL") {
+            log:printError("Infrastructure error during ID token validation", validatedPayload);
+            return utils:createInternalServerError("Failed to validate ID token: OIDC provider unavailable");
+        }
         log:printError("ID token validation failed", validatedPayload);
         return utils:createUnauthorizedError("Invalid or untrusted ID token");
     }
