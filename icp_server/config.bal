@@ -19,8 +19,9 @@ import icp_server.types;
 import ballerina/file;
 
 // Server configuration
-configurable int serverPort = 9445;
+configurable int serverPort = 9446;
 configurable int defaultOpensearchAdaptorPort = 9449;
+configurable int runtimeListenerPort = 9445;
 
 configurable string serverHost = "0.0.0.0";
 configurable string organization = "WSO2 Inc.";
@@ -53,9 +54,9 @@ configurable decimal userServiceJwtClockSkewSeconds = 0;
 configurable int defaultTokenExpiryTime = 3600; // 1 hour (in seconds)
 
 //Backend URLs for the frontend to call
-configurable string backendGraphqlEndpoint = "https://localhost:9445/graphql";
-configurable string backendAuthBaseUrl = "https://localhost:9445/auth";
-configurable string backendObservabilityEndpoint = "https://localhost:9445/icp/observability";
+configurable string backendGraphqlEndpoint = "https://localhost:9446/graphql";
+configurable string backendAuthBaseUrl = "https://localhost:9446/auth";
+configurable string backendObservabilityEndpoint = "https://localhost:9446/icp/observability";
 
 // Refresh token configuration
 configurable int refreshTokenExpiryTime = 86400; // 1 day (in seconds)

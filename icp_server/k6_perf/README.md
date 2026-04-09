@@ -14,8 +14,8 @@ This directory contains k6 load tests for the Integration Control Plane (ICP) Gr
    ```
 
 2. **Running ICP Server**: Ensure the ICP server is running with:
-   - Auth service on `https://localhost:9445`
-   - GraphQL service on `http://localhost:9445/graphql`
+   - Auth service on `https://localhost:9446`
+   - GraphQL service on `http://localhost:9446/graphql`
 
 3. **Test Data**: The tests assume you have some existing data. See [Generate and Connect to the Test Database](#generate-and-connect-to-the-test-database) for setting up a comprehensive test dataset.
 
@@ -60,7 +60,7 @@ You can override configuration via environment variables:
 
 ```bash
 # Custom endpoints
-k6 run --env AUTH_BASE_URL=https://myserver:9445 --env GRAPHQL_BASE_URL=http://myserver:9445 load-test.js
+k6 run --env AUTH_BASE_URL=https://myserver:9446 --env GRAPHQL_BASE_URL=http://myserver:9446 load-test.js
 
 # Custom credentials
 k6 run --env USERNAME=myuser --env PASSWORD=mypass load-test.js

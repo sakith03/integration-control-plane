@@ -35,7 +35,7 @@ spec:
           image: wso2icp:2.0.0
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 9445
+            - containerPort: 9446
               name: https
             - containerPort: 9449
               name: opensearch

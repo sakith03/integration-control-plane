@@ -37,9 +37,9 @@ docker-compose -f icp_server/docker-compose.mssql.yml up --build
 The services will be available at:
 
 - **Frontend**: http://localhost:5173
-- **GraphQL API**: https://localhost:9445/graphql
-- **Authentication API**: https://localhost:9445/auth
-- **Observability API**: https://localhost:9445/icp/observability
+- **GraphQL API**: https://localhost:9446/graphql
+- **Authentication API**: https://localhost:9446/auth
+- **Observability API**: https://localhost:9446/icp/observability
 
 Default credentials: `admin` / `admin`
 
@@ -113,7 +113,7 @@ docker-compose -f docker-compose.observability.yml up --build
 bal run
 ```
 
-The server will start on port 9445
+The server will start on port 9446
 
 ### Frontend Development
 
@@ -135,9 +135,9 @@ Edit `frontend/public/config.json`:
 
 ```json
 {
-  "VITE_GRAPHQL_URL": "https://localhost:9445/graphql",
-  "VITE_AUTH_BASE_URL": "https://localhost:9445/auth",
-  "VITE_OBSERVABILITY_URL": "https://localhost:9445/icp/observability"
+  "VITE_GRAPHQL_URL": "https://localhost:9446/graphql",
+  "VITE_AUTH_BASE_URL": "https://localhost:9446/auth",
+  "VITE_OBSERVABILITY_URL": "https://localhost:9446/icp/observability"
 }
 ```
 

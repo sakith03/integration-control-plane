@@ -84,7 +84,7 @@ The backend uses self-signed certificates, so we need to extract and trust them.
 
 ```bash
 # Extract the backend certificate
-kubectl exec deployment/icp-deployment -- sh -c 'echo | openssl s_client -connect localhost:9445 2>/dev/null | openssl x509 -outform PEM' > /tmp/icp-backend-cert.pem
+kubectl exec deployment/icp-deployment -- sh -c 'echo | openssl s_client -connect localhost:9446 2>/dev/null | openssl x509 -outform PEM' > /tmp/icp-backend-cert.pem
 
 # Create ConfigMap with the backend CA certificate
 kubectl create configmap icp-backend-ca --from-file=ca.crt=/tmp/icp-backend-cert.pem
@@ -217,7 +217,7 @@ kubectl logs -n nginx-gateway deployment/nginx-gateway --tail=100
 
 ```bash
 # Test inside the pod
-kubectl exec deployment/icp-deployment -- curl -k https://localhost:9445
+kubectl exec deployment/icp-deployment -- curl -k https://localhost:9446
 ```
 
 ### Common Issues
@@ -276,13 +276,13 @@ Gateway (icp-gateway)
     |
     | HTTPS (Re-encrypted with BackendTLSPolicy)
     v
-Service (icp-service:9445)
+Service (icp-service:9446)
     |
     v
 Pod (icp-deployment)
-    - Port 9445: Web Console (HTTPS)
-    - Port 9445: GraphQL API (HTTPS)
-    - Port 9445: Observability API(HTTPS)
+    - Port 9446: Web Console (HTTPS)
+    - Port 9446: GraphQL API (HTTPS)
+    - Port 9446: Observability API(HTTPS)
 ```
 
 ## Files Reference

@@ -21,7 +21,7 @@ import ballerina/jwt;
 import ballerina/test;
 
 // HTTP client for testing - matches configuration from auth_tests.bal
-const string AUTH_SERVICE_URL = "https://localhost:9445";
+const string AUTH_SERVICE_URL = "https://localhost:9446";
 
 final http:Client testAuthClient = check new (AUTH_SERVICE_URL,
     secureSocket = {

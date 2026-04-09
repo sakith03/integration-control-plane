@@ -36,7 +36,7 @@ docker-compose -f docker-compose.mssql.yml up --build
 This will start:
 
 - Database (MySQL on port 3307 or MSSQL on port 1433)
-- ICP Server on port 9445
+- ICP Server on port 9446
 
 ### Running Locally (Without Docker)
 
