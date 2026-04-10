@@ -236,9 +236,19 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean, formatLabel: (
 // Build per-API success/error breakdowns: each selected API gets a line per chart
 function buildApiBreakdownData(apis: ApiSummary[], showType: boolean, formatLabel: (iso: string) => string) {
   const allTimestamps = new Set<string>();
+  // Pre-aggregate per-API success/error timestamp maps to avoid re-filtering inside the sorted loop
+  const apiSuccessMap: Record<string, Record<string, number>> = {};
+  const apiErrorMap: Record<string, Record<string, number>> = {};
   for (const api of apis) {
+    const key = apiDisplayLabelWithType(api, showType);
+    apiSuccessMap[key] = {};
+    apiErrorMap[key] = {};
     for (const entry of api.entries) {
-      for (const ts of Object.keys(entry.requests_total.timeSeriesData)) allTimestamps.add(ts);
+      const target = entry.tags.status === 'failed' ? apiErrorMap[key] : apiSuccessMap[key];
+      for (const [ts, val] of Object.entries(entry.requests_total.timeSeriesData)) {
+        allTimestamps.add(ts);
+        target[ts] = (target[ts] ?? 0) + val;
+      }
     }
   }
   const sorted = [...allTimestamps].sort();
@@ -246,7 +256,7 @@ function buildApiBreakdownData(apis: ApiSummary[], showType: boolean, formatLabe
     const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
       const key = apiDisplayLabelWithType(api, showType);
-      row[key] = api.entries.filter((e) => e.tags.status !== 'failed').reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
+      row[key] = apiSuccessMap[key][ts] ?? 0;
     }
     return row;
   });
@@ -254,7 +264,7 @@ function buildApiBreakdownData(apis: ApiSummary[], showType: boolean, formatLabe
     const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
       const key = apiDisplayLabelWithType(api, showType);
-      row[key] = api.entries.filter((e) => e.tags.status === 'failed').reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
+      row[key] = apiErrorMap[key][ts] ?? 0;
     }
     return row;
   });
@@ -280,6 +290,37 @@ function isUnavailable(error: unknown): boolean {
 }
 
 const COLORS = ['#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'];
+
+function LegendItem({ label, color, hidden, onToggle }: { label: string; color: string; hidden: boolean; onToggle: () => void }) {
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      gap={0.75}
+      role="button"
+      tabIndex={0}
+      aria-pressed={hidden}
+      aria-label={`${hidden ? 'Show' : 'Hide'} ${label}`}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      sx={{
+        cursor: 'pointer',
+        opacity: hidden ? 0.4 : 1,
+        borderRadius: '4px',
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+      }}>
+      <span style={{ width: 14, height: 3, backgroundColor: color, display: 'inline-block', borderRadius: 1 }} />
+      <Typography variant="caption" noWrap sx={{ textDecoration: hidden ? 'line-through' : 'none' }}>
+        {label}
+      </Typography>
+    </Stack>
+  );
+}
 
 function StatCard({ title, value, color }: { title: string; value: string; color?: string }) {
   return (
@@ -523,33 +564,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                   />
                   <Stack direction="row" justifyContent="center" gap={2} sx={{ mt: 1, flexWrap: 'wrap' }}>
                     {OVERVIEW_REQUEST_LINES.map((l) => (
-                      <Stack
-                        key={l.dataKey}
-                        direction="row"
-                        alignItems="center"
-                        gap={0.75}
-                        role="button"
-                        tabIndex={0}
-                        aria-pressed={hiddenOverviewLines.has(l.dataKey)}
-                        aria-label={`${hiddenOverviewLines.has(l.dataKey) ? 'Show' : 'Hide'} ${l.name}`}
-                        onClick={() => toggleOverviewLine(l.dataKey)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleOverviewLine(l.dataKey);
-                          }
-                        }}
-                        sx={{
-                          cursor: 'pointer',
-                          opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1,
-                          borderRadius: '4px',
-                          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
-                        }}>
-                        <span style={{ width: 14, height: 3, backgroundColor: l.stroke, display: 'inline-block', borderRadius: 1 }} />
-                        <Typography variant="caption" sx={{ textDecoration: hiddenOverviewLines.has(l.dataKey) ? 'line-through' : 'none' }}>
-                          {l.name}
-                        </Typography>
-                      </Stack>
+                      <LegendItem key={l.dataKey} label={l.name} color={l.stroke} hidden={hiddenOverviewLines.has(l.dataKey)} onToggle={() => toggleOverviewLine(l.dataKey)} />
                     ))}
                   </Stack>
                 </CardContent>
@@ -573,33 +588,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                   />
                   <Stack direction="row" justifyContent="center" gap={2} sx={{ mt: 1, flexWrap: 'wrap' }}>
                     {OVERVIEW_LATENCY_LINES.map((l) => (
-                      <Stack
-                        key={l.dataKey}
-                        direction="row"
-                        alignItems="center"
-                        gap={0.75}
-                        role="button"
-                        tabIndex={0}
-                        aria-pressed={hiddenOverviewLines.has(l.dataKey)}
-                        aria-label={`${hiddenOverviewLines.has(l.dataKey) ? 'Show' : 'Hide'} ${l.name}`}
-                        onClick={() => toggleOverviewLine(l.dataKey)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleOverviewLine(l.dataKey);
-                          }
-                        }}
-                        sx={{
-                          cursor: 'pointer',
-                          opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1,
-                          borderRadius: '4px',
-                          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
-                        }}>
-                        <span style={{ width: 14, height: 3, backgroundColor: l.stroke, display: 'inline-block', borderRadius: 1 }} />
-                        <Typography variant="caption" sx={{ textDecoration: hiddenOverviewLines.has(l.dataKey) ? 'line-through' : 'none' }}>
-                          {l.name}
-                        </Typography>
-                      </Stack>
+                      <LegendItem key={l.dataKey} label={l.name} color={l.stroke} hidden={hiddenOverviewLines.has(l.dataKey)} onToggle={() => toggleOverviewLine(l.dataKey)} />
                     ))}
                   </Stack>
                 </CardContent>
@@ -691,33 +680,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
                         {apiLineKeys.map((k, i) => (
-                          <Stack
-                            key={k}
-                            direction="row"
-                            alignItems="center"
-                            gap={1}
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={hiddenApiLines.has(k)}
-                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
-                            onClick={() => toggleApiLine(k)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                toggleApiLine(k);
-                              }
-                            }}
-                            sx={{
-                              cursor: 'pointer',
-                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
-                              borderRadius: '4px',
-                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
-                            }}>
-                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
-                            <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
-                              {k}
-                            </Typography>
-                          </Stack>
+                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
                         ))}
                       </Stack>
                     </CardContent>
@@ -741,33 +704,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
                         {apiLineKeys.map((k, i) => (
-                          <Stack
-                            key={k}
-                            direction="row"
-                            alignItems="center"
-                            gap={1}
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={hiddenApiLines.has(k)}
-                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
-                            onClick={() => toggleApiLine(k)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                toggleApiLine(k);
-                              }
-                            }}
-                            sx={{
-                              cursor: 'pointer',
-                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
-                              borderRadius: '4px',
-                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
-                            }}>
-                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
-                            <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
-                              {k}
-                            </Typography>
-                          </Stack>
+                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
                         ))}
                       </Stack>
                     </CardContent>
@@ -794,33 +731,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
                         {apiLineKeys.map((k, i) => (
-                          <Stack
-                            key={k}
-                            direction="row"
-                            alignItems="center"
-                            gap={1}
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={hiddenApiLines.has(k)}
-                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
-                            onClick={() => toggleApiLine(k)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                toggleApiLine(k);
-                              }
-                            }}
-                            sx={{
-                              cursor: 'pointer',
-                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
-                              borderRadius: '4px',
-                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
-                            }}>
-                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
-                            <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
-                              {k}
-                            </Typography>
-                          </Stack>
+                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
                         ))}
                       </Stack>
                     </CardContent>
@@ -844,33 +755,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
                         {apiLineKeys.map((k, i) => (
-                          <Stack
-                            key={k}
-                            direction="row"
-                            alignItems="center"
-                            gap={1}
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={hiddenApiLines.has(k)}
-                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
-                            onClick={() => toggleApiLine(k)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                toggleApiLine(k);
-                              }
-                            }}
-                            sx={{
-                              cursor: 'pointer',
-                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
-                              borderRadius: '4px',
-                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
-                            }}>
-                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
-                            <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
-                              {k}
-                            </Typography>
-                          </Stack>
+                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
                         ))}
                       </Stack>
                     </CardContent>
