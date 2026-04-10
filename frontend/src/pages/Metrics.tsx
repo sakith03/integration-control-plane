@@ -35,6 +35,18 @@ const DEFAULT_RESOLUTION: Record<string, string> = {
 };
 const LINE_OPTS = { dot: false, connectNulls: true, type: 'linear' as const };
 
+const OVERVIEW_REQUEST_LINES = [
+  { dataKey: 'successful', name: 'Success', stroke: '#4caf50' },
+  { dataKey: 'failed', name: 'Failed', stroke: '#d32f2f' },
+] as const;
+
+const OVERVIEW_LATENCY_LINES = [
+  { dataKey: 'avg', name: 'Average', stroke: '#4caf50' },
+  { dataKey: 'p50', name: '50th Percentile', stroke: '#2196f3' },
+  { dataKey: 'p95', name: '95th Percentile', stroke: '#ff9800' },
+  { dataKey: 'p99', name: '99th Percentile', stroke: '#9c27b0' },
+] as const;
+
 function normalizeServiceType(st?: string): string {
   if (!st || st.toLowerCase() === 'ballerina' || st === 'BI') return 'BI';
   return st.toUpperCase();
@@ -66,6 +78,7 @@ interface ApiSummary {
   integrationName: string;
   key: string;
   requestCount: number;
+  errorCount: number;
   avgResponseTime: number;
   errorRate: number;
   entries: MetricEntry[];
@@ -123,6 +136,7 @@ function deriveApis(metrics: MetricEntry[], runtimeComponentMap: Record<string, 
         integrationName,
         key,
         requestCount: total,
+        errorCount: failReqs,
         avgResponseTime: avgMs,
         errorRate: total > 0 ? (failReqs / total) * 100 : 0,
         entries: allEntries,
@@ -183,7 +197,7 @@ function aggregate(metrics: MetricEntry[]) {
 }
 
 // Build per-API chart data: each selected API becomes a line
-function buildApiChartData(apis: ApiSummary[], showType: boolean) {
+function buildApiChartData(apis: ApiSummary[], formatLabel: (iso: string) => string) {
   const allTimestamps = new Set<string>();
   for (const api of apis) {
     for (const entry of api.entries) {
@@ -192,17 +206,15 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean) {
   }
   const sorted = [...allTimestamps].sort();
   const reqData = sorted.map((ts) => {
-    const row: Record<string, string | number> = { label: formatTime(ts) };
+    const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
-      const key = apiDisplayLabelWithType(api, showType);
-      row[key] = api.entries.reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
+      row[api.key] = api.entries.reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
     }
     return row;
   });
   const latData = sorted.map((ts) => {
-    const row: Record<string, string | number> = { label: formatTime(ts) };
+    const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
-      const key = apiDisplayLabelWithType(api, showType);
       let sum = 0,
         count = 0;
       for (const e of api.entries) {
@@ -212,15 +224,57 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean) {
           count++;
         }
       }
-      row[key] = count > 0 ? (sum / count) * 1000 : 0;
+      row[api.key] = count > 0 ? (sum / count) * 1000 : 0;
     }
     return row;
   });
   return { reqData, latData };
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+// Build per-API success/error breakdowns: each selected API gets a line per chart
+function buildApiBreakdownData(apis: ApiSummary[], formatLabel: (iso: string) => string) {
+  const allTimestamps = new Set<string>();
+  // Pre-aggregate per-API success/error timestamp maps to avoid re-filtering inside the sorted loop
+  const apiSuccessMap: Record<string, Record<string, number>> = {};
+  const apiErrorMap: Record<string, Record<string, number>> = {};
+  for (const api of apis) {
+    apiSuccessMap[api.key] = {};
+    apiErrorMap[api.key] = {};
+    for (const entry of api.entries) {
+      const target = entry.tags.status === 'failed' ? apiErrorMap[api.key] : apiSuccessMap[api.key];
+      for (const [ts, val] of Object.entries(entry.requests_total.timeSeriesData)) {
+        allTimestamps.add(ts);
+        target[ts] = (target[ts] ?? 0) + val;
+      }
+    }
+  }
+  const sorted = [...allTimestamps].sort();
+  const successData = sorted.map((ts) => {
+    const row: Record<string, string | number> = { label: formatLabel(ts) };
+    for (const api of apis) {
+      row[api.key] = apiSuccessMap[api.key][ts] ?? 0;
+    }
+    return row;
+  });
+  const errorData = sorted.map((ts) => {
+    const row: Record<string, string | number> = { label: formatLabel(ts) };
+    for (const api of apis) {
+      row[api.key] = apiErrorMap[api.key][ts] ?? 0;
+    }
+    return row;
+  });
+  return { successData, errorData };
+}
+
+function formatLabel(iso: string, showDate: boolean): string {
+  const d = new Date(iso);
+  const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+  if (showDate) {
+    const date = `${d.getMonth() + 1}/${d.getDate()}`;
+    const time = d.toLocaleTimeString([], timeOptions);
+    return `${date} ${time}`;
+  }
+  return d.toLocaleTimeString([], timeOptions);
 }
 
 function isUnavailable(error: unknown): boolean {
@@ -231,6 +285,37 @@ function isUnavailable(error: unknown): boolean {
 }
 
 const COLORS = ['#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'];
+
+function LegendItem({ label, color, hidden, onToggle }: { label: string; color: string; hidden: boolean; onToggle: () => void }) {
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      gap={0.75}
+      role="button"
+      tabIndex={0}
+      aria-pressed={hidden}
+      aria-label={`Toggle ${label}`}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      sx={{
+        cursor: 'pointer',
+        opacity: hidden ? 0.4 : 1,
+        borderRadius: '4px',
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+      }}>
+      <span style={{ width: 14, height: 3, backgroundColor: color, display: 'inline-block', borderRadius: 1 }} />
+      <Typography variant="caption" noWrap sx={{ textDecoration: hidden ? 'line-through' : 'none' }}>
+        {label}
+      </Typography>
+    </Stack>
+  );
+}
 
 function StatCard({ title, value, color }: { title: string; value: string; color?: string }) {
   return (
@@ -259,6 +344,26 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
   const [timeRange, setTimeRange] = useState('Past 1 hour');
   const [integrationFilter, setIntegrationFilter] = useState('all');
   const [selectedApiKeys, setSelectedApiKeys] = useState<string[]>([]);
+  const [hiddenOverviewLines, setHiddenOverviewLines] = useState<Set<string>>(new Set());
+  const [hiddenApiLines, setHiddenApiLines] = useState<Set<string>>(new Set());
+
+  const toggleOverviewLine = useCallback((key: string) => {
+    setHiddenOverviewLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleApiLine = useCallback((key: string) => {
+    setHiddenApiLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const effectiveEnvId = envFilter || environments[0]?.id || '';
   const componentId = isComponent ? (singleComponent?.id ?? '') : '';
@@ -315,11 +420,16 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
   }, [apis, selectedApiKeys]);
 
   const showIntegrationName = true;
-  const { reqData: apiReqData, latData: apiLatData } = useMemo(() => buildApiChartData(effectiveSelectedApis, showIntegrationName), [effectiveSelectedApis, showIntegrationName]);
-  const apiLineKeys = effectiveSelectedApis.map((a) => apiDisplayLabelWithType(a, showIntegrationName));
+  const showDate = (TIME_RANGES[timeRange] ?? 1) >= 24;
+  const makeLabel = useCallback((iso: string) => formatLabel(iso, showDate), [showDate]);
+  const overviewXAxisInterval = useMemo(() => Math.max(0, Math.ceil((requestsData.length || 1) / 5) - 1), [requestsData.length]);
+  const { reqData: apiReqData, latData: apiLatData } = useMemo(() => buildApiChartData(effectiveSelectedApis, makeLabel), [effectiveSelectedApis, makeLabel]);
+  const apiXAxisInterval = useMemo(() => Math.max(0, Math.ceil((apiReqData?.length || apiLatData?.length || 1) / 5) - 1), [apiReqData?.length, apiLatData?.length]);
+  const { successData: apiSuccessData, errorData: apiErrorData } = useMemo(() => buildApiBreakdownData(effectiveSelectedApis, makeLabel), [effectiveSelectedApis, makeLabel]);
+  const apiLines = effectiveSelectedApis.map((a) => ({ key: a.key, label: apiDisplayLabelWithType(a, showIntegrationName) }));
 
-  const requestsChartData = useMemo(() => requestsData.map((d) => ({ ...d, label: formatTime(d.time) })), [requestsData]);
-  const latencyChartData = useMemo(() => latencyData.map((d) => ({ ...d, label: formatTime(d.time) })), [latencyData]);
+  const requestsChartData = useMemo(() => requestsData.map((d) => ({ ...d, label: makeLabel(d.time) })), [requestsData, makeLabel]);
+  const latencyChartData = useMemo(() => latencyData.map((d) => ({ ...d, label: makeLabel(d.time) })), [latencyData, makeLabel]);
 
   // Early returns
   const loadingContext = isComponent ? loadingComponent : loadingComponents;
@@ -441,13 +551,17 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                     data={requestsChartData}
                     xAxisDataKey="label"
                     height={350}
-                    legend={{ show: true, align: 'center', verticalAlign: 'bottom' }}
+                    legend={{ show: false }}
                     grid={{ show: true, strokeDasharray: '3 3' }}
-                    lines={[
-                      { dataKey: 'successful', name: 'Success', stroke: '#4caf50', ...LINE_OPTS },
-                      { dataKey: 'failed', name: 'Failed', stroke: '#d32f2f', ...LINE_OPTS },
-                    ]}
+                    xAxis={{ interval: overviewXAxisInterval }}
+                    margin={{ bottom: 20 }}
+                    lines={OVERVIEW_REQUEST_LINES.map((l) => ({ ...l, hide: hiddenOverviewLines.has(l.dataKey), ...LINE_OPTS }))}
                   />
+                  <Stack direction="row" justifyContent="center" gap={2} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                    {OVERVIEW_REQUEST_LINES.map((l) => (
+                      <LegendItem key={l.dataKey} label={l.name} color={l.stroke} hidden={hiddenOverviewLines.has(l.dataKey)} onToggle={() => toggleOverviewLine(l.dataKey)} />
+                    ))}
+                  </Stack>
                 </CardContent>
               </Card>
             </Grid>
@@ -455,21 +569,23 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="h6" sx={{ mb: 1 }}>
-                    Request Latency
+                    Request Latency (ms)
                   </Typography>
                   <LineChart
                     data={latencyChartData}
                     xAxisDataKey="label"
                     height={350}
-                    legend={{ show: true, align: 'center', verticalAlign: 'bottom' }}
+                    legend={{ show: false }}
                     grid={{ show: true, strokeDasharray: '3 3' }}
-                    lines={[
-                      { dataKey: 'avg', name: 'Average', stroke: '#4caf50', ...LINE_OPTS },
-                      { dataKey: 'p50', name: '50th Percentile', stroke: '#2196f3', ...LINE_OPTS },
-                      { dataKey: 'p95', name: '95th Percentile', stroke: '#ff9800', ...LINE_OPTS },
-                      { dataKey: 'p99', name: '99th Percentile', stroke: '#9c27b0', ...LINE_OPTS },
-                    ]}
+                    xAxis={{ interval: overviewXAxisInterval }}
+                    margin={{ bottom: 20 }}
+                    lines={OVERVIEW_LATENCY_LINES.map((l) => ({ ...l, hide: hiddenOverviewLines.has(l.dataKey), ...LINE_OPTS }))}
                   />
+                  <Stack direction="row" justifyContent="center" gap={2} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                    {OVERVIEW_LATENCY_LINES.map((l) => (
+                      <LegendItem key={l.dataKey} label={l.name} color={l.stroke} hidden={hiddenOverviewLines.has(l.dataKey)} onToggle={() => toggleOverviewLine(l.dataKey)} />
+                    ))}
+                  </Stack>
                 </CardContent>
               </Card>
             </Grid>
@@ -492,6 +608,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                           <TableCell>API Name</TableCell>
                           <TableCell>Method</TableCell>
                           <TableCell align="right">Request Count</TableCell>
+                          <TableCell align="right">Error Count</TableCell>
                           <TableCell align="right">Avg Response Time (ms)</TableCell>
                           <TableCell align="right">Error Rate (%)</TableCell>
                         </TableRow>
@@ -507,6 +624,9 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                             </TableCell>
                             <TableCell>{api.method || '\u2014'}</TableCell>
                             <TableCell align="right">{api.requestCount}</TableCell>
+                            <TableCell align="right" sx={{ color: api.errorCount > 0 ? 'error.main' : 'inherit' }}>
+                              {api.errorCount}
+                            </TableCell>
                             <TableCell align="right">{api.avgResponseTime.toFixed(2)}</TableCell>
                             <TableCell align="right">{api.errorRate.toFixed(2)}</TableCell>
                           </TableRow>
@@ -549,16 +669,13 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         height={350}
                         legend={{ show: false }}
                         grid={{ show: true, strokeDasharray: '3 3' }}
-                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], ...LINE_OPTS }))}
+                        xAxis={{ interval: apiXAxisInterval }}
+                        margin={{ bottom: 20 }}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
-                        {apiLineKeys.map((k, i) => (
-                          <Stack key={k} direction="row" alignItems="center" gap={1}>
-                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
-                            <Typography variant="caption" noWrap>
-                              {k}
-                            </Typography>
-                          </Stack>
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
                         ))}
                       </Stack>
                     </CardContent>
@@ -568,7 +685,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="h6" sx={{ mb: 1 }}>
-                        Average Request Latency
+                        Average Request Latency (ms)
                       </Typography>
                       <LineChart
                         data={apiLatData}
@@ -576,16 +693,64 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         height={350}
                         legend={{ show: false }}
                         grid={{ show: true, strokeDasharray: '3 3' }}
-                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], ...LINE_OPTS }))}
+                        xAxis={{ interval: apiXAxisInterval }}
+                        margin={{ bottom: 20 }}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
-                        {apiLineKeys.map((k, i) => (
-                          <Stack key={k} direction="row" alignItems="center" gap={1}>
-                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
-                            <Typography variant="caption" noWrap>
-                              {k}
-                            </Typography>
-                          </Stack>
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              <Grid container spacing={2} sx={{ mt: 2 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Successful Requests by API
+                      </Typography>
+                      <LineChart
+                        data={apiSuccessData}
+                        xAxisDataKey="label"
+                        height={350}
+                        legend={{ show: false }}
+                        grid={{ show: true, strokeDasharray: '3 3' }}
+                        xAxis={{ interval: apiXAxisInterval }}
+                        margin={{ bottom: 20 }}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
+                      />
+                      <Stack sx={{ mt: 1 }} gap={0.5}>
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Failed Requests by API
+                      </Typography>
+                      <LineChart
+                        data={apiErrorData}
+                        xAxisDataKey="label"
+                        height={350}
+                        legend={{ show: false }}
+                        grid={{ show: true, strokeDasharray: '3 3' }}
+                        xAxis={{ interval: apiXAxisInterval }}
+                        margin={{ bottom: 20 }}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
+                      />
+                      <Stack sx={{ mt: 1 }} gap={0.5}>
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
                         ))}
                       </Stack>
                     </CardContent>

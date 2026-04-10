@@ -314,9 +314,6 @@ function EnvironmentRuntimeCard({
               <Chip label={`${filtered.length} runtime${filtered.length !== 1 ? 's' : ''}`} size="small" color={filtered.length > 0 ? 'primary' : 'default'} />
             </Stack>
             <Stack direction="row" gap={1} alignItems="center">
-              <IconButton size="small" aria-label={`Refresh runtimes for ${env.name}`} onClick={onRefresh} disabled={isRefreshing}>
-                <RefreshCw size={16} />
-              </IconButton>
               <Authorized permissions={[Permissions.ENVIRONMENT_MANAGE, Permissions.ENVIRONMENT_MANAGE_NONPROD]}>
                 <Stack direction="row" gap={1}>
                   <Button variant="contained" size="small" startIcon={<Key size={14} />} onClick={() => setDrawerOpen(true)}>
@@ -327,6 +324,9 @@ function EnvironmentRuntimeCard({
                   </Button>
                 </Stack>
               </Authorized>
+              <IconButton size="small" aria-label={`Refresh runtimes for ${env.name}`} onClick={onRefresh} disabled={isRefreshing}>
+                <RefreshCw size={16} />
+              </IconButton>
             </Stack>
           </Stack>
           <Divider sx={{ mb: 2 }} />

@@ -360,9 +360,6 @@ function EnvironmentRuntimeCard({
               <Chip label={`${filtered.length} runtime${filtered.length !== 1 ? 's' : ''}`} size="small" color={filtered.length > 0 ? 'primary' : 'default'} />
             </Stack>
             <Stack direction="row" gap={1} alignItems="center">
-              <IconButton size="small" aria-label={`Refresh runtimes for ${environmentName}`} onClick={onRefresh} disabled={isRefreshing}>
-                <RefreshCw size={16} />
-              </IconButton>
               {componentId && (
                 <Authorized permissions={[Permissions.INTEGRATION_MANAGE]}>
                   <Stack direction="row" gap={1}>
@@ -375,6 +372,9 @@ function EnvironmentRuntimeCard({
                   </Stack>
                 </Authorized>
               )}
+              <IconButton size="small" aria-label={`Refresh runtimes for ${environmentName}`} onClick={onRefresh} disabled={isRefreshing}>
+                <RefreshCw size={16} />
+              </IconButton>
             </Stack>
           </Stack>
           <Divider sx={{ mb: 2 }} />
