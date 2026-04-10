@@ -18,7 +18,7 @@
 import { Button, Card, CardContent, Checkbox, CircularProgress, Grid, IconButton, ListItemText, MenuItem, PageContent, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@wso2/oxygen-ui';
 import { LineChart } from '@wso2/oxygen-ui-charts-react';
 import { BarChart3, RefreshCw } from '@wso2/oxygen-ui-icons-react';
-import { useMemo, useState, type JSX } from 'react';
+import { useCallback, useMemo, useState, type JSX } from 'react';
 import { useProjectByHandler, useComponentByHandler, useComponents, useEnvironments, useProjectRuntimes } from '../api/queries';
 import { useMetrics, type MetricEntry, type MetricsRequest } from '../api/metrics';
 import EmptyListing from '../components/EmptyListing';
@@ -27,6 +27,12 @@ import { resourceUrl, broaden, hasComponent, type ProjectScope, type ComponentSc
 
 const TIME_RANGES: Record<string, number> = { 'Past 1 hour': 1, 'Past 6 hours': 6, 'Past 24 hours': 24, 'Past 7 days': 168 };
 const RESOLUTIONS: Record<string, string> = { '1 Minute': '1m', '5 Minutes': '5m', '15 Minutes': '15m', '1 Hour': '1h' };
+const DEFAULT_RESOLUTION: Record<string, string> = {
+  'Past 1 hour': '1 Minute',
+  'Past 6 hours': '5 Minutes',
+  'Past 24 hours': '15 Minutes',
+  'Past 7 days': '1 Hour',
+};
 const LINE_OPTS = { dot: false, connectNulls: true, type: 'linear' as const };
 
 function normalizeServiceType(st?: string): string {
@@ -251,7 +257,6 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
 
   const [envFilter, setEnvFilter] = useState('');
   const [timeRange, setTimeRange] = useState('Past 1 hour');
-  const [resolution, setResolution] = useState('1 Minute');
   const [integrationFilter, setIntegrationFilter] = useState('all');
   const [selectedApiKeys, setSelectedApiKeys] = useState<string[]>([]);
 
@@ -277,7 +282,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
       environmentId: effectiveEnvId,
       startTime: new Date(now.getTime() - hours * 3600_000).toISOString(),
       endTime: now.toISOString(),
-      resolutionInterval: RESOLUTIONS[resolution] ?? '1m',
+      resolutionInterval: RESOLUTIONS[DEFAULT_RESOLUTION[timeRange] ?? '1 Minute'] ?? '1m',
     };
     if (isComponent) {
       req.componentId = componentId;
@@ -285,9 +290,15 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
       req.componentId = integrationFilter;
     }
     return req;
-  }, [isComponent, componentId, integrationFilter, effectiveEnvId, timeRange, resolution]);
+  }, [isComponent, componentId, integrationFilter, effectiveEnvId, timeRange]);
 
-  const { data: metricsData, isLoading, error, refetch } = useMetrics(metricsRequest);
+  const getTimeRange = useCallback(() => {
+    const hours = TIME_RANGES[timeRange] ?? 1;
+    const now = new Date();
+    return { startTime: new Date(now.getTime() - hours * 3600_000).toISOString(), endTime: now.toISOString() };
+  }, [timeRange]);
+
+  const { data: metricsData, isLoading, error, refetch } = useMetrics(metricsRequest, getTimeRange);
   const allInboundMetrics = useMemo(() => metricsData?.inboundMetrics ?? [], [metricsData]);
 
   const inboundMetrics = allInboundMetrics;
@@ -358,13 +369,6 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
           {Object.keys(TIME_RANGES).map((k) => (
             <MenuItem key={k} value={k}>
               {k}
-            </MenuItem>
-          ))}
-        </Select>
-        <Select value={resolution} onChange={(e) => setResolution(e.target.value as string)} size="small" sx={{ minWidth: 140 }} inputProps={{ 'aria-label': 'Resolution' }} disabled={filtersDisabled}>
-          {Object.keys(RESOLUTIONS).map((k) => (
-            <MenuItem key={k} value={k}>
-              Resolution: {k}
             </MenuItem>
           ))}
         </Select>

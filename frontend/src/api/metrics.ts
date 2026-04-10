@@ -16,6 +16,7 @@
  * under the License.
  */
 import { useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { observabilityMetricsApiUrl } from '../paths';
 import { authenticatedFetch } from '../auth/tokenManager';
 
@@ -89,10 +90,16 @@ async function fetchMetrics(req: MetricsRequest): Promise<MetricsResponse> {
   }
 }
 
-export function useMetrics(req: MetricsRequest | null) {
+export function useMetrics(req: MetricsRequest | null, getTimeRange?: () => { startTime: string; endTime: string }) {
+  const getTimeRangeRef = useRef(getTimeRange);
+  getTimeRangeRef.current = getTimeRange;
+
   return useQuery<MetricsResponse>({
     queryKey: ['metrics', req],
-    queryFn: () => fetchMetrics(req!),
+    queryFn: () => {
+      const baseReq = getTimeRangeRef.current ? { ...req!, ...getTimeRangeRef.current() } : req!;
+      return fetchMetrics(baseReq);
+    },
     enabled: !!req,
     refetchInterval: false,
     retry: false, // Disable retries for faster failure when observability service is unavailable

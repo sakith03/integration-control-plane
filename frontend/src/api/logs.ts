@@ -1,4 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { observabilityLogsApiUrl } from '../paths';
 import { authenticatedFetch } from '../auth/tokenManager';
 
@@ -114,11 +115,15 @@ function shiftTimestamp(ts: string, sort: 'asc' | 'desc'): string {
   return new Date(sort === 'desc' ? ms - 1 : ms + 1).toISOString();
 }
 
-export function useInfiniteLogs(req: LogsRequest | null, refetchInterval: number | false = false) {
+export function useInfiniteLogs(req: LogsRequest | null, refetchInterval: number | false = false, getTimeRange?: () => { startTime: string; endTime: string }) {
+  const getTimeRangeRef = useRef(getTimeRange);
+  getTimeRangeRef.current = getTimeRange;
+
   return useInfiniteQuery({
     queryKey: ['logs', req],
     queryFn: async ({ pageParam }) => {
-      const pageReq = pageParam ? { ...req!, ...(req!.sort === 'desc' ? { endTime: shiftTimestamp(pageParam, 'desc') } : { startTime: shiftTimestamp(pageParam, 'asc') }) } : req!;
+      const baseReq = getTimeRangeRef.current ? { ...req!, ...getTimeRangeRef.current() } : req!;
+      const pageReq = pageParam ? { ...baseReq, ...(baseReq.sort === 'desc' ? { endTime: shiftTimestamp(pageParam, 'desc') } : { startTime: shiftTimestamp(pageParam, 'asc') }) } : baseReq;
       return fetchLogs(pageReq);
     },
     initialPageParam: undefined as string | undefined,
