@@ -235,12 +235,13 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean, formatLabel: (
 
 function formatLabel(iso: string, showDate: boolean): string {
   const d = new Date(iso);
+  const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
   if (showDate) {
     const date = `${d.getMonth() + 1}/${d.getDate()}`;
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const time = d.toLocaleTimeString([], timeOptions);
     return `${date} ${time}`;
   }
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString([], timeOptions);
 }
 
 function isUnavailable(error: unknown): boolean {
@@ -509,7 +510,12 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                             toggleOverviewLine(l.dataKey);
                           }
                         }}
-                        sx={{ cursor: 'pointer', opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1 }}>
+                        sx={{
+                          cursor: 'pointer',
+                          opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1,
+                          borderRadius: '4px',
+                          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+                        }}>
                         <span style={{ width: 14, height: 3, backgroundColor: l.stroke, display: 'inline-block', borderRadius: 1 }} />
                         <Typography variant="caption" sx={{ textDecoration: hiddenOverviewLines.has(l.dataKey) ? 'line-through' : 'none' }}>
                           {l.name}
@@ -554,7 +560,12 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                             toggleOverviewLine(l.dataKey);
                           }
                         }}
-                        sx={{ cursor: 'pointer', opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1 }}>
+                        sx={{
+                          cursor: 'pointer',
+                          opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1,
+                          borderRadius: '4px',
+                          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+                        }}>
                         <span style={{ width: 14, height: 3, backgroundColor: l.stroke, display: 'inline-block', borderRadius: 1 }} />
                         <Typography variant="caption" sx={{ textDecoration: hiddenOverviewLines.has(l.dataKey) ? 'line-through' : 'none' }}>
                           {l.name}
@@ -667,7 +678,12 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                                 toggleApiLine(k);
                               }
                             }}
-                            sx={{ cursor: 'pointer', opacity: hiddenApiLines.has(k) ? 0.4 : 1 }}>
+                            sx={{
+                              cursor: 'pointer',
+                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
+                              borderRadius: '4px',
+                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+                            }}>
                             <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
                             <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
                               {k}
@@ -712,7 +728,12 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                                 toggleApiLine(k);
                               }
                             }}
-                            sx={{ cursor: 'pointer', opacity: hiddenApiLines.has(k) ? 0.4 : 1 }}>
+                            sx={{
+                              cursor: 'pointer',
+                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
+                              borderRadius: '4px',
+                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+                            }}>
                             <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
                             <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
                               {k}
