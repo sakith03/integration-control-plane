@@ -357,8 +357,9 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
   const showIntegrationName = true;
   const showDate = (TIME_RANGES[timeRange] ?? 1) > 24;
   const makeLabel = useCallback((iso: string) => formatLabel(iso, showDate), [showDate]);
-  const xAxisInterval = useMemo(() => Math.max(0, Math.ceil((requestsData.length || 1) / 5) - 1), [requestsData.length]);
+  const overviewXAxisInterval = useMemo(() => Math.max(0, Math.ceil((requestsData.length || 1) / 5) - 1), [requestsData.length]);
   const { reqData: apiReqData, latData: apiLatData } = useMemo(() => buildApiChartData(effectiveSelectedApis, showIntegrationName, makeLabel), [effectiveSelectedApis, showIntegrationName, makeLabel]);
+  const apiXAxisInterval = useMemo(() => Math.max(0, Math.ceil((apiReqData?.length || apiLatData?.length || 1) / 5) - 1), [apiReqData?.length, apiLatData?.length]);
   const apiLineKeys = effectiveSelectedApis.map((a) => apiDisplayLabelWithType(a, showIntegrationName));
 
   const requestsChartData = useMemo(() => requestsData.map((d) => ({ ...d, label: makeLabel(d.time) })), [requestsData, makeLabel]);
@@ -486,13 +487,29 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                     height={350}
                     legend={{ show: false }}
                     grid={{ show: true, strokeDasharray: '3 3' }}
-                    xAxis={{ interval: xAxisInterval }}
+                    xAxis={{ interval: overviewXAxisInterval }}
                     margin={{ bottom: 20 }}
                     lines={OVERVIEW_REQUEST_LINES.map((l) => ({ ...l, hide: hiddenOverviewLines.has(l.dataKey), ...LINE_OPTS }))}
                   />
                   <Stack direction="row" justifyContent="center" gap={2} sx={{ mt: 1, flexWrap: 'wrap' }}>
                     {OVERVIEW_REQUEST_LINES.map((l) => (
-                      <Stack key={l.dataKey} direction="row" alignItems="center" gap={0.75} onClick={() => toggleOverviewLine(l.dataKey)} sx={{ cursor: 'pointer', opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1 }}>
+                      <Stack
+                        key={l.dataKey}
+                        direction="row"
+                        alignItems="center"
+                        gap={0.75}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={hiddenOverviewLines.has(l.dataKey)}
+                        aria-label={`${hiddenOverviewLines.has(l.dataKey) ? 'Show' : 'Hide'} ${l.name}`}
+                        onClick={() => toggleOverviewLine(l.dataKey)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleOverviewLine(l.dataKey);
+                          }
+                        }}
+                        sx={{ cursor: 'pointer', opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1 }}>
                         <span style={{ width: 14, height: 3, backgroundColor: l.stroke, display: 'inline-block', borderRadius: 1 }} />
                         <Typography variant="caption" sx={{ textDecoration: hiddenOverviewLines.has(l.dataKey) ? 'line-through' : 'none' }}>
                           {l.name}
@@ -515,13 +532,29 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                     height={350}
                     legend={{ show: false }}
                     grid={{ show: true, strokeDasharray: '3 3' }}
-                    xAxis={{ interval: xAxisInterval }}
+                    xAxis={{ interval: overviewXAxisInterval }}
                     margin={{ bottom: 20 }}
                     lines={OVERVIEW_LATENCY_LINES.map((l) => ({ ...l, hide: hiddenOverviewLines.has(l.dataKey), ...LINE_OPTS }))}
                   />
                   <Stack direction="row" justifyContent="center" gap={2} sx={{ mt: 1, flexWrap: 'wrap' }}>
                     {OVERVIEW_LATENCY_LINES.map((l) => (
-                      <Stack key={l.dataKey} direction="row" alignItems="center" gap={0.75} onClick={() => toggleOverviewLine(l.dataKey)} sx={{ cursor: 'pointer', opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1 }}>
+                      <Stack
+                        key={l.dataKey}
+                        direction="row"
+                        alignItems="center"
+                        gap={0.75}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={hiddenOverviewLines.has(l.dataKey)}
+                        aria-label={`${hiddenOverviewLines.has(l.dataKey) ? 'Show' : 'Hide'} ${l.name}`}
+                        onClick={() => toggleOverviewLine(l.dataKey)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleOverviewLine(l.dataKey);
+                          }
+                        }}
+                        sx={{ cursor: 'pointer', opacity: hiddenOverviewLines.has(l.dataKey) ? 0.4 : 1 }}>
                         <span style={{ width: 14, height: 3, backgroundColor: l.stroke, display: 'inline-block', borderRadius: 1 }} />
                         <Typography variant="caption" sx={{ textDecoration: hiddenOverviewLines.has(l.dataKey) ? 'line-through' : 'none' }}>
                           {l.name}
@@ -612,13 +645,29 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         height={350}
                         legend={{ show: false }}
                         grid={{ show: true, strokeDasharray: '3 3' }}
-                        xAxis={{ interval: xAxisInterval }}
+                        xAxis={{ interval: apiXAxisInterval }}
                         margin={{ bottom: 20 }}
                         lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
                         {apiLineKeys.map((k, i) => (
-                          <Stack key={k} direction="row" alignItems="center" gap={1} onClick={() => toggleApiLine(k)} sx={{ cursor: 'pointer', opacity: hiddenApiLines.has(k) ? 0.4 : 1 }}>
+                          <Stack
+                            key={k}
+                            direction="row"
+                            alignItems="center"
+                            gap={1}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={hiddenApiLines.has(k)}
+                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
+                            onClick={() => toggleApiLine(k)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleApiLine(k);
+                              }
+                            }}
+                            sx={{ cursor: 'pointer', opacity: hiddenApiLines.has(k) ? 0.4 : 1 }}>
                             <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
                             <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
                               {k}
@@ -641,13 +690,29 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         height={350}
                         legend={{ show: false }}
                         grid={{ show: true, strokeDasharray: '3 3' }}
-                        xAxis={{ interval: xAxisInterval }}
+                        xAxis={{ interval: apiXAxisInterval }}
                         margin={{ bottom: 20 }}
                         lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
                         {apiLineKeys.map((k, i) => (
-                          <Stack key={k} direction="row" alignItems="center" gap={1} onClick={() => toggleApiLine(k)} sx={{ cursor: 'pointer', opacity: hiddenApiLines.has(k) ? 0.4 : 1 }}>
+                          <Stack
+                            key={k}
+                            direction="row"
+                            alignItems="center"
+                            gap={1}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={hiddenApiLines.has(k)}
+                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
+                            onClick={() => toggleApiLine(k)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleApiLine(k);
+                              }
+                            }}
+                            sx={{ cursor: 'pointer', opacity: hiddenApiLines.has(k) ? 0.4 : 1 }}>
                             <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
                             <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
                               {k}
