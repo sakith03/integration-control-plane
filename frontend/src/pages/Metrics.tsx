@@ -420,7 +420,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
   }, [apis, selectedApiKeys]);
 
   const showIntegrationName = true;
-  const showDate = (TIME_RANGES[timeRange] ?? 1) > 24;
+  const showDate = (TIME_RANGES[timeRange] ?? 1) >= 24;
   const makeLabel = useCallback((iso: string) => formatLabel(iso, showDate), [showDate]);
   const overviewXAxisInterval = useMemo(() => Math.max(0, Math.ceil((requestsData.length || 1) / 5) - 1), [requestsData.length]);
   const { reqData: apiReqData, latData: apiLatData } = useMemo(() => buildApiChartData(effectiveSelectedApis, makeLabel), [effectiveSelectedApis, makeLabel]);
