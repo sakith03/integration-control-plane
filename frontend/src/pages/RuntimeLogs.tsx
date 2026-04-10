@@ -258,7 +258,19 @@ export default function RuntimeLogs(scope: ProjectScope | ComponentScope): JSX.E
     // componentIdsKey / envIdsKey / levelFilterKey stabilize array refs (new array every render)
   }, [componentIdsKey, envIdsKey, levelFilterKey, timePreset, customStart, customEnd, searchPhrase, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteLogs(logsRequest, autoFetch ? AUTO_FETCH_INTERVAL : false);
+  // Compute fresh startTime/endTime on every call so auto-fetch and manual refresh always
+  // query the correct window relative to the current clock, not the stale memoized timestamps.
+  const getTimeRange = useCallback(() => {
+    if (timePreset === 'custom') {
+      return { startTime: new Date(customStart).toISOString(), endTime: new Date(customEnd).toISOString() };
+    }
+    const preset = TIME_PRESETS.find((p) => p.label === timePreset);
+    const hours = preset?.hours ?? DEFAULT_HOURS;
+    const now = new Date();
+    return { startTime: new Date(now.getTime() - hours * 3600_000).toISOString(), endTime: now.toISOString() };
+  }, [timePreset, customStart, customEnd]);
+
+  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteLogs(logsRequest, autoFetch ? AUTO_FETCH_INTERVAL : false, getTimeRange);
 
   // Disable auto-fetch when observability service is unavailable
   useEffect(() => {
@@ -434,9 +446,13 @@ export default function RuntimeLogs(scope: ProjectScope | ComponentScope): JSX.E
             <Download size={18} />
           </IconButton>
         </Tooltip>
-        <Button variant="outlined" size="small" onClick={() => refetch()} disabled={filtersDisabled || !logsRequest} startIcon={<RefreshCw size={14} />}>
-          Refresh
-        </Button>
+        <Tooltip title="Refresh">
+          <span>
+            <IconButton size="small" aria-label="Refresh" onClick={() => refetch()} disabled={filtersDisabled || !logsRequest}>
+              <RefreshCw size={16} />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Stack>
 
       {timePreset === 'custom' && (
