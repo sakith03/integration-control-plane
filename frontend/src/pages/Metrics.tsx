@@ -233,6 +233,34 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean, formatLabel: (
   return { reqData, latData };
 }
 
+// Build per-API success/error breakdowns: each selected API gets a line per chart
+function buildApiBreakdownData(apis: ApiSummary[], showType: boolean, formatLabel: (iso: string) => string) {
+  const allTimestamps = new Set<string>();
+  for (const api of apis) {
+    for (const entry of api.entries) {
+      for (const ts of Object.keys(entry.requests_total.timeSeriesData)) allTimestamps.add(ts);
+    }
+  }
+  const sorted = [...allTimestamps].sort();
+  const successData = sorted.map((ts) => {
+    const row: Record<string, string | number> = { label: formatLabel(ts) };
+    for (const api of apis) {
+      const key = apiDisplayLabelWithType(api, showType);
+      row[key] = api.entries.filter((e) => e.tags.status !== 'failed').reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
+    }
+    return row;
+  });
+  const errorData = sorted.map((ts) => {
+    const row: Record<string, string | number> = { label: formatLabel(ts) };
+    for (const api of apis) {
+      const key = apiDisplayLabelWithType(api, showType);
+      row[key] = api.entries.filter((e) => e.tags.status === 'failed').reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
+    }
+    return row;
+  });
+  return { successData, errorData };
+}
+
 function formatLabel(iso: string, showDate: boolean): string {
   const d = new Date(iso);
   const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
@@ -361,6 +389,7 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
   const overviewXAxisInterval = useMemo(() => Math.max(0, Math.ceil((requestsData.length || 1) / 5) - 1), [requestsData.length]);
   const { reqData: apiReqData, latData: apiLatData } = useMemo(() => buildApiChartData(effectiveSelectedApis, showIntegrationName, makeLabel), [effectiveSelectedApis, showIntegrationName, makeLabel]);
   const apiXAxisInterval = useMemo(() => Math.max(0, Math.ceil((apiReqData?.length || apiLatData?.length || 1) / 5) - 1), [apiReqData?.length, apiLatData?.length]);
+  const { successData: apiSuccessData, errorData: apiErrorData } = useMemo(() => buildApiBreakdownData(effectiveSelectedApis, showIntegrationName, makeLabel), [effectiveSelectedApis, showIntegrationName, makeLabel]);
   const apiLineKeys = effectiveSelectedApis.map((a) => apiDisplayLabelWithType(a, showIntegrationName));
 
   const requestsChartData = useMemo(() => requestsData.map((d) => ({ ...d, label: makeLabel(d.time) })), [requestsData, makeLabel]);
@@ -702,6 +731,109 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                       </Typography>
                       <LineChart
                         data={apiLatData}
+                        xAxisDataKey="label"
+                        height={350}
+                        legend={{ show: false }}
+                        grid={{ show: true, strokeDasharray: '3 3' }}
+                        xAxis={{ interval: apiXAxisInterval }}
+                        margin={{ bottom: 20 }}
+                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
+                      />
+                      <Stack sx={{ mt: 1 }} gap={0.5}>
+                        {apiLineKeys.map((k, i) => (
+                          <Stack
+                            key={k}
+                            direction="row"
+                            alignItems="center"
+                            gap={1}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={hiddenApiLines.has(k)}
+                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
+                            onClick={() => toggleApiLine(k)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleApiLine(k);
+                              }
+                            }}
+                            sx={{
+                              cursor: 'pointer',
+                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
+                              borderRadius: '4px',
+                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+                            }}>
+                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
+                            <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
+                              {k}
+                            </Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              <Grid container spacing={2} sx={{ mt: 2 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Successful Requests by API
+                      </Typography>
+                      <LineChart
+                        data={apiSuccessData}
+                        xAxisDataKey="label"
+                        height={350}
+                        legend={{ show: false }}
+                        grid={{ show: true, strokeDasharray: '3 3' }}
+                        xAxis={{ interval: apiXAxisInterval }}
+                        margin={{ bottom: 20 }}
+                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
+                      />
+                      <Stack sx={{ mt: 1 }} gap={0.5}>
+                        {apiLineKeys.map((k, i) => (
+                          <Stack
+                            key={k}
+                            direction="row"
+                            alignItems="center"
+                            gap={1}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={hiddenApiLines.has(k)}
+                            aria-label={`${hiddenApiLines.has(k) ? 'Show' : 'Hide'} ${k}`}
+                            onClick={() => toggleApiLine(k)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleApiLine(k);
+                              }
+                            }}
+                            sx={{
+                              cursor: 'pointer',
+                              opacity: hiddenApiLines.has(k) ? 0.4 : 1,
+                              borderRadius: '4px',
+                              '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
+                            }}>
+                            <span style={{ width: 14, height: 3, backgroundColor: COLORS[i % COLORS.length], display: 'inline-block', borderRadius: 1 }} />
+                            <Typography variant="caption" noWrap sx={{ textDecoration: hiddenApiLines.has(k) ? 'line-through' : 'none' }}>
+                              {k}
+                            </Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Failed Requests by API
+                      </Typography>
+                      <LineChart
+                        data={apiErrorData}
                         xAxisDataKey="label"
                         height={350}
                         legend={{ show: false }}
