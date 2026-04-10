@@ -197,7 +197,7 @@ function aggregate(metrics: MetricEntry[]) {
 }
 
 // Build per-API chart data: each selected API becomes a line
-function buildApiChartData(apis: ApiSummary[], showType: boolean, formatLabel: (iso: string) => string) {
+function buildApiChartData(apis: ApiSummary[], formatLabel: (iso: string) => string) {
   const allTimestamps = new Set<string>();
   for (const api of apis) {
     for (const entry of api.entries) {
@@ -208,15 +208,13 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean, formatLabel: (
   const reqData = sorted.map((ts) => {
     const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
-      const key = apiDisplayLabelWithType(api, showType);
-      row[key] = api.entries.reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
+      row[api.key] = api.entries.reduce((s, e) => s + (e.requests_total.timeSeriesData[ts] ?? 0), 0);
     }
     return row;
   });
   const latData = sorted.map((ts) => {
     const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
-      const key = apiDisplayLabelWithType(api, showType);
       let sum = 0,
         count = 0;
       for (const e of api.entries) {
@@ -226,7 +224,7 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean, formatLabel: (
           count++;
         }
       }
-      row[key] = count > 0 ? (sum / count) * 1000 : 0;
+      row[api.key] = count > 0 ? (sum / count) * 1000 : 0;
     }
     return row;
   });
@@ -234,17 +232,16 @@ function buildApiChartData(apis: ApiSummary[], showType: boolean, formatLabel: (
 }
 
 // Build per-API success/error breakdowns: each selected API gets a line per chart
-function buildApiBreakdownData(apis: ApiSummary[], showType: boolean, formatLabel: (iso: string) => string) {
+function buildApiBreakdownData(apis: ApiSummary[], formatLabel: (iso: string) => string) {
   const allTimestamps = new Set<string>();
   // Pre-aggregate per-API success/error timestamp maps to avoid re-filtering inside the sorted loop
   const apiSuccessMap: Record<string, Record<string, number>> = {};
   const apiErrorMap: Record<string, Record<string, number>> = {};
   for (const api of apis) {
-    const key = apiDisplayLabelWithType(api, showType);
-    apiSuccessMap[key] = {};
-    apiErrorMap[key] = {};
+    apiSuccessMap[api.key] = {};
+    apiErrorMap[api.key] = {};
     for (const entry of api.entries) {
-      const target = entry.tags.status === 'failed' ? apiErrorMap[key] : apiSuccessMap[key];
+      const target = entry.tags.status === 'failed' ? apiErrorMap[api.key] : apiSuccessMap[api.key];
       for (const [ts, val] of Object.entries(entry.requests_total.timeSeriesData)) {
         allTimestamps.add(ts);
         target[ts] = (target[ts] ?? 0) + val;
@@ -255,16 +252,14 @@ function buildApiBreakdownData(apis: ApiSummary[], showType: boolean, formatLabe
   const successData = sorted.map((ts) => {
     const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
-      const key = apiDisplayLabelWithType(api, showType);
-      row[key] = apiSuccessMap[key][ts] ?? 0;
+      row[api.key] = apiSuccessMap[api.key][ts] ?? 0;
     }
     return row;
   });
   const errorData = sorted.map((ts) => {
     const row: Record<string, string | number> = { label: formatLabel(ts) };
     for (const api of apis) {
-      const key = apiDisplayLabelWithType(api, showType);
-      row[key] = apiErrorMap[key][ts] ?? 0;
+      row[api.key] = apiErrorMap[api.key][ts] ?? 0;
     }
     return row;
   });
@@ -300,7 +295,7 @@ function LegendItem({ label, color, hidden, onToggle }: { label: string; color: 
       role="button"
       tabIndex={0}
       aria-pressed={hidden}
-      aria-label={`${hidden ? 'Show' : 'Hide'} ${label}`}
+      aria-label={`Toggle ${label}`}
       onClick={onToggle}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -428,10 +423,10 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
   const showDate = (TIME_RANGES[timeRange] ?? 1) > 24;
   const makeLabel = useCallback((iso: string) => formatLabel(iso, showDate), [showDate]);
   const overviewXAxisInterval = useMemo(() => Math.max(0, Math.ceil((requestsData.length || 1) / 5) - 1), [requestsData.length]);
-  const { reqData: apiReqData, latData: apiLatData } = useMemo(() => buildApiChartData(effectiveSelectedApis, showIntegrationName, makeLabel), [effectiveSelectedApis, showIntegrationName, makeLabel]);
+  const { reqData: apiReqData, latData: apiLatData } = useMemo(() => buildApiChartData(effectiveSelectedApis, makeLabel), [effectiveSelectedApis, makeLabel]);
   const apiXAxisInterval = useMemo(() => Math.max(0, Math.ceil((apiReqData?.length || apiLatData?.length || 1) / 5) - 1), [apiReqData?.length, apiLatData?.length]);
-  const { successData: apiSuccessData, errorData: apiErrorData } = useMemo(() => buildApiBreakdownData(effectiveSelectedApis, showIntegrationName, makeLabel), [effectiveSelectedApis, showIntegrationName, makeLabel]);
-  const apiLineKeys = effectiveSelectedApis.map((a) => apiDisplayLabelWithType(a, showIntegrationName));
+  const { successData: apiSuccessData, errorData: apiErrorData } = useMemo(() => buildApiBreakdownData(effectiveSelectedApis, makeLabel), [effectiveSelectedApis, makeLabel]);
+  const apiLines = effectiveSelectedApis.map((a) => ({ key: a.key, label: apiDisplayLabelWithType(a, showIntegrationName) }));
 
   const requestsChartData = useMemo(() => requestsData.map((d) => ({ ...d, label: makeLabel(d.time) })), [requestsData, makeLabel]);
   const latencyChartData = useMemo(() => latencyData.map((d) => ({ ...d, label: makeLabel(d.time) })), [latencyData, makeLabel]);
@@ -676,11 +671,11 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         grid={{ show: true, strokeDasharray: '3 3' }}
                         xAxis={{ interval: apiXAxisInterval }}
                         margin={{ bottom: 20 }}
-                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
-                        {apiLineKeys.map((k, i) => (
-                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
                         ))}
                       </Stack>
                     </CardContent>
@@ -700,11 +695,11 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         grid={{ show: true, strokeDasharray: '3 3' }}
                         xAxis={{ interval: apiXAxisInterval }}
                         margin={{ bottom: 20 }}
-                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
-                        {apiLineKeys.map((k, i) => (
-                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
                         ))}
                       </Stack>
                     </CardContent>
@@ -727,11 +722,11 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         grid={{ show: true, strokeDasharray: '3 3' }}
                         xAxis={{ interval: apiXAxisInterval }}
                         margin={{ bottom: 20 }}
-                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
-                        {apiLineKeys.map((k, i) => (
-                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
                         ))}
                       </Stack>
                     </CardContent>
@@ -751,11 +746,11 @@ export default function Metrics(scope: ProjectScope | ComponentScope): JSX.Eleme
                         grid={{ show: true, strokeDasharray: '3 3' }}
                         xAxis={{ interval: apiXAxisInterval }}
                         margin={{ bottom: 20 }}
-                        lines={apiLineKeys.map((k, i) => ({ dataKey: k, name: k, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(k), ...LINE_OPTS }))}
+                        lines={apiLines.map((item, i) => ({ dataKey: item.key, name: item.label, stroke: COLORS[i % COLORS.length], hide: hiddenApiLines.has(item.key), ...LINE_OPTS }))}
                       />
                       <Stack sx={{ mt: 1 }} gap={0.5}>
-                        {apiLineKeys.map((k, i) => (
-                          <LegendItem key={k} label={k} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(k)} onToggle={() => toggleApiLine(k)} />
+                        {apiLines.map((item, i) => (
+                          <LegendItem key={item.key} label={item.label} color={COLORS[i % COLORS.length]} hidden={hiddenApiLines.has(item.key)} onToggle={() => toggleApiLine(item.key)} />
                         ))}
                       </Stack>
                     </CardContent>
