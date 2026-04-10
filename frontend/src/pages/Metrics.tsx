@@ -279,7 +279,7 @@ function formatLabel(iso: string, showDate: boolean): string {
 
 function isUnavailable(error: unknown): boolean {
   if (!error) return false;
-  const status = (error as any).status;
+  const status = (error as { status?: number }).status;
   const message = (error as Error).message ?? '';
   return status === 503 || message.includes('Observability service is unavailable') || message.includes('OpenSearch service is unavailable');
 }
