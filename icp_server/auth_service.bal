@@ -2159,6 +2159,14 @@ service /auth on httpListener {
         if createdUser is error {
             log:printError("Failed to create user in main database", createdUser);
             // TODO: Consider cleanup - delete from credentials DB if main DB creation fails
+            // Cleanup: delete from credentials DB because main DB creation failed
+            http:Response|error deleteResponse = authBackendClient->delete(string `/users/${userId}`);
+            if deleteResponse is error {
+                log:printError("Failed to cleanup user from credentials DB after main DB failure", deleteResponse, userId = userId);
+            } else if deleteResponse.statusCode != 204 && deleteResponse.statusCode != 200 {
+                log:printError(string `Credentials DB cleanup returned unexpected status code: ${deleteResponse.statusCode}`, userId = userId);
+            }
+            
             return utils:createInternalServerError(string `Failed to create user: ${createdUser.message()}`);
         }
 
