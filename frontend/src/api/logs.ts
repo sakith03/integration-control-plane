@@ -82,8 +82,8 @@ export async function fetchLogs(req: LogsRequest): Promise<LogRow[]> {
       } catch {
         // If JSON parsing fails, use the raw text
       }
-      const error = new Error(errorMessage) as Error & { status?: number };
-      error.status = res.status;
+      const error = new Error(errorMessage);
+      (error as any).status = res.status;
       throw error;
     }
     const json: { columns: Column[]; rows: (string | null)[][] } = await res.json();
