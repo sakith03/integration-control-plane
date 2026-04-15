@@ -1,6 +1,22 @@
 -- Enhanced Lua Scripts for Fluent Bit - Ballerina Focus
 -- scripts/scripts.lua
 
+-- Extract unquoted error JSON from the raw log line before logfmt parsing.
+-- Without this, the logfmt parser splits the JSON on spaces/equals into garbage
+-- keys and the inner "message" key overwrites the actual log message.
+function preprocess_bal_log(tag, timestamp, record)
+    local log = record["log"]
+    if not log then return 0, timestamp, record end
+
+    local prefix, error_json, suffix = string.match(log, "^(.-) error=(%b{})(.*)$")
+    if error_json then
+        record["log"] = prefix .. suffix
+        record["error"] = error_json
+    end
+
+    return 1, timestamp, record
+end
+
 function extract_app_from_path(tag, timestamp, record)
     if record["log_file_path"] then
         local path = record["log_file_path"]
