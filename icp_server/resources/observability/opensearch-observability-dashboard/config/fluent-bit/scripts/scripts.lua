@@ -4,14 +4,35 @@
 -- Extract unquoted error JSON from the raw log line before logfmt parsing.
 -- Without this, the logfmt parser splits the JSON on spaces/equals into garbage
 -- keys and the inner "message" key overwrites the actual log message.
+-- Uses a brace walker that respects quoted strings so that } inside a string
+-- value does not prematurely terminate the match.
 function preprocess_bal_log(tag, timestamp, record)
     local log = record["log"]
     if not log then return 0, timestamp, record end
 
-    local prefix, error_json, suffix = string.match(log, "^(.-) error=(%b{})(.*)$")
-    if error_json then
-        record["log"] = prefix .. suffix
-        record["error"] = error_json
+    local error_start = string.find(log, " error={", 1, true)
+    if not error_start then return 1, timestamp, record end
+
+    local depth, in_str, escape, json_end = 0, false, false, nil
+    for i = error_start + 7, #log do
+        local c = string.sub(log, i, i)
+        if escape then
+            escape = false
+        elseif in_str then
+            if c == "\\" then escape = true elseif c == '"' then in_str = false end
+        elseif c == '"' then
+            in_str = true
+        elseif c == "{" then
+            depth = depth + 1
+        elseif c == "}" then
+            depth = depth - 1
+            if depth == 0 then json_end = i break end
+        end
+    end
+
+    if json_end then
+        record["error"] = string.sub(log, error_start + 7, json_end)
+        record["log"] = string.sub(log, 1, error_start - 1) .. string.sub(log, json_end + 1)
     end
 
     return 1, timestamp, record
