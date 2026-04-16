@@ -97,7 +97,7 @@ function toLocalInput(d: Date): string {
 
 function isUnavailable(error: unknown): boolean {
   if (!error) return false;
-  const status = (error as { status?: number }).status;
+  const status = (error as any).status;
   const message = (error as Error).message ?? '';
   return status === 503 || message.includes('Observability service is unavailable') || message.includes('OpenSearch service is unavailable');
 }
@@ -177,9 +177,7 @@ export default function RuntimeLogs(scope: ProjectScope | ComponentScope): JSX.E
   const { data: allComponents = [], isLoading: loadingComponents } = useComponents(scope.org, projectId);
   const { data: environments = [], isLoading: loadingEnvironments } = useEnvironments(projectId);
 
-  const allComponentIds = useMemo(() => {
-    return hasComponent(scope) ? (singleComponent ? [singleComponent.id] : []) : allComponents.map((c) => c.id);
-  }, [scope, singleComponent, allComponents]);
+  const allComponentIds = hasComponent(scope) ? (singleComponent ? [singleComponent.id] : []) : allComponents.map((c) => c.id);
 
   const [integrationFilter, setIntegrationFilter] = useState('all');
   const [envFilter, setEnvFilter] = useState<string[]>([]);
