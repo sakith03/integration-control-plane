@@ -1878,12 +1878,6 @@ service /graphql on graphqlListener {
             }
         }
 
-        // Check for active runtimes before deletion
-        types:Runtime[] runtimes = check storage:getRuntimes((), (), environmentId, (), ());
-        if runtimes.length() > 0 {
-            return error(string `Cannot delete environment: ${runtimes.length()} registered runtime(s) found. Please delete all runtimes before deleting.`);
-        }
-
         check storage:deleteEnvironment(environmentId);
         check sync:reconcileDeleteEnvironment(environmentId);
         return true;
