@@ -153,7 +153,7 @@ project = "<project name>"
 integration = "<integration name>"
 runtime = "<unique id for the runtime>"
 secret = "${secret}"
-# icp_url = "https://<hostname>:9443"`;
+# icp_url = "https://<hostname>:9445"`;
 }
 
 function biToml(envName: string, secret: string): string {
