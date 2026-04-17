@@ -46,7 +46,7 @@ import {
   Tooltip,
   Typography,
 } from '@wso2/oxygen-ui';
-import { RefreshCw, ListFilter, LayoutGrid, Server, Settings, Play, Plus, X, Trash2, UserPlus, Code, Sliders, Link, FileText } from '@wso2/oxygen-ui-icons-react';
+import { RefreshCw, ListFilter, LayoutGrid, Server, Settings, Play, Plus, X, Trash2, UserPlus, Code, Sliders, Link as LinkIcon, FileText } from '@wso2/oxygen-ui-icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
@@ -324,7 +324,7 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
             </Button>
           )}
           {showWsdlButton && (
-            <Button variant="contained" size="small" startIcon={<Link size={14} />} onClick={() => onOpenDrawerTab('Endpoints')} sx={{ ml: showSourceButton || showParametersButton ? 0 : 'auto' }}>
+            <Button variant="contained" size="small" startIcon={<LinkIcon size={14} />} onClick={() => onOpenDrawerTab('Endpoints')} sx={{ ml: showSourceButton || showParametersButton ? 0 : 'auto' }}>
               View Endpoints
             </Button>
           )}
@@ -622,7 +622,7 @@ export default function Environment({
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                   Runtime Users
                 </Typography>
-                <Tooltip title={miUsersError?.message === FILE_BASED_USER_STORE_ERROR ? "User store not configured" : "Add user"}>
+                <Tooltip title={miUsersError?.message === FILE_BASED_USER_STORE_ERROR ? 'User store not configured' : 'Add user'}>
                   <span>
                     <IconButton
                       size="small"
