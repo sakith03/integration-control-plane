@@ -26,7 +26,7 @@ CONFIG_FILE="$PARENT_DIR/conf/deployment.toml"
 PID_FILE="$PARENT_DIR/icp.pid"
 LOG_DIR="$PARENT_DIR/logs"
 LOG_FILE="$LOG_DIR/icp.log"
-JAVA_OPTS=""
+JAVA_OPTS=()
 
 resolve_version() {
     if [ -f "$PARENT_DIR/version.txt" ]; then
@@ -56,13 +56,19 @@ resolve_version() {
 }
 
 detect_java_opts() {
+    JAVA_OPTS=()
     if [ -f /etc/alpine-release ] || (command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl); then
         echo "Alpine Linux detected - disabling native Netty tcnative libraries"
-        JAVA_OPTS="-Dio.netty.native.workdir=/tmp/netty-native -Dio.netty.transport.noNative=true -Dio.netty.handler.ssl.noOpenSsl=true"
+        JAVA_OPTS+=(
+            "-Dio.netty.native.workdir=/tmp/netty-native"
+            "-Dio.netty.transport.noNative=true"
+            "-Dio.netty.handler.ssl.noOpenSsl=true"
+        )
     fi
 }
 
 is_running() {
+    local pid
     if [ -f "$PID_FILE" ]; then
         pid="$(cat "$PID_FILE" 2>/dev/null)"
         if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then
@@ -96,13 +102,13 @@ run_server() {
     fi
 
     if [ "$mode" = "background" ]; then
-        nohup java $JAVA_OPTS -jar "$JAR_FILE" "$@" >> "$LOG_FILE" 2>&1 &
+        nohup java "${JAVA_OPTS[@]}" -jar "$JAR_FILE" "$@" >> "$LOG_FILE" 2>&1 &
         server_pid=$!
         echo "$server_pid" > "$PID_FILE"
         echo "ICP Server started with PID $server_pid"
         echo "Logs are available at $LOG_FILE"
     else
-        exec java $JAVA_OPTS -jar "$JAR_FILE" "$@"
+        exec java "${JAVA_OPTS[@]}" -jar "$JAR_FILE" "$@"
     fi
 }
 
@@ -167,7 +173,8 @@ esac
 case "$COMMAND" in
     start)
         if is_running; then
-            echo "Process is already running with PID $pid"
+            current_pid="$(cat "$PID_FILE" 2>/dev/null)"
+            echo "Process is already running with PID $current_pid"
             exit 0
         fi
         run_server background "$@"

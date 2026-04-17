@@ -27,50 +27,27 @@ set PID_FILE=!PARENT_DIR!\icp.pid
 set LOG_DIR=!PARENT_DIR!\logs
 set LOG_FILE=!LOG_DIR!\icp.log
 set COMMAND=run
+set "ARG=%~1"
 
-if /I "%~1"=="start" (
+:normalizeArg
+if defined ARG if "!ARG:~0,1!"=="-" (
+    set "ARG=!ARG:~1!"
+    goto normalizeArg
+)
+
+if /I "!ARG!"=="start" (
     set COMMAND=start
     shift
-) else if /I "%~1"=="--start" (
-    set COMMAND=start
-    shift
-) else if /I "%~1"=="-start" (
-    set COMMAND=start
-    shift
-) else if /I "%~1"=="stop" (
+) else if /I "!ARG!"=="stop" (
     set COMMAND=stop
     shift
-) else if /I "%~1"=="--stop" (
-    set COMMAND=stop
-    shift
-) else if /I "%~1"=="-stop" (
-    set COMMAND=stop
-    shift
-) else if /I "%~1"=="restart" (
+) else if /I "!ARG!"=="restart" (
     set COMMAND=restart
     shift
-) else if /I "%~1"=="--restart" (
-    set COMMAND=restart
-    shift
-) else if /I "%~1"=="-restart" (
-    set COMMAND=restart
-    shift
-) else if /I "%~1"=="version" (
+) else if /I "!ARG!"=="version" (
     set COMMAND=version
     shift
-) else if /I "%~1"=="--version" (
-    set COMMAND=version
-    shift
-) else if /I "%~1"=="-version" (
-    set COMMAND=version
-    shift
-) else if /I "%~1"=="run" (
-    set COMMAND=run
-    shift
-) else if /I "%~1"=="--run" (
-    set COMMAND=run
-    shift
-) else if /I "%~1"=="-run" (
+) else if /I "!ARG!"=="run" (
     set COMMAND=run
     shift
 )
