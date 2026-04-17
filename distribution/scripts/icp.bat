@@ -91,11 +91,6 @@ for %%I in ("!PARENT_DIR!") do set DIST_NAME=%%~nxI
 if /I not "!DIST_NAME:wso2-integration-control-plane-=!"=="!DIST_NAME!" (
     set VERSION=!DIST_NAME:wso2-integration-control-plane-=!
 )
-if not defined VERSION if exist "!PARENT_DIR!\..\gradle.properties" (
-    for /f "tokens=1,* delims==" %%A in ('findstr /b /c:"project.version=" "!PARENT_DIR!\..\gradle.properties"') do (
-        set VERSION=%%B
-    )
-)
 if not defined VERSION set VERSION=unknown
 echo WSO2 Integration Control Plane !VERSION!
 goto end

@@ -43,16 +43,6 @@ resolve_version() {
             ;;
     esac
 
-    local gradle_props="$PARENT_DIR/../gradle.properties"
-    if [ -f "$gradle_props" ]; then
-        local version
-        version="$(grep '^project\.version=' "$gradle_props" | head -n 1 | cut -d'=' -f2- | xargs)"
-        if [ -n "$version" ]; then
-            echo "$version"
-            return 0
-        fi
-    fi
-
     if command -v unzip >/dev/null 2>&1 && [ -f "$JAR_FILE" ]; then
         local version
         version="$(unzip -p "$JAR_FILE" META-INF/MANIFEST.MF 2>/dev/null | awk -F': ' '/^(Implementation-Version|Specification-Version):/ {gsub("\r", "", $2); print $2; exit}')"
