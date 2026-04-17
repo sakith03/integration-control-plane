@@ -34,6 +34,7 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
+  Link,
   List,
   ListItem,
   ListItemText,
@@ -550,6 +551,8 @@ export default function Environment({
   const deleteMiUser = useDeleteMiUser();
   const { data: miUsers = [], error: miUsersError, isLoading: miUsersLoading } = useListMiUsers(componentId, activeRuntimeId, componentType === 'MI' && settingsPanelOpen && !!activeRuntimeId);
 
+  const FILE_BASED_USER_STORE_ERROR = 'User management is not supported with the file-based user store. Please plug in a user store for the correct functionality';
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -619,7 +622,7 @@ export default function Environment({
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                   Runtime Users
                 </Typography>
-                <Tooltip title="Add user">
+                <Tooltip title={miUsersError?.message === FILE_BASED_USER_STORE_ERROR ? "User store not configured" : "Add user"}>
                   <span>
                     <IconButton
                       size="small"
@@ -630,7 +633,7 @@ export default function Environment({
                         setCreateUserError(null);
                         setCreateUserDialogOpen(true);
                       }}
-                      disabled={!activeRuntimeId}
+                      disabled={!activeRuntimeId || miUsersError?.message === FILE_BASED_USER_STORE_ERROR}
                       aria-label="Add user">
                       <UserPlus size={16} />
                     </IconButton>
@@ -665,9 +668,26 @@ export default function Environment({
               {activeRuntimeId && miUsersLoading && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', mt: 2 }} />}
 
               {activeRuntimeId && !miUsersLoading && miUsersError && (
-                <Typography variant="body2" color="error">
-                  Failed to load users: {miUsersError.message}
-                </Typography>
+                <>
+                  {miUsersError.message === FILE_BASED_USER_STORE_ERROR ? (
+                    <Stack gap={1}>
+                      <Typography variant="body2" color="text.secondary">
+                        Your MI runtime does not have a user store configured. Users will appear here once configured.
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        See{' '}
+                        <Link href="https://mi.docs.wso2.com/en/latest/install-and-setup/setup/user-stores/setting-up-a-userstore-in-mi/" target="_blank" rel="noopener noreferrer">
+                          user store configuration documentation
+                        </Link>
+                        .
+                      </Typography>
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="error">
+                      Failed to load users: {miUsersError.message}
+                    </Typography>
+                  )}
+                </>
               )}
 
               {activeRuntimeId && !miUsersLoading && !miUsersError && miUsers.length === 0 && (
