@@ -17,7 +17,7 @@
 # under the License.
 
 # ICP Server Launcher Script
-# Usage: ./icp.sh [start|stop|restart|version]
+# Usage: ./icp.sh [start|stop|restart|run|version]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 JAR_FILE="$SCRIPT_DIR/icp-server.jar"
@@ -102,12 +102,7 @@ run_server() {
         echo "ICP Server started with PID $server_pid"
         echo "Logs are available at $LOG_FILE"
     else
-        echo "$$" > "$PID_FILE"
-        trap 'rm -f "$PID_FILE"' EXIT INT TERM
-        java $JAVA_OPTS -jar "$JAR_FILE" "$@"
-        status=$?
-        rm -f "$PID_FILE"
-        exit $status
+        exec java $JAVA_OPTS -jar "$JAR_FILE" "$@"
     fi
 }
 

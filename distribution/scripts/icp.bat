@@ -84,7 +84,10 @@ goto runServer
 :printVersion
 set VERSION=
 if exist "!PARENT_DIR!\version.txt" (
-    type "!PARENT_DIR!\version.txt"
+    set /p VERSION=<"!PARENT_DIR!\version.txt"
+)
+if defined VERSION (
+    echo WSO2 Integration Control Plane !VERSION!
     goto end
 )
 for %%I in ("!PARENT_DIR!") do set DIST_NAME=%%~nxI
@@ -127,6 +130,27 @@ if exist "!CONFIG_FILE!" (
 )
 exit /b 0
 
+:buildArgsJson
+setlocal EnableDelayedExpansion
+set "ARGS_JSON=["
+:buildArgsJsonLoop
+if "%~1"=="" goto buildArgsJsonDone
+set "ARG_VALUE=%~1"
+set "ARG_VALUE=!ARG_VALUE:\=\\!"
+set "ARG_VALUE=!ARG_VALUE:"=\"!"
+if "!ARGS_JSON!"=="[" (
+    set "ARGS_JSON=!ARGS_JSON!\"!ARG_VALUE!\""
+) else (
+    set "ARGS_JSON=!ARGS_JSON!,\"!ARG_VALUE!\""
+)
+shift
+goto buildArgsJsonLoop
+
+:buildArgsJsonDone
+set "ARGS_JSON=!ARGS_JSON!]"
+endlocal & set "ICP_APP_ARGS_JSON=%ARGS_JSON%"
+exit /b 0
+
 :startServer
 call :isRunning
 if not errorlevel 1 (
@@ -136,12 +160,17 @@ if not errorlevel 1 (
 if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
 call :prepareRun
 if errorlevel 1 goto end
+call :buildArgsJson %*
 set "ICP_JAR_FILE=!JAR_FILE!"
 set "ICP_LOG_FILE=!LOG_FILE!"
 set "ICP_SCRIPT_DIR=!SCRIPT_DIR!"
-set "ICP_APP_ARGS=%*"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$jar = $env:ICP_JAR_FILE; $log = $env:ICP_LOG_FILE; $wd = $env:ICP_SCRIPT_DIR; $argsLine = $env:ICP_APP_ARGS; $cmd = 'Set-Location -LiteralPath ''' + $wd + '''; java -jar ''' + $jar + ''' ' + $argsLine + ' >> ''' + $log + ''' 2>&1'; $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $cmd -PassThru -WindowStyle Hidden; $p.Id" > "!PID_FILE!"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$jar = $env:ICP_JAR_FILE; $log = $env:ICP_LOG_FILE; $wd = $env:ICP_SCRIPT_DIR; $appArgs = @(); if ($env:ICP_APP_ARGS_JSON -and $env:ICP_APP_ARGS_JSON -ne '[]') { $appArgs = @(ConvertFrom-Json -InputObject $env:ICP_APP_ARGS_JSON) }; $javaArgs = @('-jar', $jar) + $appArgs; $p = Start-Process -FilePath 'java' -ArgumentList $javaArgs -WorkingDirectory $wd -RedirectStandardOutput $log -RedirectStandardError $log -PassThru -WindowStyle Hidden; $p.Id" > "!PID_FILE!"
 set /p SERVER_PID=<"!PID_FILE!"
+if not defined SERVER_PID (
+    echo Failed to start ICP Server
+    if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
+    goto end
+)
 echo ICP Server started with PID !SERVER_PID!
 echo Logs are available at !LOG_FILE!
 goto end
@@ -165,6 +194,14 @@ if not errorlevel 1 (
     echo Stopping ICP Server ^(PID !SERVER_PID!^)
     taskkill /PID !SERVER_PID! /T /F >nul 2>&1
     del /f /q "!PID_FILE!" >nul 2>&1
+    set /a WAIT_COUNT=0
+    :restartWaitLoop
+    tasklist /FI "PID eq !SERVER_PID!" | find "!SERVER_PID!" >nul 2>&1
+    if errorlevel 1 goto startServer
+    set /a WAIT_COUNT+=1
+    if !WAIT_COUNT! GEQ 10 goto startServer
+    ping -n 2 127.0.0.1 >nul
+    goto restartWaitLoop
 )
 goto startServer
 
