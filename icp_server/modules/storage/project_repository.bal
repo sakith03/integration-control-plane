@@ -186,7 +186,7 @@ public isolated function getProjects() returns types:Project[]|error {
             });
         };
 
-    log:printInfo("Retrieved all projects", projectCount = projects.length());
+    log:printDebug("Retrieved all projects", projectCount = projects.length());
 
     return projects;
 }
@@ -239,7 +239,7 @@ public isolated function getProjectsByIds(string[] projectIds, int? orgId = ()) 
             });
         };
 
-    log:printInfo("Retrieved projects by IDs",
+    log:printDebug("Retrieved projects by IDs",
             projectCount = projects.length(),
             requestedIds = projectIds.length(),
             orgIdFilter = orgId);
@@ -413,7 +413,7 @@ public isolated function checkProjectHandlerAvailability(int orgId, string proje
         }
     }
 
-    log:printInfo(string `Project handler availability check completed`,
+    log:printDebug(string `Project handler availability check completed`,
             orgId = orgId,
             projectHandlerCandidate = projectHandlerCandidate,
             isHandlerUnique = isHandlerUnique,

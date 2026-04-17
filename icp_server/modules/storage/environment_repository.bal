@@ -101,7 +101,7 @@ public isolated function getEnvironmentsByIds(string[] environmentIds) returns t
             });
         };
 
-    log:printInfo("Retrieved environments by IDs", environmentCount = environments.length());
+    log:printDebug("Retrieved environments by IDs", environmentCount = environments.length());
 
     return environments;
 }
@@ -140,7 +140,7 @@ public isolated function getAllEnvironments() returns types:Environment[]|error 
             });
         };
 
-    log:printInfo("Retrieved all environments", environmentCount = environments.length());
+    log:printDebug("Retrieved all environments", environmentCount = environments.length());
 
     return environments;
 }
@@ -173,7 +173,7 @@ public isolated function getEnvironmentIdsByTypes(boolean hasProdAccess, boolean
             environmentIds.push(env.environment_id);
         };
 
-    log:printInfo("Retrieved environment IDs by types", environmentCount = environmentIds.length());
+    log:printDebug("Retrieved environment IDs by types", environmentCount = environmentIds.length());
 
     return environmentIds;
 }
@@ -471,7 +471,7 @@ public isolated function checkEnvironmentHandlerAvailability(string environmentH
         }
     }
 
-    log:printInfo(string `Environment handler availability check completed`,
+    log:printDebug(string `Environment handler availability check completed`,
             environmentHandlerCandidate = environmentHandlerCandidate,
             isHandlerUnique = isHandlerUnique,
             alternateCandidate = alternateCandidate);
@@ -498,6 +498,6 @@ public isolated function getEnvironmentIdsWithRuntimes(string componentId) retur
             environmentIds.push(envRecord.environment_Id);
         };
 
-    log:printInfo(string `Component ${componentId} has runtimes in ${environmentIds.length()} environments`);
+    log:printDebug(string `Component ${componentId} has runtimes in ${environmentIds.length()} environments`);
     return environmentIds;
 }

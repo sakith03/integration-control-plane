@@ -92,7 +92,7 @@ public isolated function generateJWTTokenV2(
         return error("Failed to generate JWT token V2", jwtToken);
     }
 
-    log:printInfo("JWT token V2 generated successfully", 
+    log:printDebug("JWT token V2 generated successfully", 
         username = username, 
         permissionCount = permissionNames.length());
     return jwtToken;
@@ -151,7 +151,7 @@ public isolated function extractUserContextV2(string authorizationHeader) return
         log:printWarn("JWT token missing or invalid 'scope' claim", userId = userId);
     }
 
-    log:printInfo("Successfully extracted user context V2",
+    log:printDebug("Successfully extracted user context V2",
             userId = userId,
             username = username,
             permissionCount = permissions.length());

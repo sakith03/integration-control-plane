@@ -409,7 +409,7 @@ public isolated function getComponentDeployment(string componentId, string envir
         cronTimezone: ()
     };
 
-    log:printInfo(string `Retrieved deployment info for component ${componentId}`,
+    log:printDebug(string `Retrieved deployment info for component ${componentId}`,
             status = runtime.status,
             configCount = configCount);
 

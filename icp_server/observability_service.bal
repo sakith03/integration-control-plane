@@ -145,7 +145,7 @@ service /icp/observability on httpListener {
     }
 
     resource function post logs(http:Request request, types:ICPLogEntryRequest logRequest) returns types:LogEntriesResponse|http:Response|error {
-        log:printInfo("Received log request: " + logRequest.toString());
+        log:printDebug("Received log request: " + logRequest.toString());
 
         // Transform ICPLogEntryRequest to LogEntryRequest by resolving component/environment filters to runtime IDs
         string[] runtimeIdList = check resolveRuntimeIds({
@@ -162,7 +162,7 @@ service /icp/observability on httpListener {
                             (logRequest.environmentList is string[] && (<string[]>logRequest.environmentList).length() > 0);
 
         if (hasFilters && runtimeIdList.length() == 0) {
-            log:printInfo("No runtimes found for the given component/environment filters. Returning empty result.");
+            log:printDebug("No runtimes found for the given component/environment filters. Returning empty result.");
             return {
                 columns: [],
                 rows: []
@@ -198,7 +198,7 @@ service /icp/observability on httpListener {
             sort: logRequest.sort
         };
 
-        log:printInfo("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs");
+        log:printDebug("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs");
 
         // Generate fresh JWT token and invoke observability adapter service
         string token = check generateObservabilityToken();
@@ -228,7 +228,7 @@ service /icp/observability on httpListener {
 
     resource function post metrics(http:Request request, types:ICPMetricEntryRequest metricRequest) returns types:MetricEntriesResponse|http:Response|error {
 
-        log:printInfo("Received metric request: " + metricRequest.toString());
+        log:printDebug("Received metric request: " + metricRequest.toString());
 
         // Transform ICPMetricEntryRequest to MetricEntryRequest by resolving component/environment filters to runtime IDs
         string[] runtimeIdList = check resolveRuntimeIds({
@@ -245,7 +245,7 @@ service /icp/observability on httpListener {
                             (metricRequest.environmentList is string[] && (<string[]>metricRequest.environmentList).length() > 0);
 
         if (hasFilters && runtimeIdList.length() == 0) {
-            log:printInfo("No runtimes found for the given component/environment filters. Returning empty result.");
+            log:printDebug("No runtimes found for the given component/environment filters. Returning empty result.");
             return {
                 inboundMetrics: [],
                 outboundMetrics: []
@@ -277,7 +277,7 @@ service /icp/observability on httpListener {
             resolutionInterval: metricRequest.resolutionInterval
         };
 
-        log:printInfo("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs for component type: " + componentType.toString());
+        log:printDebug("Invoking observability adapter with " + runtimeIdList.length().toString() + " runtime IDs for component type: " + componentType.toString());
 
         // Generate fresh JWT token and invoke observability adapter service with component type path param
         string token = check generateObservabilityToken();
@@ -361,7 +361,7 @@ isolated function resolveRuntimeIds(types:IntegrationDetails integrationDetails)
         }
     }
 
-    log:printInfo("Resolved " + runtimeIds.length().toString() + " runtime IDs from component/environment filters");
+    log:printDebug("Resolved " + runtimeIds.length().toString() + " runtime IDs from component/environment filters");
     return runtimeIds;
 }
 
