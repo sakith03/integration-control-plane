@@ -28,11 +28,28 @@ set LOG_DIR=!PARENT_DIR!\logs
 set LOG_FILE=!LOG_DIR!\icp.log
 set COMMAND=run
 set "ARG=%~1"
+set "NORMALIZED_ARG=!ARG!"
+set "CANDIDATE="
 
 :normalizeArg
-if defined ARG if "!ARG:~0,1!"=="-" (
-    set "ARG=!ARG:~1!"
-    goto normalizeArg
+if defined NORMALIZED_ARG (
+    if "!NORMALIZED_ARG:~0,2!"=="--" (
+        set "CANDIDATE=!NORMALIZED_ARG:~2!"
+    ) else if "!NORMALIZED_ARG:~0,1!"=="-" (
+        set "CANDIDATE=!NORMALIZED_ARG:~1!"
+    )
+)
+
+if /I "!CANDIDATE!"=="start" (
+    set "ARG=!CANDIDATE!"
+) else if /I "!CANDIDATE!"=="stop" (
+    set "ARG=!CANDIDATE!"
+) else if /I "!CANDIDATE!"=="restart" (
+    set "ARG=!CANDIDATE!"
+) else if /I "!CANDIDATE!"=="version" (
+    set "ARG=!CANDIDATE!"
+) else if /I "!CANDIDATE!"=="run" (
+    set "ARG=!CANDIDATE!"
 )
 
 if /I "!ARG!"=="start" (
@@ -52,6 +69,14 @@ if /I "!ARG!"=="start" (
     shift
 )
 
+set "FORWARD_ARGS="
+:collectForwardArgs
+if "%~1"=="" goto dispatchCommand
+set "FORWARD_ARGS=!FORWARD_ARGS! %1"
+shift
+goto collectForwardArgs
+
+:dispatchCommand
 if /I "!COMMAND!"=="start" goto startServer
 if /I "!COMMAND!"=="stop" goto stopServer
 if /I "!COMMAND!"=="restart" goto restartServer
@@ -142,7 +167,7 @@ if not errorlevel 1 (
 if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
 call :prepareRun
 if errorlevel 1 goto end
-call :buildArgsJson %*
+call :buildArgsJson !FORWARD_ARGS!
 set "ICP_JAR_FILE=!JAR_FILE!"
 set "ICP_LOG_FILE=!LOG_FILE!"
 set "ICP_ERR_LOG_FILE=!LOG_FILE!.err"
@@ -167,9 +192,37 @@ if errorlevel 1 (
     goto end
 )
 echo Stopping ICP Server ^(PID !SERVER_PID!^)
+taskkill /PID !SERVER_PID! /T >nul 2>&1
+set /a STOP_WAIT_COUNT=0
+
+:stopWaitLoop
+call :isRunning
+if errorlevel 1 goto stopCleanup
+set /a STOP_WAIT_COUNT+=1
+if !STOP_WAIT_COUNT! GEQ 10 goto forceStopServer
+ping -n 2 127.0.0.1 >nul
+goto stopWaitLoop
+
+:forceStopServer
+echo Graceful shutdown timed out; forcing stop
 taskkill /PID !SERVER_PID! /T /F >nul 2>&1
-del /f /q "!PID_FILE!" >nul 2>&1
+set /a FORCE_STOP_WAIT_COUNT=0
+
+:forceStopWaitLoop
+call :isRunning
+if errorlevel 1 goto stopCleanup
+set /a FORCE_STOP_WAIT_COUNT+=1
+if !FORCE_STOP_WAIT_COUNT! GEQ 10 goto stopFailed
+ping -n 2 127.0.0.1 >nul
+goto forceStopWaitLoop
+
+:stopCleanup
+if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
 echo ICP Server stopped
+goto end
+
+:stopFailed
+echo Failed to stop ICP Server within the timeout window
 goto end
 
 :restartServer
@@ -192,7 +245,7 @@ goto startServer
 :runServer
 call :prepareRun
 if errorlevel 1 goto end
-java -jar "!JAR_FILE!" %*
+java -jar "!JAR_FILE!" !FORWARD_ARGS!
 if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
 
 :end
