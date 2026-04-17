@@ -16,37 +16,168 @@ REM specific language governing permissions and limitations
 REM under the License.
 
 REM ICP Server Launcher Script
-REM Usage: icp.bat
+REM Usage: icp.bat [start^|stop^|restart^|version]
 
-setlocal enabledelayedexpansion
+setlocal EnableDelayedExpansion
 set SCRIPT_DIR=%~dp0
 set JAR_FILE=!SCRIPT_DIR!icp-server.jar
 for %%A in ("!SCRIPT_DIR!..") do set PARENT_DIR=%%~fA
 set CONFIG_FILE=!PARENT_DIR!\conf\deployment.toml
+set PID_FILE=!PARENT_DIR!\icp.pid
+set LOG_DIR=!PARENT_DIR!\logs
+set LOG_FILE=!LOG_DIR!\icp.log
+set COMMAND=run
 
+if /I "%~1"=="start" (
+    set COMMAND=start
+    shift
+) else if /I "%~1"=="--start" (
+    set COMMAND=start
+    shift
+) else if /I "%~1"=="-start" (
+    set COMMAND=start
+    shift
+) else if /I "%~1"=="stop" (
+    set COMMAND=stop
+    shift
+) else if /I "%~1"=="--stop" (
+    set COMMAND=stop
+    shift
+) else if /I "%~1"=="-stop" (
+    set COMMAND=stop
+    shift
+) else if /I "%~1"=="restart" (
+    set COMMAND=restart
+    shift
+) else if /I "%~1"=="--restart" (
+    set COMMAND=restart
+    shift
+) else if /I "%~1"=="-restart" (
+    set COMMAND=restart
+    shift
+) else if /I "%~1"=="version" (
+    set COMMAND=version
+    shift
+) else if /I "%~1"=="--version" (
+    set COMMAND=version
+    shift
+) else if /I "%~1"=="-version" (
+    set COMMAND=version
+    shift
+) else if /I "%~1"=="run" (
+    set COMMAND=run
+    shift
+) else if /I "%~1"=="--run" (
+    set COMMAND=run
+    shift
+) else if /I "%~1"=="-run" (
+    set COMMAND=run
+    shift
+)
+
+if /I "!COMMAND!"=="start" goto startServer
+if /I "!COMMAND!"=="stop" goto stopServer
+if /I "!COMMAND!"=="restart" goto restartServer
+if /I "!COMMAND!"=="version" goto printVersion
+goto runServer
+
+:printVersion
+set VERSION=
+if exist "!PARENT_DIR!\version.txt" (
+    type "!PARENT_DIR!\version.txt"
+    goto end
+)
+for %%I in ("!PARENT_DIR!") do set DIST_NAME=%%~nxI
+if /I not "!DIST_NAME:wso2-integration-control-plane-=!"=="!DIST_NAME!" (
+    set VERSION=!DIST_NAME:wso2-integration-control-plane-=!
+)
+if not defined VERSION if exist "!PARENT_DIR!\..\gradle.properties" (
+    for /f "tokens=1,* delims==" %%A in ('findstr /b /c:"project.version=" "!PARENT_DIR!\..\gradle.properties"') do (
+        set VERSION=%%B
+    )
+)
+if not defined VERSION set VERSION=unknown
+echo WSO2 Integration Control Plane !VERSION!
+goto end
+
+:checkJar
 if not exist "!JAR_FILE!" (
     echo Error: icp-server.jar not found in !SCRIPT_DIR!
     exit /b 1
 )
+exit /b 0
 
-REM Change to bin directory so relative paths in config work correctly
-cd /d "!SCRIPT_DIR!"
-
-REM Read ssoEnabled from deployment.toml and update the frontend config file
-set SSO_ENABLED=false
-if exist "!CONFIG_FILE!" (
-    for /f "usebackq tokens=2 delims==" %%a in (`findstr /b /r "^ssoEnabled" "!CONFIG_FILE!"`) do (
-        REM Trim whitespace from the value
-        for /f "tokens=* delims= " %%b in ("%%a") do set SSO_ENABLED=%%b
+:isRunning
+set SERVER_PID=
+if exist "!PID_FILE!" (
+    set /p SERVER_PID=<"!PID_FILE!"
+    if defined SERVER_PID (
+        tasklist /FI "PID eq !SERVER_PID!" | find "!SERVER_PID!" >nul 2>&1 && exit /b 0
     )
 )
+exit /b 1
 
-if not exist "!CONFIG_FILE!" (
+:prepareRun
+call :checkJar
+if errorlevel 1 goto end
+if not exist "!LOG_DIR!" mkdir "!LOG_DIR!"
+cd /d "!SCRIPT_DIR!"
+if exist "!CONFIG_FILE!" (
+    echo Starting ICP Server with configuration: !CONFIG_FILE!
+    set "BAL_CONFIG_FILES=!CONFIG_FILE!"
+) else (
     echo Warning: Configuration file not found at !CONFIG_FILE!
     echo Starting ICP Server without custom configuration...
-    java -jar "!JAR_FILE!" %*
-) else (
-    echo Starting ICP Server with configuration: !CONFIG_FILE!
-    set BAL_CONFIG_FILES=!CONFIG_FILE!
-    java -jar "!JAR_FILE!" %*
+    set "BAL_CONFIG_FILES="
 )
+exit /b 0
+
+:startServer
+call :isRunning
+if not errorlevel 1 (
+    echo Process is already running with PID !SERVER_PID!
+    goto end
+)
+if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
+call :prepareRun
+if errorlevel 1 goto end
+set "ICP_JAR_FILE=!JAR_FILE!"
+set "ICP_LOG_FILE=!LOG_FILE!"
+set "ICP_SCRIPT_DIR=!SCRIPT_DIR!"
+set "ICP_APP_ARGS=%*"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$jar = $env:ICP_JAR_FILE; $log = $env:ICP_LOG_FILE; $wd = $env:ICP_SCRIPT_DIR; $argsLine = $env:ICP_APP_ARGS; $cmd = 'Set-Location -LiteralPath ''' + $wd + '''; java -jar ''' + $jar + ''' ' + $argsLine + ' >> ''' + $log + ''' 2>&1'; $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $cmd -PassThru -WindowStyle Hidden; $p.Id" > "!PID_FILE!"
+set /p SERVER_PID=<"!PID_FILE!"
+echo ICP Server started with PID !SERVER_PID!
+echo Logs are available at !LOG_FILE!
+goto end
+
+:stopServer
+call :isRunning
+if errorlevel 1 (
+    if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
+    echo ICP Server is not running
+    goto end
+)
+echo Stopping ICP Server ^(PID !SERVER_PID!^)
+taskkill /PID !SERVER_PID! /T /F >nul 2>&1
+del /f /q "!PID_FILE!" >nul 2>&1
+echo ICP Server stopped
+goto end
+
+:restartServer
+call :isRunning
+if not errorlevel 1 (
+    echo Stopping ICP Server ^(PID !SERVER_PID!^)
+    taskkill /PID !SERVER_PID! /T /F >nul 2>&1
+    del /f /q "!PID_FILE!" >nul 2>&1
+)
+goto startServer
+
+:runServer
+call :prepareRun
+if errorlevel 1 goto end
+java -jar "!JAR_FILE!" %*
+if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
+
+:end
+endlocal
