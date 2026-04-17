@@ -45,7 +45,7 @@ import {
   Tooltip,
   Typography,
 } from '@wso2/oxygen-ui';
-import { RefreshCw, ListFilter, LayoutGrid, Server, Settings, Play, Plus, X, Trash2, UserPlus } from '@wso2/oxygen-ui-icons-react';
+import { RefreshCw, ListFilter, LayoutGrid, Server, Settings, Play, Plus, X, Trash2, UserPlus, Code, Sliders, Link, FileText } from '@wso2/oxygen-ui-icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
@@ -313,22 +313,22 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
             </>
           )}
           {showSourceButton && (
-            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Source')} sx={{ ml: 'auto' }}>
+            <Button variant="contained" size="small" startIcon={<Code size={14} />} onClick={() => onOpenDrawerTab('Source')} sx={{ ml: 'auto' }}>
               View Source
             </Button>
           )}
           {showParametersButton && (
-            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Parameters')} sx={{ ml: 'auto' }}>
+            <Button variant="contained" size="small" startIcon={<Sliders size={14} />} onClick={() => onOpenDrawerTab('Parameters')} sx={{ ml: showSourceButton ? 0 : 'auto' }}>
               View Parameters
             </Button>
           )}
           {showWsdlButton && (
-            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('Endpoints')} sx={{ ml: 'auto' }}>
+            <Button variant="contained" size="small" startIcon={<Link size={14} />} onClick={() => onOpenDrawerTab('Endpoints')} sx={{ ml: showSourceButton || showParametersButton ? 0 : 'auto' }}>
               View Endpoints
             </Button>
           )}
           {showWsdlButton && (
-            <Button variant="outlined" size="small" onClick={() => onOpenDrawerTab('WSDL')}>
+            <Button variant="contained" size="small" startIcon={<FileText size={14} />} onClick={() => onOpenDrawerTab('WSDL')}>
               View WSDL
             </Button>
           )}
