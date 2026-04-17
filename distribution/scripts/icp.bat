@@ -227,20 +227,40 @@ goto end
 
 :restartServer
 call :isRunning
-if not errorlevel 1 (
-    echo Stopping ICP Server ^(PID !SERVER_PID!^)
-    taskkill /PID !SERVER_PID! /T /F >nul 2>&1
-    del /f /q "!PID_FILE!" >nul 2>&1
-    set /a WAIT_COUNT=0
-    :restartWaitLoop
-    tasklist /FI "PID eq !SERVER_PID!" | find "!SERVER_PID!" >nul 2>&1
-    if errorlevel 1 goto startServer
-    set /a WAIT_COUNT+=1
-    if !WAIT_COUNT! GEQ 10 goto startServer
-    ping -n 2 127.0.0.1 >nul
-    goto restartWaitLoop
-)
+if errorlevel 1 goto startServer
+
+echo Stopping ICP Server ^(PID !SERVER_PID!^)
+taskkill /PID !SERVER_PID! /T >nul 2>&1
+set /a WAIT_COUNT=0
+
+:restartWaitLoop
+call :isRunning
+if errorlevel 1 goto restartCleanup
+set /a WAIT_COUNT+=1
+if !WAIT_COUNT! GEQ 10 goto forceRestartStop
+ping -n 2 127.0.0.1 >nul
+goto restartWaitLoop
+
+:forceRestartStop
+echo Graceful restart shutdown timed out; forcing stop
+taskkill /PID !SERVER_PID! /T /F >nul 2>&1
+set /a RESTART_FORCE_WAIT_COUNT=0
+
+:restartForceWaitLoop
+call :isRunning
+if errorlevel 1 goto restartCleanup
+set /a RESTART_FORCE_WAIT_COUNT+=1
+if !RESTART_FORCE_WAIT_COUNT! GEQ 10 goto restartFailed
+ping -n 2 127.0.0.1 >nul
+goto restartForceWaitLoop
+
+:restartCleanup
+if exist "!PID_FILE!" del /f /q "!PID_FILE!" >nul 2>&1
 goto startServer
+
+:restartFailed
+echo Failed to stop ICP Server for restart within the timeout window
+goto end
 
 :runServer
 call :prepareRun
