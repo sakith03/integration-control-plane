@@ -134,7 +134,7 @@ service /observability on openSerachObservabilityListener {
     }
 
     resource function post logs/[string componentType](@http:Header {name: "X-API-Key"} string? apiKeyHeader, http:Request request, types:LogEntryRequest logRequest) returns types:LogEntriesResponse|error {
-        log:printInfo("Received log request for component: " + logRequest.toString());
+        log:printDebug("Received log request for component: " + logRequest.toString());
 
         // Build OpenSearch query
         json query = buildLogQuery(logRequest);
@@ -254,7 +254,7 @@ service /observability on openSerachObservabilityListener {
         json[][] deduplicatedRows = deduplicateLogEntries(rows);
         int duplicatesRemoved = rows.length() - deduplicatedRows.length();
         if duplicatesRemoved > 0 {
-            log:printInfo(string `Removed ${duplicatesRemoved} duplicate log entries`);
+            log:printDebug(string `Removed ${duplicatesRemoved} duplicate log entries`);
         }
 
         // Trim internal deduplication fields before returning to client
@@ -270,7 +270,7 @@ service /observability on openSerachObservabilityListener {
             clientRows.push(clientRow);
         }
 
-        log:printInfo("Returning " + clientRows.length().toString() + " log entries");
+        log:printDebug("Returning " + clientRows.length().toString() + " log entries");
 
         return {
             columns: columns,
@@ -279,7 +279,7 @@ service /observability on openSerachObservabilityListener {
     }
 
     isolated resource function post metrics/[string componentType](@http:Header {name: "X-API-Key"} string? apiKeyHeader, http:Request request, types:MetricEntryRequest metricRequest) returns types:MetricEntriesResponse|error {
-        log:printInfo("Received metric request for component type " + componentType + ": " + metricRequest.toString());
+        log:printDebug("Received metric request for component type " + componentType + ": " + metricRequest.toString());
 
         if componentType == "BI" {
             return check fetchBIMetrics(metricRequest);
@@ -337,7 +337,7 @@ isolated function fetchBIMetrics(types:MetricEntryRequest metricRequest) returns
     json tagGroups = check aggregations.tag_groups;
     json[] buckets = check tagGroups.buckets.ensureType();
 
-    log:printInfo("BI metrics: Found " + buckets.length().toString() + " unique tag groups");
+    log:printDebug("BI metrics: Found " + buckets.length().toString() + " unique tag groups");
 
     // Process each tag group
     foreach json bucket in buckets {
@@ -446,7 +446,7 @@ isolated function fetchBIMetrics(types:MetricEntryRequest metricRequest) returns
         m.tags.hasKey("src_client_remote") && m.tags.get("src_client_remote") == "true");
     log:printDebug("BI Filtered metrics - Total: " + metrics.length().toString() + ", Inbound: " + inboundMetrics.length().toString() + ", Outbound: " + outboundMetrics.length().toString());
 
-    log:printInfo("Returning " + inboundMetrics.length().toString() + " BI inbound and " + outboundMetrics.length().toString() + " BI outbound metric entries");
+    log:printDebug("Returning " + inboundMetrics.length().toString() + " BI inbound and " + outboundMetrics.length().toString() + " BI outbound metric entries");
 
     return {
         inboundMetrics: inboundMetrics,
@@ -501,7 +501,7 @@ isolated function fetchMIMetrics(types:MetricEntryRequest metricRequest) returns
     json apiGroups = check aggregations.api_groups;
     json[] buckets = check apiGroups.buckets.ensureType();
 
-    log:printInfo("MI metrics: Found " + buckets.length().toString() + " unique API groups");
+    log:printDebug("MI metrics: Found " + buckets.length().toString() + " unique API groups");
 
     foreach json bucket in buckets {
         // Extract composite key fields as tags
@@ -655,7 +655,7 @@ isolated function fetchMIMetrics(types:MetricEntryRequest metricRequest) returns
         }
     }
 
-    log:printInfo("Returning " + inboundMetrics.length().toString() + " MI inbound metric entries");
+    log:printDebug("Returning " + inboundMetrics.length().toString() + " MI inbound metric entries");
 
     return {
         inboundMetrics: inboundMetrics,

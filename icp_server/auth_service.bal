@@ -2943,7 +2943,7 @@ service /auth on httpListener {
             string? integrationId = (),
             string? environmentId = ()
     ) returns http:Ok|http:BadRequest|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
-        log:printInfo("Fetching effective permissions for user",
+        log:printDebug("Fetching effective permissions for user",
                 orgHandle = orgHandle,
                 userId = userId,
                 projectId = projectId,
@@ -3007,7 +3007,7 @@ service /auth on httpListener {
         string[] permissionNames = from types:Permission p in permissions
             select p.permissionName;
 
-        log:printInfo(string `Successfully fetched ${permissions.length()} effective permissions for user`, userId = userId);
+        log:printDebug(string `Successfully fetched ${permissions.length()} effective permissions for user`, userId = userId);
         return <http:Ok>{
             body: {
                 userId: userId,

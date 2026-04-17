@@ -83,7 +83,7 @@ public isolated function reconcileFromHeartbeat(string runtimeId, string compone
 
         // Reconcile each artifact
         types:ControlCommand[] biCommands = [];
-        log:printInfo("Starting reconciliation from heartbeat", runtimeId = runtimeId,
+        log:printDebug("Starting reconciliation from heartbeat", runtimeId = runtimeId,
                 componentType = componentType, artifactCount = artifactKeys.length());
         foreach types:ReconcileArtifactKey ak in artifactKeys {
             if componentType == types:MI {

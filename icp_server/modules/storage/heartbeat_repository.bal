@@ -45,7 +45,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean pre
         if isNewRegistration {
             log:printInfo(string `Registered new runtime via heartbeat: ${runtimeId}`);
         } else {
-            log:printInfo(string `Updated runtime via heartbeat: ${runtimeId}`);
+            log:printDebug(string `Updated runtime via heartbeat: ${runtimeId}`);
         }
 
         // Insert all runtime artifacts
@@ -76,7 +76,7 @@ public isolated function processHeartbeat(types:Heartbeat heartbeat, boolean pre
             )
         `);
         check commit;
-        log:printInfo(string `Successfully processed ${action.toLowerAscii()} for runtime ${runtimeId} with ${totalArtifacts} total artifacts`);
+        log:printDebug(string `Successfully processed ${action.toLowerAscii()} for runtime ${runtimeId} with ${totalArtifacts} total artifacts`);
 
     } on fail error e {
         log:printError(string `Failed to process heartbeat for runtime ${runtimeId}`, e);
@@ -130,7 +130,7 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
     if hashCache.hasKey(runtimeId) {
         any|error cachedHash = hashCache.get(runtimeId);
         hashMatches = cachedHash is string && cachedHash == deltaHeartbeat.runtimeHash;
-        log:printInfo(string `Hash for runtime ${runtimeId} matches: ${hashMatches}`);
+        log:printDebug(string `Hash for runtime ${runtimeId} matches: ${hashMatches}`);
     }
 
     if !hashMatches {
@@ -199,7 +199,7 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
         }
 
         check commit;
-        log:printInfo(string `Successfully processed delta heartbeat for runtime ${runtimeId}`);
+        log:printDebug(string `Successfully processed delta heartbeat for runtime ${runtimeId}`);
 
     } on fail error e {
         log:printError(string `Failed to process delta heartbeat for runtime ${runtimeId}`, e);
@@ -207,7 +207,7 @@ public isolated function processDeltaHeartbeat(types:DeltaHeartbeat deltaHeartbe
     }
 
     if !runtimeExists {
-        log:printInfo(string `Runtime ${runtimeId} does not exist, requesting full heartbeat`);
+        log:printDebug(string `Runtime ${runtimeId} does not exist, requesting full heartbeat`);
     }
 
     return {
