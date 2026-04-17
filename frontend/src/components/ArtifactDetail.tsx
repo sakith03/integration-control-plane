@@ -135,7 +135,7 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
     paginatedArtifacts.forEach((a) => {
       const artifactType_ = a.type?.toString().toLowerCase() ?? '';
       let count = 0;
-      if (hasStateField) count++;
+      if (hasStateField) count += 2; // State chips need more space for text
       if (supportsToggle) count++;
       // Statistics: Endpoint, InboundEndpoint, Sequence, and Templates with type=sequence
       if (['Endpoint', 'InboundEndpoint', 'Sequence'].includes(artifactType) || (artifactType === 'Template' && artifactType_ === 'sequence')) count++;
@@ -147,8 +147,9 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
   })();
 
   // Calculate column sizes: use integers to avoid subpixel rendering
-  const toggleColumnSize = 1; // Each toggle gets 1 unit (integer)
-  const toggleColumnsSpace = maxToggleColumns * toggleColumnSize; // Total space for toggles
+  const stateChipSize = 2; // State chips need more space for text (Enabled/Disabled)
+  const toggleColumnSize = 1; // Each toggle switch gets 1 unit (integer)
+  const toggleColumnsSpace = maxToggleColumns; // Total space for toggles (already calculated with proper sizes)
   const dataColumnsSpace = 12 - toggleColumnsSpace; // Remaining space for data columns
   const dataColumnSize = Math.floor(dataColumnsSpace / columns.length); // Integer division
   // Calculate how many extra columns to distribute (remainder)
@@ -254,7 +255,7 @@ function SelectedTypeArtifacts({ artifacts, artifactType, envId, componentId, qu
                     );
                   })}
                   {hasStateField && (
-                    <Grid size={{ xs: toggleColumnSize }}>
+                    <Grid size={{ xs: stateChipSize }}>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                         State
                       </Typography>
