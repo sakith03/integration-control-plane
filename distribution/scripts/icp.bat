@@ -16,7 +16,7 @@ REM specific language governing permissions and limitations
 REM under the License.
 
 REM ICP Server Launcher Script
-REM Usage: icp.bat [start^|stop^|restart^|version]
+REM Usage: icp.bat [start^|stop^|restart^|run^|version]
 
 setlocal EnableDelayedExpansion
 set SCRIPT_DIR=%~dp0
@@ -70,6 +70,11 @@ if defined VERSION (
 for %%I in ("!PARENT_DIR!") do set DIST_NAME=%%~nxI
 if /I not "!DIST_NAME:wso2-integration-control-plane-=!"=="!DIST_NAME!" (
     set VERSION=!DIST_NAME:wso2-integration-control-plane-=!
+)
+if not defined VERSION if exist "!JAR_FILE!" if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" (
+    for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$jar = $env:JAR_FILE; Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead($jar); try { $entry = $zip.GetEntry('META-INF/MANIFEST.MF'); if ($entry) { $reader = New-Object System.IO.StreamReader($entry.Open()); try { $manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }; $version = [regex]::Match($manifest, '(?m)^Implementation-Version:\s*(.+)$').Groups[1].Value.Trim(); if (-not $version) { $version = [regex]::Match($manifest, '(?m)^Specification-Version:\s*(.+)$').Groups[1].Value.Trim() }; if ($version) { Write-Output $version } } } finally { $zip.Dispose() }"`) do (
+        set VERSION=%%V
+    )
 )
 if not defined VERSION set VERSION=unknown
 echo WSO2 Integration Control Plane !VERSION!
@@ -140,8 +145,9 @@ if errorlevel 1 goto end
 call :buildArgsJson %*
 set "ICP_JAR_FILE=!JAR_FILE!"
 set "ICP_LOG_FILE=!LOG_FILE!"
+set "ICP_ERR_LOG_FILE=!LOG_FILE!.err"
 set "ICP_SCRIPT_DIR=!SCRIPT_DIR!"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$jar = $env:ICP_JAR_FILE; $log = $env:ICP_LOG_FILE; $wd = $env:ICP_SCRIPT_DIR; $appArgs = @(); if ($env:ICP_APP_ARGS_JSON -and $env:ICP_APP_ARGS_JSON -ne '[]') { $appArgs = @(ConvertFrom-Json -InputObject $env:ICP_APP_ARGS_JSON) }; $javaArgs = @('-jar', $jar) + $appArgs; $p = Start-Process -FilePath 'java' -ArgumentList $javaArgs -WorkingDirectory $wd -RedirectStandardOutput $log -RedirectStandardError $log -PassThru -WindowStyle Hidden; $p.Id" > "!PID_FILE!"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$jar = $env:ICP_JAR_FILE; $log = $env:ICP_LOG_FILE; $errLog = $env:ICP_ERR_LOG_FILE; $wd = $env:ICP_SCRIPT_DIR; $appArgs = @(); if ($env:ICP_APP_ARGS_JSON -and $env:ICP_APP_ARGS_JSON -ne '[]') { $appArgs = @(ConvertFrom-Json -InputObject $env:ICP_APP_ARGS_JSON) }; $javaArgs = @('-jar', $jar) + $appArgs; $p = Start-Process -FilePath 'java' -ArgumentList $javaArgs -WorkingDirectory $wd -RedirectStandardOutput $log -RedirectStandardError $errLog -PassThru -WindowStyle Hidden; $p.Id" > "!PID_FILE!"
 set /p SERVER_PID=<"!PID_FILE!"
 if not defined SERVER_PID (
     echo Failed to start ICP Server
@@ -149,7 +155,8 @@ if not defined SERVER_PID (
     goto end
 )
 echo ICP Server started with PID !SERVER_PID!
-echo Logs are available at !LOG_FILE!
+echo Stdout log: !LOG_FILE!
+echo Stderr log: !ICP_ERR_LOG_FILE!
 goto end
 
 :stopServer
