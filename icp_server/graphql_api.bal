@@ -2717,13 +2717,7 @@ service /graphql on graphqlListener {
             string? packageName = (),
             string? templateType = ()
     ) returns string|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        // Extract user context for RBAC
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         // Get component to verify access
         types:Component? component = check storage:getComponentById(componentId);
@@ -2791,13 +2785,7 @@ service /graphql on graphqlListener {
             string? runtimeId = (),
             string? packageName = ()
     ) returns string|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        // Extract user context for RBAC
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         // Get component to verify access
         types:Component? component = check storage:getComponentById(componentId);
@@ -2885,13 +2873,7 @@ service /graphql on graphqlListener {
             string? environmentId = (),
             string? runtimeId = ()
     ) returns string|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        // Extract user context for RBAC
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         // Get component to verify access
         types:Component? component = check storage:getComponentById(componentId);
@@ -2954,13 +2936,7 @@ service /graphql on graphqlListener {
             string? runtimeId = (),
             string? packageName = ()
         ) returns types:Parameter[]|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        // Extract user context for RBAC
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         // Get component to verify access
         types:Component? component = check storage:getComponentById(componentId);
@@ -3060,12 +3036,7 @@ service /graphql on graphqlListener {
             string? environmentId = (),
             string? runtimeId = ()
         ) returns types:Parameter[]|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Component? component = check storage:getComponentById(componentId);
         if component is () {
@@ -3138,12 +3109,7 @@ service /graphql on graphqlListener {
             string? environmentId = (),
             string? runtimeId = ()
         ) returns types:Parameter[]|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Component? component = check storage:getComponentById(componentId);
         if component is () {
@@ -3204,12 +3170,7 @@ service /graphql on graphqlListener {
             string? environmentId = (),
             string? runtimeId = ()
         ) returns types:Parameter[]|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Component? component = check storage:getComponentById(componentId);
         if component is () {
@@ -3270,12 +3231,7 @@ service /graphql on graphqlListener {
             string? environmentId = (),
             string? runtimeId = ()
         ) returns types:MgmtDataServiceInfo|error {
-        value:Cloneable|error|isolated object {} authHeader = context.get("Authorization");
-        if authHeader !is string {
-            return error("Authorization header missing in request");
-        }
-
-        types:UserContextV2 userContext = check auth:extractUserContextV2(authHeader);
+        types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Component? component = check storage:getComponentById(componentId);
         if component is () {

@@ -27,9 +27,9 @@ configurable string serverHost = "0.0.0.0";
 configurable string organization = "WSO2 Inc.";
 
 configurable string keystorePath = check file:joinPath("..", "conf", "security", "wso2carbon.jks");
-configurable string keystorePassword = "wso2carbon";
+configurable string keystorePassword;
 configurable string truststorePath = check file:joinPath("..", "conf", "security", "client-truststore.jks");
-configurable string truststorePassword = "wso2carbon";
+configurable string truststorePassword;
 
 configurable int schedulerIntervalSeconds = 600;
 configurable int refreshTokenCleanupIntervalSeconds = 86400; // 24 hours (in seconds)
@@ -41,12 +41,12 @@ configurable string publicCertFile = "./resources/keys/public.cert";
 configurable decimal jwtClockSkewSeconds = 10;
 
 // Frontend auth configuration (frontend and server communication)
-configurable string frontendJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
+configurable string frontendJwtHMACSecret;
 configurable string frontendJwtIssuer = "icp-frontend-jwt-issuer";
 configurable string frontendJwtAudience = "icp-server";
 
 // Backend auth configuration (server and user service communication)
-configurable string userServiceJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
+configurable string userServiceJwtHMACSecret;
 configurable string userServiceJwtIssuer = "icp-user-service-jwt-issuer";
 configurable string userServiceJwtAudience = "icp-user-service-jwt-audience";
 configurable decimal userServiceJwtClockSkewSeconds = 0;
@@ -87,7 +87,7 @@ configurable boolean enableMetrics = true;
 
 // Observability Adapter configuration
 configurable string observabilityBackendURL = "https://localhost:" + defaultOpensearchAdaptorPort.toString();
-configurable string observabilityJwtHMACSecret = "default-secret-key-at-least-32-characters-long-for-hs256";
+configurable string observabilityJwtHMACSecret;
 configurable string observabilityTruststorePassword = truststorePassword;
 configurable ObservabilityJwtConfig observabilityJwt = {};
 configurable ObservabilitySecureSocketConfig observabilitySecureSocket = {};
@@ -96,7 +96,7 @@ configurable ObservabilityClientConfig observabilityClient = {};
 // OpenSearch configuration
 configurable string opensearchUrl = "https://localhost:9200";
 configurable string opensearchUsername = "admin";
-configurable string opensearchPassword = "Ballerina@123";
+configurable string opensearchPassword;
 
 // If true, HTTPS certificate validation will be disabled for calls to the icp artifacts API.
 // Keep this true for local/self-signed certs; set to false in production with a proper truststore.
