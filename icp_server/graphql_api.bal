@@ -2734,7 +2734,7 @@ service /graphql on graphqlListener {
         // Verify user has the permisions
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
         if !check auth:hasAnyPermission(userContext.userId,
-                ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+                [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
@@ -2808,7 +2808,7 @@ service /graphql on graphqlListener {
         // Verify user has the permissions
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
         if !check auth:hasAnyPermission(userContext.userId,
-                ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+                [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
@@ -2902,7 +2902,7 @@ service /graphql on graphqlListener {
         // Verify user has the permissions
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
         if !check auth:hasAnyPermission(userContext.userId,
-                ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+                [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
@@ -2970,7 +2970,7 @@ service /graphql on graphqlListener {
 
         // Verify user has the permissions
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
-        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+        if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
@@ -3073,7 +3073,7 @@ service /graphql on graphqlListener {
         }
 
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
-        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+        if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
@@ -3151,7 +3151,7 @@ service /graphql on graphqlListener {
         }
 
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
-        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+        if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
@@ -3217,7 +3217,7 @@ service /graphql on graphqlListener {
         }
 
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
-        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+        if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
@@ -3283,7 +3283,7 @@ service /graphql on graphqlListener {
         }
 
         types:AccessScope scope = auth:buildScopeFromContext(component.projectId, integrationId = componentId, envId = environmentId);
-        if !check auth:hasAnyPermission(userContext.userId, ["integration_mgt:view", "integration_mgt:edit", "integration_mgt:manage"], scope) {
+        if !check auth:hasAnyPermission(userContext.userId, [auth:PERMISSION_INTEGRATION_VIEW, auth:PERMISSION_INTEGRATION_EDIT, auth:PERMISSION_INTEGRATION_MANAGE], scope) {
             return error("Insufficient permissions to view component artifacts");
         }
 
