@@ -1656,7 +1656,7 @@ service /auth on httpListener {
         // Extract user context for granular permission checks
         types:UserContextV2|error userContext = extractUserContextFromRequest(req);
         if userContext is error {
-            log:printError("Failed to extract user context for token revocation", userContext);
+            log:printError("Failed to extract user context for role removal from group", userContext);
             return utils:createUnauthorizedError("Invalid or missing authentication token");
         }
 

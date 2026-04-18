@@ -500,12 +500,17 @@ isolated function forceUpdateUserPasswordInDb(string userId, string newPasswordH
 }
 
 isolated function generateRandomPassword() returns string {
-    // Generate a random 12-character password using two UUIDs
-    string id1 = uuid:createRandomUuid();
-    string id2 = uuid:createRandomUuid();
-    // Take first 6 chars from each UUID (skipping hyphens) for a 12-char password
-    string chars = id1.substring(0, 8) + id2.substring(0, 4);
-    return chars;
+    // Generate a 12-character password from a full alphanumeric charset
+    // This gives ~71 bits of entropy vs ~40 bits from UUID hex substrings
+    string charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    int charsetLen = charset.length();
+    byte[] randomBytes = crypto:getRandomBytes(12);
+    string password = "";
+    foreach byte b in randomBytes {
+        int index = (<int>b & 0xFF) % charsetLen;
+        password += charset.substring(index, index + 1);
+    }
+    return password;
 }
 
 // hashWithDigest computes Base64(digest(password+salt)) matching the v1 JDBCUserStoreManager
