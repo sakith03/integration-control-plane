@@ -101,7 +101,7 @@ public isolated function getEnvironmentsByIds(string[] environmentIds) returns t
             });
         };
 
-    log:printInfo("Retrieved environments by IDs", environmentCount = environments.length());
+    log:printDebug("Retrieved environments by IDs", environmentCount = environments.length());
 
     return environments;
 }
@@ -140,7 +140,7 @@ public isolated function getAllEnvironments() returns types:Environment[]|error 
             });
         };
 
-    log:printInfo("Retrieved all environments", environmentCount = environments.length());
+    log:printDebug("Retrieved all environments", environmentCount = environments.length());
 
     return environments;
 }
@@ -173,7 +173,7 @@ public isolated function getEnvironmentIdsByTypes(boolean hasProdAccess, boolean
             environmentIds.push(env.environment_id);
         };
 
-    log:printInfo("Retrieved environment IDs by types", environmentCount = environmentIds.length());
+    log:printDebug("Retrieved environment IDs by types", environmentCount = environmentIds.length());
 
     return environmentIds;
 }
@@ -329,7 +329,12 @@ public isolated function updateEnvironmentProductionStatus(string environmentId,
 
 // Delete an environment by ID
 public isolated function deleteEnvironment(string environmentId) returns error? {
-    sql:ParameterizedQuery deleteQuery = `DELETE FROM environments WHERE environment_id = ${environmentId}`;
+    // Single-statement conditional delete to avoid TOCTOU between runtime check and delete.
+    sql:ParameterizedQuery deleteQuery = `DELETE FROM environments
+                                         WHERE environment_id = ${environmentId}
+                                           AND NOT EXISTS (
+                                               SELECT 1 FROM runtimes WHERE environment_id = ${environmentId}
+                                           )`;
     var result = dbClient->execute(deleteQuery);
     if result is sql:Error {
         log:printError(string `Failed to delete environment ${environmentId}`, 'error = result);
@@ -342,6 +347,27 @@ public isolated function deleteEnvironment(string environmentId) returns error? 
             }
         }
     }
+
+    if (result.affectedRowCount ?: 0) == 0 {
+        // No row deleted means runtimes exist, or the environment was concurrently removed.
+        stream<record {|int runtimeCount;|}, sql:Error?> runtimeCountStream = dbClient->query(
+            `SELECT COUNT(*) as runtimeCount FROM runtimes WHERE environment_id = ${environmentId}`
+        );
+
+        int runtimeCount = 0;
+        check from record {|int runtimeCount;|} countRecord in runtimeCountStream
+            do {
+                runtimeCount = countRecord.runtimeCount;
+            };
+
+        if runtimeCount > 0 {
+            log:printWarn(string `Cannot delete environment ${environmentId}: ${runtimeCount} runtime(s) still active`);
+            return error(string `Cannot delete environment: ${runtimeCount} registered runtime(s) found. Please delete all runtimes before deleting.`);
+        }
+
+        return error("Environment not found");
+    }
+
     log:printInfo(string `Successfully deleted environment ${environmentId}`);
     return ();
 }
@@ -445,7 +471,7 @@ public isolated function checkEnvironmentHandlerAvailability(string environmentH
         }
     }
 
-    log:printInfo(string `Environment handler availability check completed`,
+    log:printDebug(string `Environment handler availability check completed`,
             environmentHandlerCandidate = environmentHandlerCandidate,
             isHandlerUnique = isHandlerUnique,
             alternateCandidate = alternateCandidate);
@@ -472,6 +498,6 @@ public isolated function getEnvironmentIdsWithRuntimes(string componentId) retur
             environmentIds.push(envRecord.environment_Id);
         };
 
-    log:printInfo(string `Component ${componentId} has runtimes in ${environmentIds.length()} environments`);
+    log:printDebug(string `Component ${componentId} has runtimes in ${environmentIds.length()} environments`);
     return environmentIds;
 }

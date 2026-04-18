@@ -63,7 +63,7 @@ isolated function fetchMILoggersByRuntime(string runtimeId, types:Runtime runtim
     // Build management API base URL
     string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
-    log:printInfo("Fetching loggers from MI runtime management API",
+    log:printDebug("Fetching loggers from MI runtime management API",
             runtimeId = runtimeId,
             managementUrl = baseUrl);
 
@@ -83,7 +83,7 @@ isolated function fetchMILoggersByRuntime(string runtimeId, types:Runtime runtim
     log:printDebug("Fetching loggers via MI management API", runtimeId = runtimeId, managementUrl = baseUrl);
     types:MgmtLoggersResponse loggersResponse = check mi_management:fetchLoggers(mgmtClientResult, hmacToken);
 
-    log:printInfo("Successfully fetched loggers from MI management API",
+    log:printDebug("Successfully fetched loggers from MI management API",
             runtimeId = runtimeId,
             managementUrl = baseUrl,
             loggerCount = loggersResponse.count);
@@ -152,7 +152,7 @@ isolated function contextInit(http:RequestContext reqCtx, http:Request request) 
 
 // Helper function to fetch BI loggers from database
 isolated function fetchBILoggersByRuntime(string runtimeId) returns types:Logger[]|error {
-    log:printInfo("Fetching loggers from BI runtime database", runtimeId = runtimeId);
+    log:printDebug("Fetching loggers from BI runtime database", runtimeId = runtimeId);
 
     // Get log levels for runtime from database
     types:RuntimeLogLevelRecord[] logLevels = check storage:getLogLevelsForRuntime(runtimeId);
@@ -167,7 +167,7 @@ isolated function fetchBILoggersByRuntime(string runtimeId) returns types:Logger
         });
     }
 
-    log:printInfo("Successfully fetched loggers from BI runtime database",
+    log:printDebug("Successfully fetched loggers from BI runtime database",
             runtimeId = runtimeId,
             loggerCount = loggers.length());
 
@@ -176,7 +176,7 @@ isolated function fetchBILoggersByRuntime(string runtimeId) returns types:Logger
 
 // Helper function to fetch MI loggers from management API for environment and component
 isolated function fetchMILoggersByEnvironmentAndComponent(string environmentId, string componentId, string projectId) returns types:LoggerGroup[]|error {
-    log:printInfo("Fetching loggers from MI management API for environment and component",
+    log:printDebug("Fetching loggers from MI management API for environment and component",
             environmentId = environmentId,
             componentId = componentId);
 
@@ -264,7 +264,7 @@ isolated function fetchMILoggersByEnvironmentAndComponent(string environmentId, 
     // Convert map to array
     types:LoggerGroup[] loggerGroups = loggerGroupMap.toArray();
 
-    log:printInfo("Successfully fetched and grouped MI loggers from multiple runtimes",
+    log:printDebug("Successfully fetched and grouped MI loggers from multiple runtimes",
             environmentId = environmentId,
             componentId = componentId,
             runtimeCount = runtimes.length(),
@@ -1943,7 +1943,7 @@ service /graphql on graphqlListener {
 
     // Get a specific environment by handler
     isolated resource function get environmentByHandler(graphql:Context context, string environmentHandler) returns types:Environment?|error {
-        log:printInfo("Fetching environment by handler", environmentHandler = environmentHandler);
+        log:printDebug("Fetching environment by handler", environmentHandler = environmentHandler);
         types:UserContextV2 userContext = check extractUserContext(context);
 
         types:Environment|error env = storage:getEnvironmentByHandler(environmentHandler);
@@ -1983,7 +1983,7 @@ service /graphql on graphqlListener {
             return (); // No access - return null
         }
 
-        log:printInfo("Successfully retrieved environment", environmentId = env.id, environmentHandler = environmentHandler);
+        log:printDebug("Successfully retrieved environment", environmentId = env.id, environmentHandler = environmentHandler);
         return env;
     }
 
@@ -2063,7 +2063,7 @@ service /graphql on graphqlListener {
 
     // Get a specific project by handler (orgId is required for this lookup)
     isolated resource function get projectByHandler(graphql:Context context, int orgId, string projectHandler) returns types:Project?|error {
-        log:printInfo("Fetching project by handler", orgId = orgId, projectHandler = projectHandler);
+        log:printDebug("Fetching project by handler", orgId = orgId, projectHandler = projectHandler);
         types:UserContextV2 userContext = check extractUserContext(context);
         string|error projectId = storage:getProjectIdByHandler(projectHandler, orgId);
         if projectId is error {
@@ -2077,7 +2077,7 @@ service /graphql on graphqlListener {
             log:printWarn("Attempt to access project without permission", userId = userContext.userId, projectId = projectId);
             return (); // No access - return null (404 pattern for queries)
         }
-        log:printInfo("Successfully retrieved project", projectId = projectId);
+        log:printDebug("Successfully retrieved project", projectId = projectId);
         return check storage:getProjectById(projectId);
     }
 
@@ -2745,7 +2745,7 @@ service /graphql on graphqlListener {
         // Build management API base URL
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
-        log:printInfo("Fetching artifact from runtime management API",
+        log:printDebug("Fetching artifact from runtime management API",
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 artifactType = artifactType,
@@ -2772,7 +2772,7 @@ service /graphql on graphqlListener {
         string artifactDetails = check mi_management:getArtifactSource(
                 mgmtClientResult, hmacToken, artifactType, artifactName, packageName, templateType);
 
-        log:printInfo("Successfully fetched artifact details from MI management API",
+        log:printDebug("Successfully fetched artifact details from MI management API",
                 runtimeId = runtime.runtimeId,
                 artifactType = artifactType,
                 artifactName = artifactName,
@@ -2825,7 +2825,7 @@ service /graphql on graphqlListener {
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
         // Normalize artifact type
-        log:printInfo("Fetching artifact WSDL via MI management API",
+        log:printDebug("Fetching artifact WSDL via MI management API",
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 artifactType = artifactType,
@@ -2869,7 +2869,7 @@ service /graphql on graphqlListener {
         }
         string wsdlXml = check mi_management:fetchWsdlContent(wsdlUrl, trustedHost, artifactsApiAllowInsecureTLS);
 
-        log:printInfo("Successfully fetched artifact WSDL via MI management API",
+        log:printDebug("Successfully fetched artifact WSDL via MI management API",
                 runtimeId = runtime.runtimeId,
                 artifactType = artifactType,
                 artifactName = artifactName,
@@ -2916,7 +2916,7 @@ service /graphql on graphqlListener {
         // Build management API base URL
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
-        log:printInfo("Fetching local entry info via MI management API",
+        log:printDebug("Fetching local entry info via MI management API",
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 entryName = entryName);
@@ -2936,7 +2936,7 @@ service /graphql on graphqlListener {
 
         // Fetch local entry info via MI Management API (/management/local-entries?name=...)
         types:MgmtLocalEntryInfo entryInfo = check mi_management:fetchLocalEntryArtifact(mgmtClient, hmacToken, entryName);
-        log:printInfo("Successfully fetched local entry info from MI management API",
+        log:printDebug("Successfully fetched local entry info from MI management API",
                 runtimeId = runtime.runtimeId,
                 entryName = entryInfo.name,
                 entryType = entryInfo.'type);
@@ -2983,7 +2983,7 @@ service /graphql on graphqlListener {
         // Select runtime using shared helper
         types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
 
-        log:printInfo("Fetching artifact parameters via MI management API",
+        log:printDebug("Fetching artifact parameters via MI management API",
                 runtimeId = runtime.runtimeId,
                 artifactType = artifactType,
                 artifactName = artifactName);
@@ -3042,7 +3042,7 @@ service /graphql on graphqlListener {
         }
         // Add more artifact types here as needed
 
-        log:printInfo("Successfully fetched artifact parameters from MI management API",
+        log:printDebug("Successfully fetched artifact parameters from MI management API",
                 runtimeId = runtime.runtimeId,
                 artifactType = artifactType,
                 artifactName = artifactName,
@@ -3085,7 +3085,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
-        log:printInfo("Fetching data source overview via MI management API",
+        log:printDebug("Fetching data source overview via MI management API",
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 dataSourceName = dataSourceName);
@@ -3122,7 +3122,7 @@ service /graphql on graphqlListener {
             result.push({name: "url", value: <string>overview.url});
         }
 
-        log:printInfo("Successfully fetched data source overview from MI management API",
+        log:printDebug("Successfully fetched data source overview from MI management API",
                 runtimeId = runtime.runtimeId,
                 dataSourceName = dataSourceName,
                 totalParamCount = result.length());
@@ -3163,7 +3163,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
-        log:printInfo("Fetching message store overview via MI management API",
+        log:printDebug("Fetching message store overview via MI management API",
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 storeName = storeName);
@@ -3229,7 +3229,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
-        log:printInfo("Fetching message processor overview via MI management API",
+        log:printDebug("Fetching message processor overview via MI management API",
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 processorName = processorName);
@@ -3295,7 +3295,7 @@ service /graphql on graphqlListener {
         types:Runtime runtime = check utils:selectRuntime(runtimes, componentId, environmentId, runtimeId);
         string baseUrl = check storage:buildManagementBaseUrl(runtime.managementHostname, runtime.managementPort);
 
-        log:printInfo("Fetching data service overview via MI management API",
+        log:printDebug("Fetching data service overview via MI management API",
                 runtimeId = runtime.runtimeId,
                 managementUrl = baseUrl,
                 dataServiceName = dataServiceName);
@@ -3344,7 +3344,7 @@ service /graphql on graphqlListener {
         }
 
         string bearerToken = check storage:issueRuntimeHmacToken(runtimeId);
-        log:printInfo("Fetching MI users from runtime management API", runtimeId = runtimeId);
+        log:printDebug("Fetching MI users from runtime management API", runtimeId = runtimeId);
 
         http:Response|error listResponse = mgmtClient->get("/management/users", {
             "Authorization": string `Bearer ${bearerToken}`,
@@ -3399,7 +3399,7 @@ service /graphql on graphqlListener {
             enrichedUsers.push({username: userIdStr, isAdmin});
         }
 
-        log:printInfo("Successfully fetched MI users from runtime", runtimeId = runtimeId, userCount = enrichedUsers.length());
+        log:printDebug("Successfully fetched MI users from runtime", runtimeId = runtimeId, userCount = enrichedUsers.length());
         return {users: enrichedUsers};
     }
 

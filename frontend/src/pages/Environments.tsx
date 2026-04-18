@@ -64,19 +64,27 @@ function formatErrorMessage(error: Error, action: 'create' | 'update' | 'delete'
 
 function DeleteDialog({ env, onClose, onSuccess, onError }: { env: GqlEnvironment; onClose: () => void; onSuccess: (name: string) => void; onError: (error: Error) => void }) {
   const [confirm, setConfirm] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const mutation = useDeleteEnvironment();
 
-  const doDelete = () =>
+  const doDelete = () => {
+    setDeleteError(null);
     mutation.mutate(env.id, {
       onSuccess: () => {
         onClose();
         onSuccess(env.name);
       },
       onError: (error) => {
-        onClose();
-        onError(error);
+        const message = error.message || '';
+        if (message.toLowerCase().includes('runtime')) {
+          setDeleteError(message);
+        } else {
+          onClose();
+          onError(error);
+        }
       },
     });
+  };
 
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
@@ -89,9 +97,15 @@ function DeleteDialog({ env, onClose, onSuccess, onError }: { env: GqlEnvironmen
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           This action is irreversible and will permanently remove all active integrations from this environment (including other configurations and data associated with this environment).
         </Typography>
-        <Alert severity="warning" icon={<AlertTriangle size={20} />} sx={{ mb: 2 }}>
-          Deleting the environment will remove control plane data and may cause data inconsistencies.
-        </Alert>
+        {deleteError ? (
+          <Alert severity="error" icon={<AlertTriangle size={20} />} sx={{ mb: 2 }} onClose={() => setDeleteError(null)}>
+            {deleteError}
+          </Alert>
+        ) : (
+          <Alert severity="warning" icon={<AlertTriangle size={20} />} sx={{ mb: 2 }}>
+            Deleting the environment will remove control plane data and may cause data inconsistencies.
+          </Alert>
+        )}
         <Typography variant="body2" sx={{ mb: 1 }}>
           Type the environment name to confirm
         </Typography>

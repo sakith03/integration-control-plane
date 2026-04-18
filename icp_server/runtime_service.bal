@@ -184,7 +184,7 @@ service /icp on runtimeListener {
                 heartbeatResponse.commands = reconcileCommands;
             }
 
-            log:printInfo(string `Heartbeat processed for runtime=${runtimeId}, kid=${kid}`);
+            log:printDebug(string `Heartbeat processed for runtime=${runtimeId}, kid=${kid}`);
             return heartbeatResponse;
 
         } on fail error e {
@@ -231,7 +231,7 @@ service /icp on runtimeListener {
 
             // Unbound key — delta has no component/environment info to bind with
             if orgSecret.componentId is () {
-                log:printInfo(string `Delta heartbeat: kid=${kid} is unbound, requesting full heartbeat from runtime=${runtimeId}`);
+                log:printDebug(string `Delta heartbeat: kid=${kid} is unbound, requesting full heartbeat from runtime=${runtimeId}`);
                 return <types:HeartbeatResponse>{acknowledged: false, fullHeartbeatRequired: true, commands: []};
             }
 
@@ -251,7 +251,7 @@ service /icp on runtimeListener {
                 }
             }
 
-            log:printInfo(string `Delta heartbeat processed for runtime=${runtimeId}, kid=${kid}`);
+            log:printDebug(string `Delta heartbeat processed for runtime=${runtimeId}, kid=${kid}`);
             return heartbeatResponse;
 
         } on fail error e {
