@@ -1896,20 +1896,20 @@ service /graphql on graphqlListener {
         // Build org-level scope for permission check
         types:AccessScope scope = {orgUuid: storage:DEFAULT_ORG_ID};
 
-        // If changing critical flag, check permission for the target state
-        // Otherwise, check permission for the current state
+        // If either the current or target state is critical, require full management permission.
+        // This prevents a non-prod manager from downgrading a production environment.
         boolean targetIsCritical = critical ?: currentEnv.critical;
+        boolean requiresFullPermission = currentEnv.critical || targetIsCritical;
 
-        if targetIsCritical {
-            // Production environment requires full management permission
+        if requiresFullPermission {
+            // Production environment (current or target) requires full management permission
             if !check auth:hasPermission(userContext.userId, auth:PERMISSION_ENVIRONMENT_MANAGE, scope) {
                 return error("Access denied: insufficient permissions to update production environments");
             }
         } else {
             // Non-production environment requires manage_nonprod or manage permission
-            boolean canManageNonProd = check auth:hasPermission(userContext.userId, auth:PERMISSION_ENVIRONMENT_MANAGE_NONPROD, scope);
-            boolean canManageFull = check auth:hasPermission(userContext.userId, auth:PERMISSION_ENVIRONMENT_MANAGE, scope);
-            if !canManageNonProd && !canManageFull {
+            if !check auth:hasAnyPermission(userContext.userId,
+                    [auth:PERMISSION_ENVIRONMENT_MANAGE_NONPROD, auth:PERMISSION_ENVIRONMENT_MANAGE], scope) {
                 return error("Access denied: insufficient permissions to update environments");
             }
         }
