@@ -296,9 +296,12 @@ service /auth on httpListener {
 
                 json|error? createResult = storage:createUserV2(userInfo.userId, userInfo.username, userInfo.displayName, [], isOidcUser = true);
                 if createResult is error {
-                    log:printError("Error creating OIDC user in database", createResult,
-                            username = userInfo.username);
-                    return utils:createInternalServerError("Error creating user record");
+                    if !createResult.message().includes("already exists") {
+                        log:printError("Error creating OIDC user in database", createResult,
+                                username = userInfo.username);
+                        return utils:createInternalServerError("Error creating user record");
+                    }
+                    log:printInfo("Concurrent OIDC first-login detected; re-fetching existing user record", username = userInfo.username);
                 }
 
                 // Fetch the newly created user details
