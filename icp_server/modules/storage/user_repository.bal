@@ -64,7 +64,7 @@ public isolated function getUserWithGroupsById(string userId) returns json|error
         updatedAt: user?.updatedAt
     };
 
-    log:printInfo(string `Successfully fetched user ${user.username} with group memberships`);
+    log:printDebug(string `Successfully fetched user ${user.username} with group memberships`);
     return userWithGroups;
 }
 
@@ -98,7 +98,7 @@ public isolated function getAllUsersV2() returns json[]|error {
             updatedAt: user?.updatedAt
         };
 
-    log:printInfo(string `Successfully fetched ${usersWithGroups.length()} users with group memberships`);
+    log:printDebug(string `Successfully fetched ${usersWithGroups.length()} users with group memberships`);
     return usersWithGroups;
 }
 

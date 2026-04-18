@@ -385,73 +385,6 @@ service /auth on httpListener {
         };
     }
 
-    // Token renewal endpoint - regenerates JWT with current user roles (without requiring refresh token)
-    // Used when user's permissions change (e.g., after creating a project or role updates)
-    @http:ResourceConfig {
-        auth: [
-            {
-                jwtValidatorConfig: {
-                    issuer: frontendJwtIssuer,
-                    audience: frontendJwtAudience,
-                    signatureConfig: {
-                        secret: resolvedFrontendJwtHMACSecret
-                    }
-                }
-            }
-        ]
-    }
-    isolated resource function post 'renew\-token(http:Request req) returns http:Ok|http:Unauthorized|http:InternalServerError {
-        log:printInfo("Token renewal requested");
-
-        // Extract user context from current token (V2)
-        types:UserContextV2|error userContext = extractUserContextFromRequest(req);
-        if userContext is error {
-            log:printError("Failed to extract user context for token renewal", userContext);
-            return utils:createUnauthorizedError("Invalid authorization token");
-        }
-
-        // Fetch latest user details from database
-        types:User|error userDetails = storage:getUserDetailsById(userContext.userId);
-        if userDetails is error {
-            log:printError("Error fetching user details for token renewal", userDetails, userId = userContext.userId);
-            return utils:createInternalServerError("Failed to fetch user details");
-        }
-
-        // Generate JWT token using V2 utility function with fresh permissions
-        string|error jwtToken = auth:generateJWTTokenV2(
-                userDetails.userId,
-                userDetails.username,
-                userDetails.displayName,
-                frontendJwtIssuer,
-                defaultTokenExpiryTime,
-                frontendJwtAudience,
-                jwtSignatureConfig
-        );
-
-        if jwtToken is error {
-            log:printError("Error generating renewed JWT token", jwtToken);
-            return utils:createInternalServerError("Error generating JWT token");
-        }
-
-        // Get user permissions for response
-        string[]|error userPermissions = auth:getUserPermissionNames(userDetails.userId);
-        if userPermissions is error {
-            log:printError("Error getting user permissions for token renewal", userPermissions, userId = userDetails.userId);
-            return utils:createInternalServerError("Error getting user permissions");
-        }
-
-        log:printInfo("Token renewed successfully", username = userDetails.username, permissionCount = userPermissions.length());
-        return <http:Ok>{
-            body: {
-                token: jwtToken,
-                expiresIn: defaultTokenExpiryTime,
-                username: userDetails.username,
-                displayName: userDetails.displayName,
-                permissions: userPermissions
-            }
-        };
-    }
-
     // Change password endpoint - proxies to auth backend
     // Requires JWT authentication to identify the user
     @http:ResourceConfig {
@@ -3010,7 +2943,7 @@ service /auth on httpListener {
             string? integrationId = (),
             string? environmentId = ()
     ) returns http:Ok|http:BadRequest|http:Unauthorized|http:Forbidden|http:InternalServerError|error {
-        log:printInfo("Fetching effective permissions for user",
+        log:printDebug("Fetching effective permissions for user",
                 orgHandle = orgHandle,
                 userId = userId,
                 projectId = projectId,
@@ -3074,7 +3007,7 @@ service /auth on httpListener {
         string[] permissionNames = from types:Permission p in permissions
             select p.permissionName;
 
-        log:printInfo(string `Successfully fetched ${permissions.length()} effective permissions for user`, userId = userId);
+        log:printDebug(string `Successfully fetched ${permissions.length()} effective permissions for user`, userId = userId);
         return <http:Ok>{
             body: {
                 userId: userId,
