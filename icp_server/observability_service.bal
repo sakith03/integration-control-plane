@@ -182,6 +182,7 @@ service /icp/observability on httpListener {
                                                          });
 
         types:UserContextV2 userContext = check extractUserFromObservabilityRequest(request);
+        log:printInfo("Processing logs request", userId = userContext.userId);
         runtimeIdList = check filterRuntimeIdsForUser(userContext.userId, runtimeIdList);
 
         // If component/environment filters were provided but no runtimes found, return empty result
