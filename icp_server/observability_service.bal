@@ -133,6 +133,7 @@ isolated function extractUserFromObservabilityRequest(http:Request request) retu
 
 // Restrict resolved runtimes to those the user may access (integration + environment scope).
 isolated function filterRuntimeIdsForUser(string userId, string[] runtimeIds) returns string[]|error {
+    log:printDebug("Filtering runtime IDs for user", userId = userId, runtimeCount = runtimeIds.length());
     string[] filtered = [];
     foreach string rid in runtimeIds {
         boolean|error allowed = storage:hasAccessToRuntime(userId, rid);
