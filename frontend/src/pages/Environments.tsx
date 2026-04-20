@@ -178,7 +178,7 @@ export default function Environments(scope: OrgScope | ProjectScope): JSX.Elemen
               actions={
                 <Authorized permissions={Permissions.ENVIRONMENT_MANAGE}>
                   <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(newEnvironmentUrl(scope))}>
-                    Create
+                    Create Environment
                   </Button>
                 </Authorized>
               }

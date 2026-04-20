@@ -78,7 +78,19 @@ export default function Login(): JSX.Element {
               mt: 2,
               width: '100%',
             }}>
-            <img src={`${base}assets/images/icp-login.svg`} alt="ICP Login Illustration" style={{ maxWidth: '90%', maxHeight: '280px', objectFit: 'contain' }} />
+            <ColorSchemeImage
+              src={{
+                light: `${base}assets/images/icp-login.svg`,
+                dark: `${base}assets/images/icp-login-dark.svg`,
+              }}
+              alt={{
+                light: 'ICP Login Illustration',
+                dark: 'ICP Login Illustration',
+              }}
+              height={280}
+              width="auto"
+              style={{ maxWidth: '90%', maxHeight: '280px', objectFit: 'contain' }}
+            />
           </Box>
         </Grid>
 

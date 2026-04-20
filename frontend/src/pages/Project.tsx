@@ -78,7 +78,7 @@ function IntegrationsTable({
         <SearchField value={query} onChange={setQuery} placeholder="Search" sx={{ flex: 1 }} />
         <Authorized permissions={Permissions.INTEGRATION_MANAGE}>
           <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => navigate(newComponentUrl(scope))}>
-            Create
+            Create Integration
           </Button>
         </Authorized>
       </Stack>
