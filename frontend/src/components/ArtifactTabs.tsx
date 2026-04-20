@@ -40,7 +40,7 @@ const RESOURCE_BOX_SX = {
 const HTTP_METHOD_CHIP_SX: Record<string, { bgcolor: string; color: string }> = {
   GET: { bgcolor: '#2e7d32', color: '#fff' },
   POST: { bgcolor: '#1565c0', color: '#fff' },
-  PUT: { bgcolor: '#ed6c02', color: '#fff' },
+  PUT: { bgcolor: '#b54708', color: '#fff' },
   DELETE: { bgcolor: '#d32f2f', color: '#fff' },
   PATCH: { bgcolor: '#6a1b9a', color: '#fff' },
 };
