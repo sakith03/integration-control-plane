@@ -224,7 +224,7 @@ export default function Projects(scope: OrgScope): JSX.Element {
         <SearchField value={query} onChange={setQuery} placeholder="Search projects" fullWidth />
         <Authorized permissions={Permissions.PROJECT_MANAGE}>
           <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate(newProjectUrl(scope))} sx={{ whiteSpace: 'nowrap' }}>
-            Create
+            Create Project
           </Button>
         </Authorized>
       </Stack>
@@ -235,7 +235,7 @@ export default function Projects(scope: OrgScope): JSX.Element {
         <EmptyListing
           icon={<Folder size={48} />}
           title="No projects found"
-          description={query ? 'Try adjusting your search' : canCreateProject ? 'Add your runtime to get started.' : 'Ask your administrator for access'}
+          description={query ? 'Try adjusting your search' : canCreateProject ? 'Add your runtime or create a project to get started.' : 'Ask your administrator for access'}
           showAction={!query && canCreateProject}
           actionLabel="Add Runtime"
           onAction={() => navigate(`${resourceUrl(scope, 'runtimes')}?action=add-runtime`)}
