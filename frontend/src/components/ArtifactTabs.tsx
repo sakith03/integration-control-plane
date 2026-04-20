@@ -37,6 +37,19 @@ const RESOURCE_BOX_SX = {
   borderColor: 'divider',
 } as const;
 
+const HTTP_METHOD_CHIP_SX: Record<string, { bgcolor: string; color: string }> = {
+  GET: { bgcolor: '#2e7d32', color: '#fff' },
+  POST: { bgcolor: '#1565c0', color: '#fff' },
+  PUT: { bgcolor: '#b54708', color: '#fff' },
+  DELETE: { bgcolor: '#d32f2f', color: '#fff' },
+  PATCH: { bgcolor: '#6a1b9a', color: '#fff' },
+};
+
+const getMethodChipSx = (method: string) => ({
+  ...(HTTP_METHOD_CHIP_SX[method.toUpperCase()] ?? { bgcolor: '#546e7a', color: '#fff' }),
+  fontWeight: 700,
+});
+
 export function ArtifactSource({ envId, componentId, artifactType, artifact }: TabProps) {
   const sourceType = ARTIFACT_TYPE_TO_SOURCE_TYPE[artifactType] ?? artifactType.toLowerCase();
   const templateType = artifactType === 'Template' ? (artifact.type as string | undefined) : undefined;
@@ -66,7 +79,7 @@ export function ArtifactApiDefinition({ artifact }: TabProps) {
     <Stack gap={1}>
       {expandedItems.map((item, i) => (
         <Box key={i} sx={RESOURCE_BOX_SX}>
-          <Chip label={item.method} size="small" sx={{ bgcolor: '#4caf50', color: 'white', fontWeight: 700 }} />
+          <Chip label={item.method} size="small" sx={getMethodChipSx(item.method)} />
           <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
             {item.path}
           </Typography>
@@ -105,7 +118,7 @@ export function ServiceResources({ artifact }: TabProps) {
           return (
             <Box key={i} sx={{ ...RESOURCE_BOX_SX, flexWrap: 'wrap' }}>
               {methods.map((method, idx) => (
-                <Chip key={idx} label={method.toUpperCase()} size="small" sx={{ bgcolor: '#4caf50', color: 'white', fontWeight: 700 }} />
+                <Chip key={idx} label={method.toUpperCase()} size="small" sx={getMethodChipSx(method)} />
               ))}
               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
                 {basePath}
