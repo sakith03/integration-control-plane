@@ -68,8 +68,10 @@ const string CONTENT_TYPE_JSON = "application/json";
 
 // Returns the management API path for the given artifact type.
 // When statusOnly=true, only artifact types that support the status field are matched;
-// proxy-service, endpoint, message-processor, and task support status (active/inactive/trigger),
-// while api, sequence, inbound-endpoint, and template only support trace/statistics.
+// proxy-service, endpoint, message-processor, task, and inbound-endpoint support status (active/inactive/trigger),
+// When statusOnly=true, only artifact types that support the status field are matched;
+// proxy-service, endpoint, message-processor, task, and inbound-endpoint support status (active/inactive/trigger),
+// while api and sequence only support trace/statistics; template does not support these controls.
 isolated function getManagementPath(string artifactType, boolean statusOnly = false) returns string? {
     log:printDebug("Resolving management path", artifactType = artifactType, statusOnly = statusOnly);
     match artifactType.toLowerAscii().trim() {
@@ -85,7 +87,7 @@ isolated function getManagementPath(string artifactType, boolean statusOnly = fa
         ARTIFACT_TYPE_TASK => {
             return MGMT_PATH_TASKS;
         }
-        ARTIFACT_TYPE_INBOUND_ENDPOINT if !statusOnly => {
+        ARTIFACT_TYPE_INBOUND_ENDPOINT => {
             return MGMT_PATH_INBOUND_ENDPOINTS;
         }
         ARTIFACT_TYPE_API if !statusOnly => {

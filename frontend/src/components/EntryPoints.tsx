@@ -89,8 +89,8 @@ function EntryPointDetail({ selected, onOpenDrawerTab }: { selected: SelectedArt
   const showSourceButton = ['RestApi', 'ProxyService', 'InboundEndpoint', 'Task'].includes(artifactType);
   const showWsdlButton = artifactType === 'ProxyService';
   const showStatisticsToggle = ['RestApi', 'ProxyService', 'InboundEndpoint'].includes(artifactType);
-  const showStatusToggle = artifactType === 'ProxyService';
-  const showStatusChip = ['RestApi', 'InboundEndpoint'].includes(artifactType);
+  const showStatusToggle = ['ProxyService', 'InboundEndpoint'].includes(artifactType);
+  const showStatusChip = artifactType === 'RestApi';
   const showListenerToggle = artifactType === 'Listener';
   const showTaskToggle = artifactType === 'Task';
   const showTaskTrigger = artifactType === 'Task';
